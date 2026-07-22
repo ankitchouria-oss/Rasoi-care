@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RasoiCare — Technician</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#14181B; --ink-soft:#4B4E4F;
+    --paper:#FBF9F5; --card:#FFFFFF; --line:#E4DECF;
+    --copper:#B4793A; --copper-deep:#8C5A24; --copper-tint:#F3E4CF;
+    --emerald:#3E7C59; --emerald-tint:#E4EFE7;
+    --amber:#B8912A; --amber-tint:#F5EAD1;
+    --rust:#B5453D; --rust-tint:#F5E1DE;
+    --display:'Instrument Serif', serif; --body:'Manrope', sans-serif; --mono:'JetBrains Mono', monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{ font-family:var(--body); color:var(--ink); background:#DDD7C8; min-height:100vh; }
+  button, input, textarea{ font-family:inherit; }
+  button{ cursor:pointer; border:none; background:none; }
+  a{ text-decoration:none; color:inherit; }
+  :focus-visible{ outline:2px solid var(--copper-deep); outline-offset:2px; }
+
+  .topbar{ position:sticky; top:0; z-index:50; background:var(--ink); color:#fff; }
+  .topbar-inner{ max-width:1180px; margin:0 auto; padding:14px 22px; display:flex; align-items:center; gap:20px; flex-wrap:wrap; }
+  .brand{ display:flex; align-items:center; gap:9px; font-family:var(--display); font-size:18px; flex:0 0 auto; }
+  .brand .dot{ width:9px; height:9px; border-radius:50%; background:var(--copper); }
+  .brand a{ font-family:var(--mono); font-size:11px; font-weight:700; color:#C9C6BF; border:1px solid rgba(255,255,255,0.2); padding:6px 10px; border-radius:8px; }
+  .brand a:hover{ color:#fff; border-color:rgba(255,255,255,0.4); }
+  .reset-btn{ margin-left:auto; font-family:var(--mono); font-size:11px; font-weight:700; color:#C9C6BF; border:1px solid rgba(255,255,255,0.2); padding:8px 12px; border-radius:9px; }
+  .reset-btn:hover{ color:#fff; border-color:rgba(255,255,255,0.4); }
+  .ticker-row{ background:rgba(255,255,255,0.05); border-top:1px solid rgba(255,255,255,0.08); }
+  .ticker{ max-width:1180px; margin:0 auto; padding:8px 22px; font-family:var(--mono); font-size:11px; color:#C9A876; display:flex; align-items:center; gap:8px; }
+  .ticker .pulse{ width:6px; height:6px; border-radius:50%; background:#67D394; flex:0 0 auto; animation:pulse 1.8s infinite; }
+  @keyframes pulse{ 0%{box-shadow:0 0 0 0 rgba(103,211,148,.55);} 70%{box-shadow:0 0 0 6px rgba(103,211,148,0);} 100%{box-shadow:0 0 0 0 rgba(103,211,148,0);} }
+
+  .connbar{ background:#0E1113; border-top:1px solid rgba(255,255,255,0.08); }
+  .connbar-inner{ max-width:1180px; margin:0 auto; padding:9px 22px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .conn-dot{ width:8px; height:8px; border-radius:50%; background:var(--rust); flex:0 0 auto; }
+  .conn-dot.ok{ background:#67D394; }
+  .conn-label{ font-family:var(--mono); font-size:10.5px; color:#9C988F; }
+  .conn-url{ font-family:var(--mono); font-size:11px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.16); color:#fff; padding:6px 10px; border-radius:8px; width:280px; }
+  .conn-btn{ font-family:var(--mono); font-size:10.5px; font-weight:700; color:#fff; background:var(--copper); padding:6px 12px; border-radius:8px; }
+  .conn-synced{ margin-left:auto; font-family:var(--mono); font-size:10px; color:#75726A; }
+
+  .stage{ max-width:1180px; margin:0 auto; padding:20px 22px 60px; display:flex; justify-content:center; }
+
+  .device{ width:390px; height:800px; background:#000; border-radius:40px; padding:11px; box-shadow:0 30px 60px -18px rgba(20,24,27,0.4); margin:0 auto; }
+  .screen-frame{ position:relative; width:100%; height:100%; background:var(--paper); border-radius:30px; overflow:hidden; display:flex; flex-direction:column; }
+  .pstatusbar{ height:38px; flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; padding:0 22px; font-family:var(--mono); font-size:12px; font-weight:600; }
+  .ptag{ font-family:var(--mono); font-size:9.5px; font-weight:700; background:var(--ink); color:#fff; padding:2px 7px; border-radius:20px; }
+
+  .pbody{ flex:1; position:relative; overflow:hidden; }
+  .pscreen{ position:absolute; inset:0; overflow-y:auto; scrollbar-width:none; display:none; flex-direction:column; padding-bottom:90px; }
+  .pscreen::-webkit-scrollbar{ display:none; }
+  .pscreen.active{ display:flex; }
+
+  .ptabbar{ position:absolute; left:0; right:0; bottom:0; height:70px; background:rgba(251,249,245,0.92); backdrop-filter:blur(8px); border-top:1px solid var(--line); display:flex; align-items:flex-start; padding-top:10px; z-index:20; }
+  .ptab{ flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; color:var(--ink-soft); font-size:9.5px; font-weight:700; }
+  .ptab svg{ width:18px; height:18px; }
+  .ptab.active{ color:var(--copper-deep); }
+
+  .ppx{ padding-left:20px; padding-right:20px; }
+  .psec{ display:flex; align-items:baseline; justify-content:space-between; padding:18px 20px 10px; }
+  .psec h3{ font-size:14.5px; font-weight:800; }
+
+  .greet-card{ margin:14px 20px 14px; padding:18px; border-radius:18px; background:linear-gradient(155deg,#1B2023,var(--ink)); color:#fff; }
+  .greet-card h2{ font-family:var(--display); font-size:20px; font-weight:400; margin-top:4px; }
+  .greet-card p{ font-size:12px; color:#C9C6BF; margin-top:2px; }
+  .avatar{ width:34px; height:34px; border-radius:50%; background:var(--copper); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12.5px; color:#fff; }
+
+  .btn{ display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13.5px; padding:13px 18px; border-radius:12px; width:100%; }
+  .btn-primary{ background:var(--ink); color:#fff; }
+  .btn-sm{ padding:9px 14px; font-size:12px; border-radius:10px; width:auto; }
+
+  .badge{ display:inline-flex; align-items:center; gap:4px; font-family:var(--mono); font-size:9.5px; font-weight:700; padding:3px 8px; border-radius:20px; white-space:nowrap; }
+  .badge.emerald{ background:var(--emerald-tint); color:var(--emerald); }
+  .badge.amber{ background:var(--amber-tint); color:var(--amber); }
+  .badge.rust{ background:var(--rust-tint); color:var(--rust); }
+  .badge.copper{ background:var(--copper-tint); color:var(--copper-deep); }
+
+  .job-card{ margin:0 20px 10px; border-radius:14px; border:1.4px solid var(--line); background:var(--card); padding:13px 14px; }
+  .job-card.pending{ border-color:var(--copper); background:var(--copper-tint); }
+  .job-top{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:4px; gap:8px; }
+  .job-top b{ font-size:12.5px; font-weight:800; }
+  .job-card .meta{ font-size:10.5px; color:var(--ink-soft); }
+  .job-actions{ display:flex; gap:8px; margin-top:10px; }
+
+  .complaint-card{ margin:0 20px 10px; border-radius:14px; border:1.4px solid var(--line); background:var(--card); padding:13px 14px; }
+  .complaint-card .ctop{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:4px; }
+  .complaint-card b{ font-size:12px; font-weight:800; }
+  .complaint-card .excerpt{ font-size:11px; color:var(--ink-soft); margin-top:3px; line-height:1.4; }
+  .mini-meter{ display:flex; gap:3px; margin-top:6px; }
+  .mini-meter .dot{ width:6px; height:6px; border-radius:50%; background:var(--line); }
+  .mini-meter .dot.on{ background:var(--rust); }
+  .response-box{ margin-top:10px; width:100%; border-radius:11px; border:1.4px solid var(--line); background:var(--paper); padding:10px 12px; font-size:12px; color:var(--ink); resize:none; min-height:60px; }
+  .cbtn-row{ display:flex; gap:8px; margin-top:8px; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="brand"><span class="dot"></span>RasoiCare — Technician</div>
+    <a href="/">← All apps</a>
+    <button class="reset-btn" onclick="resetDemo()">↺ Reset server data</button>
+  </div>
+  <div class="ticker-row">
+    <div class="ticker"><span class="pulse"></span><span id="ticker-text">Ready.</span></div>
+  </div>
+  <div class="connbar">
+    <div class="connbar-inner">
+      <span class="conn-dot" id="conn-dot"></span>
+      <span class="conn-label">API:</span>
+      <input class="conn-url" id="conn-url-input" value="http://127.0.0.1:8420" spellcheck="false">
+      <script>
+        if (location.protocol.startsWith('http')) {
+          document.getElementById('conn-url-input').value = location.origin;
+        }
+      </script>
+      <button class="conn-btn" onclick="connectApi()">Connect</button>
+      <span class="conn-synced" id="conn-synced">not connected</span>
+    </div>
+  </div>
+</div>
+
+<div class="stage">
+  <div class="device">
+    <div class="screen-frame">
+      <div class="pstatusbar"><span>9:41</span><span class="ptag">PARTNER · RAMESH</span></div>
+      <div class="pbody">
+
+        <div class="pscreen active" id="tech-jobs">
+          <div class="greet-card">
+            <div class="avatar">R</div>
+            <h2>Good morning, Ramesh.</h2>
+            <p>Jobs assigned to you appear here live.</p>
+          </div>
+          <div class="psec" style="padding-top:4px;"><h3>New requests</h3></div>
+          <div id="tech-new-content"></div>
+          <div class="psec"><h3>Active jobs</h3></div>
+          <div id="tech-active-content"></div>
+          <div class="psec"><h3>Completed</h3></div>
+          <div id="tech-completed-content"></div>
+        </div>
+
+        <div class="pscreen" id="tech-complaints">
+          <div class="psec" style="padding-top:16px;"><h3>Complaints</h3></div>
+          <div id="tech-complaints-content"></div>
+        </div>
+
+      </div>
+      <div class="ptabbar">
+        <button class="ptab active" data-tab="jobs" onclick="techGo('jobs')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>Jobs
+        </button>
+        <button class="ptab" data-tab="complaints" onclick="techGo('complaints')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4h16v12H8l-4 4V4z"/></svg>Complaints
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let API_BASE = document.getElementById('conn-url-input').value.trim();
+  let STATE = { bookings:[], complaints:[], connected:false };
+  let pollTimer = null;
+
+  async function apiGet(path){
+    const r = await fetch(API_BASE + path);
+    if(!r.ok) throw new Error('GET ' + path + ' failed: ' + r.status);
+    return r.json();
+  }
+  async function apiPost(path, body){
+    const r = await fetch(API_BASE + path, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{}) });
+    if(!r.ok) throw new Error('POST ' + path + ' failed: ' + r.status);
+    return r.json();
+  }
+  async function apiPatch(path, body){
+    const r = await fetch(API_BASE + path, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{}) });
+    if(!r.ok) throw new Error('PATCH ' + path + ' failed: ' + r.status);
+    return r.json();
+  }
+
+  function setConnStatus(ok, label){
+    document.getElementById('conn-dot').classList.toggle('ok', ok);
+    document.getElementById('conn-synced').textContent = label;
+  }
+
+  async function connectApi(){
+    API_BASE = document.getElementById('conn-url-input').value.trim().replace(/\/$/, '');
+    setConnStatus(false, 'connecting…');
+    try{
+      await apiGet('/api/health');
+      STATE.connected = true;
+      setConnStatus(true, 'connected — polling every 4s');
+      log('🔗 Connected to ' + API_BASE);
+      if(pollTimer) clearInterval(pollTimer);
+      await refreshAll();
+      pollTimer = setInterval(refreshAll, 4000);
+    } catch(err){
+      STATE.connected = false;
+      setConnStatus(false, 'unreachable — check the URL / that the server is running');
+      log('⚠️ Could not reach ' + API_BASE + '. Is the backend running and CORS-reachable from this page?');
+    }
+  }
+
+  async function refreshAll(){
+    try{
+      const [bookings, complaints] = await Promise.all([apiGet('/api/bookings'), apiGet('/api/complaints')]);
+      STATE.bookings = bookings; STATE.complaints = complaints;
+      STATE.connected = true;
+      setConnStatus(true, 'last synced ' + new Date().toLocaleTimeString());
+      render();
+    } catch(err){
+      STATE.connected = false;
+      setConnStatus(false, 'lost connection — retrying…');
+    }
+  }
+
+  function log(msg){ document.getElementById('ticker-text').textContent = msg; }
+
+  const STATUS_ORDER = ['Requested','Accepted','On the way','In Progress','Completed'];
+
+  function findBooking(id){ return STATE.bookings.find(b => b.id === id); }
+
+  async function techAdvance(bookingId){
+    const b = await apiPatch('/api/bookings/' + bookingId + '/advance', {});
+    log('🔧 Ramesh moved #' + b.id + ' to "' + b.status + '"');
+    await refreshAll();
+  }
+
+  async function techResolve(complaintId, responseText){
+    await apiPatch('/api/complaints/' + complaintId, { response: responseText || 'Resolved by technician.', status:'Resolved' });
+    log('✅ Ramesh resolved ' + complaintId);
+    await refreshAll();
+  }
+
+  async function resetDemo(){
+    if(!STATE.connected){ log('⚠️ Not connected — hit Connect first.'); return; }
+    await apiPost('/api/reset', {});
+    log('↺ Server data reset to seed state.');
+    techGo('jobs');
+    await refreshAll();
+  }
+
+  function techGo(tab){
+    document.querySelectorAll('.pscreen').forEach(s => s.classList.remove('active'));
+    document.getElementById('tech-' + tab).classList.add('active');
+    document.querySelectorAll('.ptab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  }
+
+  function miniMeter(n){
+    let d = '';
+    for(let i=1;i<=5;i++) d += '<span class="dot' + (i<=n?' on':'') + '"></span>';
+    return '<div class="mini-meter">' + d + '</div>';
+  }
+
+  function render(){
+    renderTechJobs();
+    renderTechComplaints();
+  }
+
+  function renderTechJobs(){
+    const reqs = STATE.bookings.filter(b => b.status === 'Requested');
+    const active = STATE.bookings.filter(b => !['Requested','Completed'].includes(b.status));
+    const done = STATE.bookings.filter(b => b.status === 'Completed');
+
+    document.getElementById('tech-new-content').innerHTML = reqs.length ? reqs.map(b =>
+      '<div class="job-card pending"><div class="job-top"><b>' + b.category + ' · ' + b.service + '</b><span class="badge copper">₹' + b.price + '</span></div>' +
+      '<div class="meta">Order #' + b.id + '</div>' +
+      '<div class="job-actions"><button class="btn btn-primary btn-sm" onclick="techAdvance(\'' + b.id + '\')">Accept job</button></div></div>'
+    ).join('') : '<p class="ppx" style="font-size:11.5px; color:var(--ink-soft);">No new requests right now.</p>';
+
+    document.getElementById('tech-active-content').innerHTML = active.length ? active.map(b =>
+      '<div class="job-card"><div class="job-top"><b>' + b.category + ' · ' + b.service + '</b><span class="badge amber">' + b.status + '</span></div>' +
+      '<div class="meta">Order #' + b.id + ' · ₹' + b.price + '</div>' +
+      '<div class="job-actions"><button class="btn btn-primary btn-sm" onclick="techAdvance(\'' + b.id + '\')">Move to \'' + STATUS_ORDER[STATUS_ORDER.indexOf(b.status)+1] + '\'</button></div></div>'
+    ).join('') : '<p class="ppx" style="font-size:11.5px; color:var(--ink-soft);">Nothing in progress.</p>';
+
+    document.getElementById('tech-completed-content').innerHTML = done.length ? done.map(b =>
+      '<div class="job-card"><div class="job-top"><b>' + b.category + ' · ' + b.service + '</b><span class="badge emerald">Completed</span></div>' +
+      '<div class="meta">Order #' + b.id + ' · ' + (b.ratings ? ('Rated ' + b.ratings.tech + '/5') : 'Awaiting rating') + '</div></div>'
+    ).join('') : '<p class="ppx" style="font-size:11.5px; color:var(--ink-soft);">No completed jobs yet.</p>';
+  }
+
+  function renderTechComplaints(){
+    const box = document.getElementById('tech-complaints-content');
+    if(!STATE.complaints.length){ box.innerHTML = '<p class="ppx" style="font-size:11.5px; color:var(--ink-soft);">No complaints. 🎉</p>'; return; }
+    box.innerHTML = STATE.complaints.map(c => {
+      const b = findBooking(c.bookingId);
+      return '<div class="complaint-card"><div class="ctop"><b>Order #' + c.bookingId + '</b><span class="badge ' + (c.status==='New'?'rust':c.status==='Resolved'?'emerald':'amber') + '">' + c.status + '</span></div>' +
+        (b && b.ratings ? miniMeter(b.ratings.tech) : '') +
+        '<p class="excerpt">"' + c.text + '"</p>' +
+        (c.status !== 'Resolved' ?
+          '<textarea class="response-box" id="resp-' + c.id + '" placeholder="Explain what happened and how you\'ll resolve it...">' + (c.response||'') + '</textarea>' +
+          '<div class="cbtn-row"><button class="btn btn-primary btn-sm" onclick="techResolve(\'' + c.id + '\', document.getElementById(\'resp-' + c.id + '\').value)">Submit &amp; resolve</button></div>'
+          : '<p class="excerpt" style="margin-top:8px;"><b>Response:</b> ' + c.response + '</p>') +
+        '</div>';
+    }).join('');
+  }
+
+  render();
+  connectApi();
+</script>
+
+</body>
+</html>

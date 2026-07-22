@@ -20,6 +20,21 @@ FRONTEND_DIR = os.path.dirname(os.path.abspath(__file__))
 def index():
     return send_from_directory(FRONTEND_DIR, "index.html")
 
+
+@app.route("/customer")
+def customer_app():
+    return send_from_directory(FRONTEND_DIR, "customer.html")
+
+
+@app.route("/technician")
+def technician_app():
+    return send_from_directory(FRONTEND_DIR, "technician.html")
+
+
+@app.route("/admin")
+def admin_app():
+    return send_from_directory(FRONTEND_DIR, "admin.html")
+
 STATUS_ORDER = ["Requested", "Accepted", "On the way", "In Progress", "Completed"]
 
 

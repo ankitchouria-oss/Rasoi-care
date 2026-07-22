@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RasoiCare — Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#14181B; --ink-soft:#4B4E4F;
+    --paper:#FBF9F5; --card:#FFFFFF; --line:#E4DECF;
+    --copper:#B4793A; --copper-deep:#8C5A24; --copper-tint:#F3E4CF;
+    --emerald:#3E7C59; --emerald-tint:#E4EFE7;
+    --amber:#B8912A; --amber-tint:#F5EAD1;
+    --rust:#B5453D; --rust-tint:#F5E1DE;
+    --display:'Instrument Serif', serif; --body:'Manrope', sans-serif; --mono:'JetBrains Mono', monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{ font-family:var(--body); color:var(--ink); background:#DDD7C8; min-height:100vh; }
+  button, input, textarea{ font-family:inherit; }
+  button{ cursor:pointer; border:none; background:none; }
+  a{ text-decoration:none; color:inherit; }
+  :focus-visible{ outline:2px solid var(--copper-deep); outline-offset:2px; }
+
+  .topbar{ position:sticky; top:0; z-index:50; background:var(--ink); color:#fff; }
+  .topbar-inner{ max-width:1180px; margin:0 auto; padding:14px 22px; display:flex; align-items:center; gap:20px; flex-wrap:wrap; }
+  .brand{ display:flex; align-items:center; gap:9px; font-family:var(--display); font-size:18px; flex:0 0 auto; }
+  .brand .dot{ width:9px; height:9px; border-radius:50%; background:var(--copper); }
+  .brand a{ font-family:var(--mono); font-size:11px; font-weight:700; color:#C9C6BF; border:1px solid rgba(255,255,255,0.2); padding:6px 10px; border-radius:8px; }
+  .brand a:hover{ color:#fff; border-color:rgba(255,255,255,0.4); }
+  .reset-btn{ margin-left:auto; font-family:var(--mono); font-size:11px; font-weight:700; color:#C9C6BF; border:1px solid rgba(255,255,255,0.2); padding:8px 12px; border-radius:9px; }
+  .reset-btn:hover{ color:#fff; border-color:rgba(255,255,255,0.4); }
+  .ticker-row{ background:rgba(255,255,255,0.05); border-top:1px solid rgba(255,255,255,0.08); }
+  .ticker{ max-width:1180px; margin:0 auto; padding:8px 22px; font-family:var(--mono); font-size:11px; color:#C9A876; display:flex; align-items:center; gap:8px; }
+  .ticker .pulse{ width:6px; height:6px; border-radius:50%; background:#67D394; flex:0 0 auto; animation:pulse 1.8s infinite; }
+  @keyframes pulse{ 0%{box-shadow:0 0 0 0 rgba(103,211,148,.55);} 70%{box-shadow:0 0 0 6px rgba(103,211,148,0);} 100%{box-shadow:0 0 0 0 rgba(103,211,148,0);} }
+
+  .connbar{ background:#0E1113; border-top:1px solid rgba(255,255,255,0.08); }
+  .connbar-inner{ max-width:1180px; margin:0 auto; padding:9px 22px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .conn-dot{ width:8px; height:8px; border-radius:50%; background:var(--rust); flex:0 0 auto; }
+  .conn-dot.ok{ background:#67D394; }
+  .conn-label{ font-family:var(--mono); font-size:10.5px; color:#9C988F; }
+  .conn-url{ font-family:var(--mono); font-size:11px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.16); color:#fff; padding:6px 10px; border-radius:8px; width:280px; }
+  .conn-btn{ font-family:var(--mono); font-size:10.5px; font-weight:700; color:#fff; background:var(--copper); padding:6px 12px; border-radius:8px; }
+  .conn-synced{ margin-left:auto; font-family:var(--mono); font-size:10px; color:#75726A; }
+
+  .stage{ max-width:1180px; margin:0 auto; padding:20px 22px 60px; display:flex; justify-content:center; }
+
+  .badge{ display:inline-flex; align-items:center; gap:4px; font-family:var(--mono); font-size:9.5px; font-weight:700; padding:3px 8px; border-radius:20px; white-space:nowrap; }
+  .badge.emerald{ background:var(--emerald-tint); color:var(--emerald); }
+  .badge.amber{ background:var(--amber-tint); color:var(--amber); }
+  .badge.rust{ background:var(--rust-tint); color:var(--rust); }
+  .badge.copper{ background:var(--copper-tint); color:var(--copper-deep); }
+  .badge.grey{ background:#EFEBE2; color:var(--ink-soft); }
+
+  .btn{ display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13.5px; padding:13px 18px; border-radius:12px; width:100%; }
+  .btn-primary{ background:var(--ink); color:#fff; }
+  .btn-outline{ background:transparent; border:1.4px solid var(--ink); color:var(--ink); }
+
+  .mini-meter{ display:flex; gap:3px; margin-top:6px; }
+  .mini-meter .dot{ width:6px; height:6px; border-radius:50%; background:var(--line); }
+  .mini-meter .dot.on{ background:var(--rust); }
+
+  .admin-shell{ width:100%; max-width:1000px; margin:0 auto; background:var(--card); border:1px solid var(--line); border-radius:20px; overflow:hidden; display:flex; height:700px; position:relative; }
+  .a-sidebar{ width:190px; flex:0 0 auto; background:var(--ink); color:#fff; padding:18px 12px; display:flex; flex-direction:column; }
+  .a-brand{ display:flex; align-items:center; gap:8px; padding:6px 8px 20px; font-family:var(--display); font-size:16px; }
+  .a-brand .dot{ width:8px; height:8px; border-radius:50%; background:var(--copper); }
+  .a-nav{ display:flex; align-items:center; gap:9px; padding:10px 10px; border-radius:9px; font-size:12.5px; font-weight:700; color:#C9C6BF; width:100%; text-align:left; }
+  .a-nav.active{ background:rgba(255,255,255,0.08); color:#fff; }
+  .a-nav .count{ margin-left:auto; font-family:var(--mono); font-size:9.5px; background:var(--rust); color:#fff; padding:1px 6px; border-radius:20px; }
+  .a-main{ flex:1; min-width:0; overflow-y:auto; }
+  .a-topbar{ height:56px; display:flex; align-items:center; padding:0 22px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--card); z-index:5; }
+  .a-topbar h1{ font-family:var(--display); font-size:19px; font-weight:400; }
+  .a-page{ display:none; padding:20px 22px 40px; }
+  .a-page.active{ display:block; }
+
+  .kpi-row{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:18px; }
+  .kpi-card{ background:var(--card); border:1px solid var(--line); border-radius:13px; padding:13px 15px; }
+  .kpi-card .lbl{ font-family:var(--mono); font-size:9.5px; text-transform:uppercase; letter-spacing:0.04em; color:var(--ink-soft); }
+  .kpi-card .val{ font-family:var(--display); font-size:24px; font-weight:400; margin-top:4px; }
+
+  .a-grid2{ display:grid; grid-template-columns:1.5fr 1fr; gap:14px; }
+  .a-panel{ background:var(--card); border:1px solid var(--line); border-radius:13px; overflow:hidden; }
+  .a-panel-head{ padding:12px 16px; border-bottom:1px solid var(--line); font-size:12.5px; font-weight:800; }
+
+  table{ width:100%; border-collapse:collapse; }
+  th{ text-align:left; font-family:var(--mono); font-size:9.5px; text-transform:uppercase; color:var(--ink-soft); font-weight:600; padding:9px 16px; border-bottom:1px solid var(--line); }
+  td{ padding:10px 16px; border-bottom:1px solid var(--line); font-size:12px; }
+  tr:last-child td{ border-bottom:none; }
+  td b{ font-weight:700; }
+
+  .a-complaint-row{ padding:11px 16px; border-bottom:1px solid var(--line); cursor:pointer; }
+  .a-complaint-row:last-child{ border-bottom:none; }
+  .a-complaint-row:hover{ background:var(--paper); }
+  .a-complaint-row b{ font-size:11.5px; font-weight:800; display:block; }
+  .a-complaint-row p{ font-size:10.5px; color:var(--ink-soft); margin-top:2px; line-height:1.4; }
+
+  .tech-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:12px; }
+  .tech-card{ background:var(--card); border:1px solid var(--line); border-radius:13px; padding:14px; }
+  .tech-card .ttop{ display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+  .tech-card .av{ width:34px; height:34px; border-radius:50%; background:var(--copper); display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:12px; }
+  .tech-card b{ font-size:12.5px; font-weight:800; display:block; }
+  .tech-card .role{ font-size:10.5px; color:var(--ink-soft); }
+  .tstats{ display:flex; justify-content:space-between; padding-top:10px; border-top:1px solid var(--line); }
+  .tstats div{ text-align:center; }
+  .tstats b{ display:block; font-family:var(--mono); font-size:12.5px; }
+  .tstats span{ font-size:8.5px; color:var(--ink-soft); text-transform:uppercase; }
+
+  .a-drawer-overlay{ position:absolute; inset:0; background:rgba(20,24,27,0.35); z-index:60; display:none; }
+  .a-drawer-overlay.active{ display:block; }
+  .a-drawer{ position:absolute; top:0; right:-360px; width:340px; height:100%; background:var(--card); z-index:61; box-shadow:-14px 0 30px rgba(20,24,27,0.15); transition:right .22s ease; display:flex; flex-direction:column; }
+  .a-drawer.active{ right:0; }
+  .a-drawer-head{ display:flex; justify-content:space-between; align-items:center; padding:16px 18px; border-bottom:1px solid var(--line); }
+  .a-drawer-head h3{ font-family:var(--display); font-size:16px; font-weight:400; }
+  .a-drawer-body{ flex:1; overflow-y:auto; padding:16px 18px; }
+  .a-dblock{ margin-bottom:14px; }
+  .a-dblock h4{ font-family:var(--mono); font-size:9.5px; text-transform:uppercase; color:var(--ink-soft); margin-bottom:5px; }
+  .a-dblock p{ font-size:12.5px; line-height:1.5; }
+  .a-drawer-foot{ padding:14px 18px; border-top:1px solid var(--line); display:flex; gap:8px; }
+
+  @media (max-width:760px){
+    .admin-shell{ height:auto; flex-direction:column; }
+    .a-sidebar{ width:100%; flex-direction:row; overflow-x:auto; padding:10px; }
+    .kpi-row{ grid-template-columns:repeat(2,1fr); }
+    .a-grid2{ grid-template-columns:1fr; }
+    .tech-grid{ grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="brand"><span class="dot"></span>RasoiCare — Admin</div>
+    <a href="/">← All apps</a>
+    <button class="reset-btn" onclick="resetDemo()">↺ Reset server data</button>
+  </div>
+  <div class="ticker-row">
+    <div class="ticker"><span class="pulse"></span><span id="ticker-text">Ready.</span></div>
+  </div>
+  <div class="connbar">
+    <div class="connbar-inner">
+      <span class="conn-dot" id="conn-dot"></span>
+      <span class="conn-label">API:</span>
+      <input class="conn-url" id="conn-url-input" value="http://127.0.0.1:8420" spellcheck="false">
+      <script>
+        if (location.protocol.startsWith('http')) {
+          document.getElementById('conn-url-input').value = location.origin;
+        }
+      </script>
+      <button class="conn-btn" onclick="connectApi()">Connect</button>
+      <span class="conn-synced" id="conn-synced">not connected</span>
+    </div>
+  </div>
+</div>
+
+<div class="stage">
+  <div class="admin-shell">
+    <div class="a-sidebar">
+      <div class="a-brand"><span class="dot"></span>RasoiCare</div>
+      <button class="a-nav active" data-p="overview" onclick="adminGo('overview')">Overview</button>
+      <button class="a-nav" data-p="bookings" onclick="adminGo('bookings')">Bookings</button>
+      <button class="a-nav" data-p="complaints" onclick="adminGo('complaints')">Complaints <span class="count" id="admin-complaint-count">0</span></button>
+      <button class="a-nav" data-p="technicians" onclick="adminGo('technicians')">Technicians</button>
+    </div>
+    <div class="a-main">
+      <div class="a-topbar"><h1 id="admin-page-title">Overview</h1></div>
+
+      <div class="a-page active" id="a-overview">
+        <div class="kpi-row" id="admin-kpis"></div>
+        <div class="a-grid2">
+          <div class="a-panel">
+            <div class="a-panel-head">Recent bookings</div>
+            <table><thead><tr><th>Order</th><th>Service</th><th>Status</th><th>Amount</th></tr></thead><tbody id="admin-overview-bookings"></tbody></table>
+          </div>
+          <div class="a-panel">
+            <div class="a-panel-head">Needs attention</div>
+            <div id="admin-overview-complaints"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="a-page" id="a-bookings">
+        <div class="a-panel">
+          <table><thead><tr><th>Order</th><th>Service</th><th>Technician</th><th>Status</th><th>Amount</th><th>Date</th></tr></thead><tbody id="admin-bookings-table"></tbody></table>
+        </div>
+      </div>
+
+      <div class="a-page" id="a-complaints">
+        <div class="a-panel">
+          <table><thead><tr><th>Order</th><th>Rating</th><th>Status</th><th>Raised</th></tr></thead><tbody id="admin-complaints-table"></tbody></table>
+        </div>
+      </div>
+
+      <div class="a-page" id="a-technicians">
+        <div class="tech-grid" id="admin-tech-grid"></div>
+      </div>
+    </div>
+
+    <div class="a-drawer-overlay" id="a-overlay" onclick="closeAdminDrawer()"></div>
+    <div class="a-drawer" id="a-drawer">
+      <div class="a-drawer-head"><h3 id="a-drawer-title">Complaint</h3>
+        <button onclick="closeAdminDrawer()"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#14181B" stroke-width="1.6"><path d="M3 3l10 10M13 3L3 13"/></svg></button>
+      </div>
+      <div class="a-drawer-body" id="a-drawer-body"></div>
+      <div class="a-drawer-foot" id="a-drawer-foot"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let API_BASE = document.getElementById('conn-url-input').value.trim();
+  let STATE = { bookings:[], complaints:[], technicians:[], stats:{}, connected:false };
+  let pollTimer = null;
+
+  async function apiGet(path){
+    const r = await fetch(API_BASE + path);
+    if(!r.ok) throw new Error('GET ' + path + ' failed: ' + r.status);
+    return r.json();
+  }
+  async function apiPost(path, body){
+    const r = await fetch(API_BASE + path, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{}) });
+    if(!r.ok) throw new Error('POST ' + path + ' failed: ' + r.status);
+    return r.json();
+  }
+  async function apiPatch(path, body){
+    const r = await fetch(API_BASE + path, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{}) });
+    if(!r.ok) throw new Error('PATCH ' + path + ' failed: ' + r.status);
+    return r.json();
+  }
+
+  function setConnStatus(ok, label){
+    document.getElementById('conn-dot').classList.toggle('ok', ok);
+    document.getElementById('conn-synced').textContent = label;
+  }
+
+  async function connectApi(){
+    API_BASE = document.getElementById('conn-url-input').value.trim().replace(/\/$/, '');
+    setConnStatus(false, 'connecting…');
+    try{
+      await apiGet('/api/health');
+      STATE.connected = true;
+      setConnStatus(true, 'connected — polling every 4s');
+      log('🔗 Connected to ' + API_BASE);
+      if(pollTimer) clearInterval(pollTimer);
+      await refreshAll();
+      pollTimer = setInterval(refreshAll, 4000);
+    } catch(err){
+      STATE.connected = false;
+      setConnStatus(false, 'unreachable — check the URL / that the server is running');
+      log('⚠️ Could not reach ' + API_BASE + '. Is the backend running and CORS-reachable from this page?');
+    }
+  }
+
+  async function refreshAll(){
+    try{
+      const [bookings, complaints, technicians, stats] = await Promise.all([
+        apiGet('/api/bookings'), apiGet('/api/complaints'), apiGet('/api/technicians'), apiGet('/api/stats/overview')
+      ]);
+      STATE.bookings = bookings; STATE.complaints = complaints; STATE.technicians = technicians; STATE.stats = stats;
+      STATE.connected = true;
+      setConnStatus(true, 'last synced ' + new Date().toLocaleTimeString());
+      render();
+    } catch(err){
+      STATE.connected = false;
+      setConnStatus(false, 'lost connection — retrying…');
+    }
+  }
+
+  function log(msg){ document.getElementById('ticker-text').textContent = msg; }
+
+  function findBooking(id){ return STATE.bookings.find(b => b.id === id); }
+  function findComplaint(id){ return STATE.complaints.find(c => c.id === id); }
+  function findTech(id){ return STATE.technicians.find(t => t.id === id) || {}; }
+
+  async function adminResolve(complaintId){
+    const c = findComplaint(complaintId);
+    const newStatus = c.status === 'Resolved' ? 'In review' : 'Resolved';
+    await apiPatch('/api/complaints/' + complaintId, { status: newStatus });
+    log('🖥️ Admin marked ' + complaintId + ' as ' + newStatus);
+    await refreshAll();
+  }
+
+  async function resetDemo(){
+    if(!STATE.connected){ log('⚠️ Not connected — hit Connect first.'); return; }
+    await apiPost('/api/reset', {});
+    log('↺ Server data reset to seed state.');
+    adminGo('overview');
+    closeAdminDrawer();
+    await refreshAll();
+  }
+
+  function adminGo(page){
+    document.querySelectorAll('.a-page').forEach(p => p.classList.remove('active'));
+    document.getElementById('a-' + page).classList.add('active');
+    document.querySelectorAll('.a-nav').forEach(n => n.classList.toggle('active', n.dataset.p === page));
+    const titles = { overview:'Overview', bookings:'Bookings', complaints:'Complaints', technicians:'Technicians' };
+    document.getElementById('admin-page-title').textContent = titles[page];
+  }
+
+  function statusBadgeClass(s){
+    if(s === 'Completed') return 'emerald';
+    if(s === 'Requested') return 'copper';
+    if(s === 'Cancelled') return 'grey';
+    return 'amber';
+  }
+  function miniMeter(n){
+    let d = '';
+    for(let i=1;i<=5;i++) d += '<span class="dot' + (i<=n?' on':'') + '"></span>';
+    return '<div class="mini-meter">' + d + '</div>';
+  }
+
+  function render(){
+    document.getElementById('admin-complaint-count').textContent = STATE.complaints.filter(c => c.status !== 'Resolved').length;
+    renderAdminOverview();
+    renderAdminBookings();
+    renderAdminComplaints();
+    renderAdminTechnicians();
+  }
+
+  function renderAdminOverview(){
+    const s = STATE.stats || {};
+    document.getElementById('admin-kpis').innerHTML =
+      '<div class="kpi-card"><div class="lbl">Total bookings</div><div class="val">' + (s.totalBookings ?? '—') + '</div></div>' +
+      '<div class="kpi-card"><div class="lbl">Revenue (completed)</div><div class="val">₹' + (s.revenue ?? 0).toLocaleString('en-IN') + '</div></div>' +
+      '<div class="kpi-card"><div class="lbl">Technicians online</div><div class="val">' + (s.onlineTechnicians ?? '—') + ' / ' + (s.totalTechnicians ?? '—') + '</div></div>' +
+      '<div class="kpi-card"><div class="lbl">Open complaints</div><div class="val">' + (s.openComplaints ?? '—') + '</div></div>';
+
+    document.getElementById('admin-overview-bookings').innerHTML = STATE.bookings.slice(0,5).map(b =>
+      '<tr><td><b>#' + b.id + '</b></td><td>' + b.category + ' · ' + b.service + '</td><td><span class="badge ' + statusBadgeClass(b.status) + '">' + b.status + '</span></td><td>₹' + b.price + '</td></tr>'
+    ).join('');
+
+    document.getElementById('admin-overview-complaints').innerHTML = STATE.complaints.filter(c => c.status !== 'Resolved').map(c =>
+      '<div class="a-complaint-row" onclick="adminGo(\'complaints\')"><b>Order #' + c.bookingId + '</b><p>' + c.text.slice(0,60) + '…</p></div>'
+    ).join('') || '<p style="padding:14px 16px; font-size:11.5px; color:var(--ink-soft);">Nothing needs attention.</p>';
+  }
+
+  function renderAdminBookings(){
+    document.getElementById('admin-bookings-table').innerHTML = STATE.bookings.map(b =>
+      '<tr><td><b>#' + b.id + '</b></td><td>' + b.category + ' · ' + b.service + '</td><td>' + (findTech(b.technicianId).name || b.technicianId) + '</td><td><span class="badge ' + statusBadgeClass(b.status) + '">' + b.status + '</span></td><td>₹' + b.price + '</td><td style="font-family:var(--mono); font-size:10.5px; color:var(--ink-soft);">' + new Date(b.createdAt).toLocaleString() + '</td></tr>'
+    ).join('');
+  }
+
+  function renderAdminComplaints(){
+    document.getElementById('admin-complaints-table').innerHTML = STATE.complaints.map(c => {
+      const b = findBooking(c.bookingId);
+      return '<tr onclick="openAdminComplaint(\'' + c.id + '\')"><td><b>#' + c.bookingId + '</b></td><td>' + (b && b.ratings ? miniMeter(b.ratings.service) : '—') + '</td><td><span class="badge ' + (c.status==='New'?'rust':c.status==='Resolved'?'emerald':'amber') + '">' + c.status + '</span></td><td style="font-family:var(--mono); font-size:10.5px; color:var(--ink-soft);">' + new Date(c.createdAt).toLocaleString() + '</td></tr>';
+    }).join('');
+  }
+
+  function renderAdminTechnicians(){
+    document.getElementById('admin-tech-grid').innerHTML = STATE.technicians.map(t =>
+      '<div class="tech-card"><div class="ttop"><div class="av">' + t.name[0] + '</div><div><b>' + t.name + '</b><span class="role">' + t.category + ' specialist</span></div>' +
+      '<span class="badge ' + (t.online?'emerald':'grey') + '" style="margin-left:auto;">' + (t.online?'Online':'Offline') + '</span></div>' +
+      '<div class="tstats"><div><b>' + t.rating + '★</b><span>Rating</span></div><div><b>' + t.jobsCompleted + '</b><span>Jobs</span></div><div><b>' + t.ratingCount + '</b><span>Ratings</span></div></div></div>'
+    ).join('');
+  }
+
+  function openAdminComplaint(id){
+    const c = findComplaint(id);
+    const b = findBooking(c.bookingId);
+    document.getElementById('a-drawer-title').textContent = 'Complaint · #' + c.bookingId;
+    document.getElementById('a-drawer-body').innerHTML =
+      '<div class="a-dblock"><h4>Order</h4><p>' + (b ? b.category + ' · ' + b.service : '—') + '<br>Technician: ' + (b ? findTech(b.technicianId).name : '—') + '</p></div>' +
+      '<div class="a-dblock"><h4>Ratings given</h4><p>Service: ' + (b&&b.ratings?b.ratings.service:'—') + ' / 5' + (b&&b.ratings?miniMeter(b.ratings.service):'') + '<br><br>Technician: ' + (b&&b.ratings?b.ratings.tech:'—') + ' / 5' + (b&&b.ratings?miniMeter(b.ratings.tech):'') + '</p></div>' +
+      '<div class="a-dblock"><h4>Complaint</h4><p>"' + c.text + '"</p></div>' +
+      '<div class="a-dblock"><h4>Technician response</h4><p>' + (c.response || '<span style="color:var(--ink-soft);">No response yet.</span>') + '</p></div>';
+    document.getElementById('a-drawer-foot').innerHTML =
+      '<button class="btn btn-outline" onclick="closeAdminDrawer()">Close</button>' +
+      '<button class="btn btn-primary" onclick="adminResolve(\'' + c.id + '\'); closeAdminDrawer();">' + (c.status==='Resolved'?'Reopen':'Mark resolved') + '</button>';
+    document.getElementById('a-overlay').classList.add('active');
+    document.getElementById('a-drawer').classList.add('active');
+  }
+  function closeAdminDrawer(){
+    document.getElementById('a-overlay').classList.remove('active');
+    document.getElementById('a-drawer').classList.remove('active');
+  }
+
+  render();
+  connectApi();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RasoiCare — Customer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#14181B; --ink-soft:#4B4E4F;
+    --paper:#FBF9F5; --card:#FFFFFF; --line:#E4DECF;
+    --copper:#B4793A; --copper-deep:#8C5A24; --copper-tint:#F3E4CF;
+    --emerald:#3E7C59; --emerald-tint:#E4EFE7;
+    --amber:#B8912A; --amber-tint:#F5EAD1;
+    --rust:#B5453D; --rust-tint:#F5E1DE;
+    --display:'Instrument Serif', serif; --body:'Manrope', sans-serif; --mono:'JetBrains Mono', monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{ font-family:var(--body); color:var(--ink); background:#DDD7C8; min-height:100vh; }
+  button, input, textarea{ font-family:inherit; }
+  button{ cursor:pointer; border:none; background:none; }
+  a{ text-decoration:none; color:inherit; }
+  :focus-visible{ outline:2px solid var(--copper-deep); outline-offset:2px; }
+
+  .topbar{ position:sticky; top:0; z-index:50; background:var(--ink); color:#fff; }
+  .topbar-inner{ max-width:1180px; margin:0 auto; padding:14px 22px; display:flex; align-items:center; gap:20px; flex-wrap:wrap; }
+  .brand{ display:flex; align-items:center; gap:9px; font-family:var(--display); font-size:18px; flex:0 0 auto; }
+  .brand .dot{ width:9px; height:9px; border-radius:50%; background:var(--copper); }
+  .brand a{ font-family:var(--mono); font-size:11px; font-weight:700; color:#C9C6BF; border:1px solid rgba(255,255,255,0.2); padding:6px 10px; border-radius:8px; }
+  .brand a:hover{ color:#fff; border-color:rgba(255,255,255,0.4); }
+  .reset-btn{ margin-left:auto; font-family:var(--mono); font-size:11px; font-weight:700; color:#C9C6BF; border:1px solid rgba(255,255,255,0.2); padding:8px 12px; border-radius:9px; }
+  .reset-btn:hover{ color:#fff; border-color:rgba(255,255,255,0.4); }
+  .ticker-row{ background:rgba(255,255,255,0.05); border-top:1px solid rgba(255,255,255,0.08); }
+  .ticker{ max-width:1180px; margin:0 auto; padding:8px 22px; font-family:var(--mono); font-size:11px; color:#C9A876; display:flex; align-items:center; gap:8px; }
+  .ticker .pulse{ width:6px; height:6px; border-radius:50%; background:#67D394; flex:0 0 auto; animation:pulse 1.8s infinite; }
+  @keyframes pulse{ 0%{box-shadow:0 0 0 0 rgba(103,211,148,.55);} 70%{box-shadow:0 0 0 6px rgba(103,211,148,0);} 100%{box-shadow:0 0 0 0 rgba(103,211,148,0);} }
+
+  .connbar{ background:#0E1113; border-top:1px solid rgba(255,255,255,0.08); }
+  .connbar-inner{ max-width:1180px; margin:0 auto; padding:9px 22px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .conn-dot{ width:8px; height:8px; border-radius:50%; background:var(--rust); flex:0 0 auto; }
+  .conn-dot.ok{ background:#67D394; }
+  .conn-label{ font-family:var(--mono); font-size:10.5px; color:#9C988F; }
+  .conn-url{ font-family:var(--mono); font-size:11px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.16); color:#fff; padding:6px 10px; border-radius:8px; width:280px; }
+  .conn-btn{ font-family:var(--mono); font-size:10.5px; font-weight:700; color:#fff; background:var(--copper); padding:6px 12px; border-radius:8px; }
+  .conn-synced{ margin-left:auto; font-family:var(--mono); font-size:10px; color:#75726A; }
+
+  .stage{ max-width:1180px; margin:0 auto; padding:20px 22px 60px; display:flex; justify-content:center; }
+
+  .device{ width:390px; height:800px; background:#000; border-radius:40px; padding:11px; box-shadow:0 30px 60px -18px rgba(20,24,27,0.4); margin:0 auto; }
+  .screen-frame{ position:relative; width:100%; height:100%; background:var(--paper); border-radius:30px; overflow:hidden; display:flex; flex-direction:column; }
+  .pstatusbar{ height:38px; flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; padding:0 22px; font-family:var(--mono); font-size:12px; font-weight:600; }
+  .ptag{ font-family:var(--mono); font-size:9.5px; font-weight:700; background:var(--ink); color:#fff; padding:2px 7px; border-radius:20px; }
+
+  .pbody{ flex:1; position:relative; overflow:hidden; }
+  .pscreen{ position:absolute; inset:0; overflow-y:auto; scrollbar-width:none; display:none; flex-direction:column; padding-bottom:90px; }
+  .pscreen::-webkit-scrollbar{ display:none; }
+  .pscreen.active{ display:flex; }
+
+  .ptabbar{ position:absolute; left:0; right:0; bottom:0; height:70px; background:rgba(251,249,245,0.92); backdrop-filter:blur(8px); border-top:1px solid var(--line); display:flex; align-items:flex-start; padding-top:10px; z-index:20; }
+  .ptab{ flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; color:var(--ink-soft); font-size:9.5px; font-weight:700; }
+  .ptab svg{ width:18px; height:18px; }
+  .ptab.active{ color:var(--copper-deep); }
+
+  .ppx{ padding-left:20px; padding-right:20px; }
+  .psec{ display:flex; align-items:baseline; justify-content:space-between; padding:18px 20px 10px; }
+  .psec h3{ font-size:14.5px; font-weight:800; }
+  .eyebrow{ font-family:var(--mono); font-size:9.5px; letter-spacing:0.07em; text-transform:uppercase; color:var(--copper-deep); }
+
+  .greet-card{ margin:14px 20px 14px; padding:18px; border-radius:18px; background:linear-gradient(155deg,#1B2023,var(--ink)); color:#fff; }
+  .greet-card h2{ font-family:var(--display); font-size:20px; font-weight:400; margin-top:4px; }
+  .greet-card p{ font-size:12px; color:#C9C6BF; margin-top:2px; }
+  .avatar{ width:34px; height:34px; border-radius:50%; background:var(--copper); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12.5px; color:#fff; }
+
+  .btn{ display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13.5px; padding:13px 18px; border-radius:12px; width:100%; }
+  .btn-primary{ background:var(--ink); color:#fff; }
+  .btn-primary:disabled{ opacity:0.45; }
+  .btn-outline{ background:transparent; border:1.4px solid var(--ink); color:var(--ink); }
+  .btn-sm{ padding:9px 14px; font-size:12px; border-radius:10px; width:auto; }
+
+  .book-opt{ margin:0 20px 10px; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:13px 15px; border-radius:14px; border:1.4px solid var(--line); background:var(--card); text-align:left; }
+  .book-opt .bo-l b{ display:block; font-size:13px; font-weight:800; }
+  .book-opt .bo-l span{ font-size:11px; color:var(--ink-soft); }
+  .book-opt.bachat{ border-color:var(--copper); background:var(--copper-tint); }
+
+  .badge{ display:inline-flex; align-items:center; gap:4px; font-family:var(--mono); font-size:9.5px; font-weight:700; padding:3px 8px; border-radius:20px; white-space:nowrap; }
+  .badge.emerald{ background:var(--emerald-tint); color:var(--emerald); }
+  .badge.amber{ background:var(--amber-tint); color:var(--amber); }
+  .badge.rust{ background:var(--rust-tint); color:var(--rust); }
+  .badge.copper{ background:var(--copper-tint); color:var(--copper-deep); }
+  .badge.grey{ background:#EFEBE2; color:var(--ink-soft); }
+
+  .order-card{ margin:0 20px 14px; border-radius:16px; border:1.4px solid var(--line); background:var(--card); padding:15px 16px; }
+  .order-top{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; }
+  .order-top b{ font-size:13.5px; font-weight:800; display:block; }
+  .order-top span{ font-size:11px; color:var(--ink-soft); font-family:var(--mono); }
+
+  .stepper{ display:flex; gap:3px; margin:4px 0 6px; }
+  .stepper i{ flex:1; height:5px; border-radius:3px; background:var(--line); }
+  .stepper i.done{ background:var(--emerald); }
+  .stepper i.now{ background:var(--copper); }
+  .step-labels{ display:flex; justify-content:space-between; font-size:8.5px; color:var(--ink-soft); font-family:var(--mono); margin-bottom:4px; }
+
+  .meter-card{ margin:10px 20px 12px; border-radius:16px; border:1.4px solid var(--line); background:var(--card); padding:16px 14px 12px; text-align:center; }
+  .meter-card svg{ width:100%; max-width:200px; height:auto; }
+  .meter-value{ font-family:var(--display); font-size:22px; font-weight:400; }
+  .meter-label{ font-size:11px; font-weight:700; color:var(--ink-soft); }
+  .face-row{ display:flex; justify-content:space-between; gap:5px; padding:0 20px; margin-bottom:12px; }
+  .face-btn{ flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:8px 2px; border-radius:11px; border:1.4px solid var(--line); background:var(--card); }
+  .face-btn .em{ font-size:17px; filter:grayscale(1); opacity:0.5; }
+  .face-btn span{ display:none; }
+  .face-btn.sel{ border-color:var(--copper); background:var(--copper-tint); }
+  .face-btn.sel .em{ filter:grayscale(0); opacity:1; }
+
+  .complaint-box{ margin:0 20px 12px; border-radius:13px; border:1.4px solid var(--rust); background:var(--rust-tint); padding:12px 14px; }
+  .complaint-box p{ font-size:11.5px; color:#7A2E28; margin-bottom:8px; line-height:1.4; }
+  .complaint-box label{ display:flex; align-items:center; gap:7px; font-size:11.5px; font-weight:700; color:#7A2E28; }
+  .complaint-box input[type=checkbox]{ width:15px; height:15px; accent-color:var(--rust); }
+
+  .pack-card{ margin:0 20px 14px; border-radius:16px; border:1.4px solid var(--line); background:var(--card); overflow:hidden; }
+  .pack-head{ display:flex; align-items:center; justify-content:space-between; padding:12px 15px; border-bottom:1px solid var(--line); }
+  .pack-head b{ font-size:12.5px; font-weight:800; }
+  .pack-row{ display:flex; align-items:center; gap:10px; padding:12px 15px; border-bottom:1px solid var(--line); }
+  .pack-row:last-child{ border-bottom:none; }
+  .pack-num{ width:23px; height:23px; border-radius:50%; flex:0 0 auto; display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-size:10px; font-weight:700; }
+  .pack-num.done{ background:var(--emerald-tint); color:var(--emerald); }
+  .pack-num.due{ background:var(--amber-tint); color:var(--amber); }
+  .pack-row .ptxt{ flex:1; }
+  .pack-row .ptxt b{ display:block; font-size:11.5px; font-weight:700; }
+  .pack-row .ptxt span{ font-size:10px; color:var(--ink-soft); font-family:var(--mono); }
+  .pack-row .pact{ font-family:var(--mono); font-size:10px; font-weight:700; color:var(--copper-deep); white-space:nowrap; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="brand"><span class="dot"></span>RasoiCare — Customer</div>
+    <a href="/">← All apps</a>
+    <button class="reset-btn" onclick="resetDemo()">↺ Reset server data</button>
+  </div>
+  <div class="ticker-row">
+    <div class="ticker"><span class="pulse"></span><span id="ticker-text">Ready.</span></div>
+  </div>
+  <div class="connbar">
+    <div class="connbar-inner">
+      <span class="conn-dot" id="conn-dot"></span>
+      <span class="conn-label">API:</span>
+      <input class="conn-url" id="conn-url-input" value="http://127.0.0.1:8420" spellcheck="false">
+      <script>
+        if (location.protocol.startsWith('http')) {
+          document.getElementById('conn-url-input').value = location.origin;
+        }
+      </script>
+      <button class="conn-btn" onclick="connectApi()">Connect</button>
+      <span class="conn-synced" id="conn-synced">not connected</span>
+    </div>
+  </div>
+</div>
+
+<div class="stage">
+  <div class="device">
+    <div class="screen-frame">
+      <div class="pstatusbar"><span>9:41</span><span class="ptag">CUSTOMER · AMIT</span></div>
+      <div class="pbody">
+
+        <div class="pscreen active" id="cust-home">
+          <div class="greet-card">
+            <div style="display:flex; align-items:center; justify-content:space-between;">
+              <div class="avatar">A</div>
+            </div>
+            <h2>Hello, Amit.</h2>
+            <p>Book a service below to see it sync live.</p>
+          </div>
+          <div class="psec" style="padding-top:4px;"><h3>Book a service</h3></div>
+          <div id="cust-book-options"></div>
+        </div>
+
+        <div class="pscreen" id="cust-track">
+          <div class="psec" style="padding-top:16px;"><h3>Your latest order</h3></div>
+          <div id="cust-track-content"></div>
+        </div>
+
+        <div class="pscreen" id="cust-profile">
+          <div class="psec" style="padding-top:16px;"><h3>Bachat Package</h3></div>
+          <div id="cust-pack-content"></div>
+          <div class="psec"><h3>Order history</h3></div>
+          <div id="cust-history-content"></div>
+        </div>
+
+      </div>
+      <div class="ptabbar">
+        <button class="ptab active" data-tab="home" onclick="custGo('home')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 11l8-7 8 7v9a1 1 0 01-1 1h-4v-6H9v6H5a1 1 0 01-1-1v-9z"/></svg>Home
+        </button>
+        <button class="ptab" data-tab="track" onclick="custGo('track')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 21s7-6.5 7-12a7 7 0 10-14 0c0 5.5 7 12 7 12z"/><circle cx="12" cy="9" r="2.4"/></svg>Track
+        </button>
+        <button class="ptab" data-tab="profile" onclick="custGo('profile')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.9 3.1-6 7-6s7 2.1 7 6"/></svg>Profile
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let API_BASE = document.getElementById('conn-url-input').value.trim();
+  let STATE = { bookings:[], complaints:[], technicians:[], stats:{}, connected:false };
+  let pollTimer = null;
+
+  async function apiGet(path){
+    const r = await fetch(API_BASE + path);
+    if(!r.ok) throw new Error('GET ' + path + ' failed: ' + r.status);
+    return r.json();
+  }
+  async function apiPost(path, body){
+    const r = await fetch(API_BASE + path, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{}) });
+    if(!r.ok) throw new Error('POST ' + path + ' failed: ' + r.status);
+    return r.json();
+  }
+
+  function setConnStatus(ok, label){
+    document.getElementById('conn-dot').classList.toggle('ok', ok);
+    document.getElementById('conn-synced').textContent = label;
+  }
+
+  async function connectApi(){
+    API_BASE = document.getElementById('conn-url-input').value.trim().replace(/\/$/, '');
+    setConnStatus(false, 'connecting…');
+    try{
+      await apiGet('/api/health');
+      STATE.connected = true;
+      setConnStatus(true, 'connected — polling every 4s');
+      log('🔗 Connected to ' + API_BASE);
+      if(pollTimer) clearInterval(pollTimer);
+      await refreshAll();
+      pollTimer = setInterval(refreshAll, 4000);
+    } catch(err){
+      STATE.connected = false;
+      setConnStatus(false, 'unreachable — check the URL / that the server is running');
+      log('⚠️ Could not reach ' + API_BASE + '. Is the backend running and CORS-reachable from this page?');
+    }
+  }
+
+  async function refreshAll(){
+    try{
+      const [bookings, complaints] = await Promise.all([apiGet('/api/bookings'), apiGet('/api/complaints')]);
+      STATE.bookings = bookings; STATE.complaints = complaints;
+      STATE.connected = true;
+      setConnStatus(true, 'last synced ' + new Date().toLocaleTimeString());
+      render();
+    } catch(err){
+      STATE.connected = false;
+      setConnStatus(false, 'lost connection — retrying…');
+    }
+  }
+
+  function log(msg){ document.getElementById('ticker-text').textContent = msg; }
+
+  const STATUS_ORDER = ['Requested','Accepted','On the way','In Progress','Completed'];
+  const BOOK_CATALOG = [
+    { category:'RasoiAir', service:'Deep Cleaning', price:1600 },
+    { category:'RasoiAir', service:'Low Suction', price:399 },
+    { category:'RasoiSpark', service:'Ignition Fix', price:399 }
+  ];
+
+  function findComplaint(id){ return STATE.complaints.find(c => c.id === id); }
+
+  async function createBooking(category, service, price, bachatSlot){
+    if(!STATE.connected){ log('⚠️ Not connected — hit Connect first.'); return; }
+    log('🔔 Booking ' + category + ' · ' + service + '…');
+    const b = await apiPost('/api/bookings', { category, service, price, bachatSlot: bachatSlot || null });
+    log('🔔 Booked ' + category + ' · ' + service + ' (#' + b.id + ')');
+    custGo('track');
+    await refreshAll();
+  }
+
+  async function submitPendingRating(bookingId){
+    const raise = document.getElementById('rate-complaint-check')?.checked;
+    const text = document.getElementById('rate-complaint-text')?.value;
+    const resp = await apiPost('/api/bookings/' + bookingId + '/rating', {
+      serviceRating: pendingRating.service, techRating: pendingRating.tech,
+      raiseComplaint: !!raise, complaintText: text
+    });
+    log('⭐ Rated #' + bookingId + (resp.complaint ? ' · complaint ' + resp.complaint.id + ' raised' : ''));
+    pendingRating = { service:3, tech:3 };
+    await refreshAll();
+  }
+
+  async function resetDemo(){
+    if(!STATE.connected){ log('⚠️ Not connected — hit Connect first.'); return; }
+    await apiPost('/api/reset', {});
+    log('↺ Server data reset to seed state.');
+    custGo('home');
+    await refreshAll();
+  }
+
+  function custGo(tab){
+    document.querySelectorAll('.pscreen').forEach(s => s.classList.remove('active'));
+    document.getElementById('cust-' + tab).classList.add('active');
+    document.querySelectorAll('.ptab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  }
+
+  function statusBadgeClass(s){
+    if(s === 'Completed') return 'emerald';
+    if(s === 'Requested') return 'copper';
+    if(s === 'Cancelled') return 'grey';
+    return 'amber';
+  }
+  function gaugeSVG(idSuffix){
+    return '<svg viewBox="0 0 200 108"><defs><linearGradient id="grad' + idSuffix + '" x1="0" y1="0" x2="1" y2="0">' +
+      '<stop offset="0" stop-color="#B5453D"/><stop offset="0.5" stop-color="#B8912A"/><stop offset="1" stop-color="#3E7C59"/></linearGradient></defs>' +
+      '<path d="M16 100 A84 84 0 0 1 184 100" stroke="var(--line)" stroke-width="14" fill="none" stroke-linecap="round"/>' +
+      '<path d="M16 100 A84 84 0 0 1 184 100" stroke="url(#grad' + idSuffix + ')" stroke-width="14" fill="none" stroke-linecap="round" opacity="0.28"/>' +
+      '<circle cx="100" cy="100" r="5" fill="var(--ink)"/>' +
+      '<line id="needle-' + idSuffix + '" x1="100" y1="100" x2="100" y2="30" stroke="var(--ink)" stroke-width="3.5" stroke-linecap="round" style="transform-origin:100px 100px; transition:transform .3s cubic-bezier(.34,1.56,.64,1);"/></svg>';
+  }
+
+  const RATING_COLORS = { 1:'#B5453D', 2:'#C9773F', 3:'#B8912A', 4:'#6B9A57', 5:'#3E7C59' };
+  const RATING_LABELS = { 1:'Poor', 2:'Fair', 3:'Okay', 4:'Good', 5:'Great' };
+  let pendingRating = { service:3, tech:3 };
+
+  function setPendingRating(group, n, el){
+    pendingRating[group] = n;
+    el.parentElement.querySelectorAll('.face-btn').forEach(b => b.classList.remove('sel'));
+    el.classList.add('sel');
+    const needle = document.getElementById('needle-' + group);
+    if(needle){
+      needle.style.transform = 'rotate(' + ((n-3)*38) + 'deg)';
+      needle.setAttribute('stroke', RATING_COLORS[n]);
+    }
+    const val = document.getElementById('mval-' + group);
+    if(val) val.textContent = n + ' / 5';
+    const lbl = document.getElementById('mlbl-' + group);
+    if(lbl) lbl.textContent = RATING_LABELS[n];
+    const lowest = Math.min(pendingRating.service, pendingRating.tech);
+    const cbox = document.getElementById('rate-complaint-box');
+    if(cbox) cbox.style.display = lowest <= 2 ? 'block' : 'none';
+  }
+
+  function render(){
+    renderCustomerHome();
+    renderCustomerTrack();
+    renderCustomerProfile();
+  }
+
+  function renderCustomerHome(){
+    const box = document.getElementById('cust-book-options');
+    let html = BOOK_CATALOG.map(o =>
+      '<button class="book-opt" onclick="createBooking(\'' + o.category + '\',\'' + o.service + '\',' + o.price + ')">' +
+        '<span class="bo-l"><b>' + o.service + '</b><span>' + o.category + '</span></span>' +
+        '<span class="badge copper">₹' + o.price + '</span>' +
+      '</button>'
+    ).join('');
+
+    const bachatDone2 = STATE.bookings.some(b => b.bachatSlot === 2);
+    if(!bachatDone2){
+      html += '<button class="book-opt bachat" onclick="createBooking(\'RasoiAir\',\'Deep Cleaning\',0,2)">' +
+        '<span class="bo-l"><b>Bachat Package · Service 2</b><span>RasoiAir · Deep Cleaning</span></span>' +
+        '<span class="badge emerald">Included</span>' +
+      '</button>';
+    }
+    box.innerHTML = html;
+  }
+
+  function renderCustomerTrack(){
+    const box = document.getElementById('cust-track-content');
+    const b = STATE.bookings[0];
+    if(!b){ box.innerHTML = '<p class="ppx" style="font-size:12px;color:var(--ink-soft);">No orders yet.</p>'; return; }
+    const idx = STATUS_ORDER.indexOf(b.status);
+    const steps = STATUS_ORDER.map((s,i) => '<i class="' + (i < idx ? 'done' : i === idx ? 'now' : '') + '"></i>').join('');
+
+    let html = '<div class="order-card">' +
+      '<div class="order-top"><div><b>' + b.category + ' · ' + b.service + '</b><span>Order #' + b.id + '</span></div>' +
+      '<span class="badge ' + statusBadgeClass(b.status) + '">' + b.status + '</span></div>' +
+      '<div class="stepper">' + steps + '</div>' +
+      '<div class="step-labels"><span>Requested</span><span>Completed</span></div>' +
+      '</div>';
+
+    if(b.status === 'Completed' && !b.ratings){
+      html += '<div class="psec" style="padding-top:6px;"><h3>Rate this service</h3></div>' +
+        '<div class="meter-card">' + gaugeSVG('service') +
+        '<div class="meter-value" id="mval-service">3 / 5</div><div class="meter-label" id="mlbl-service">How was the service?</div></div>' +
+        '<div class="face-row">' +
+          [1,2,3,4,5].map(n => '<button class="face-btn' + (n===3?' sel':'') + '" onclick="setPendingRating(\'service\',' + n + ',this)"><span class="em">' + ['😞','🙁','😐','🙂','😄'][n-1] + '</span></button>').join('') +
+        '</div>' +
+        '<div class="meter-card">' + gaugeSVG('tech') +
+        '<div class="meter-value" id="mval-tech">3 / 5</div><div class="meter-label" id="mlbl-tech">How was Ramesh?</div></div>' +
+        '<div class="face-row">' +
+          [1,2,3,4,5].map(n => '<button class="face-btn' + (n===3?' sel':'') + '" onclick="setPendingRating(\'tech\',' + n + ',this)"><span class="em">' + ['😞','🙁','😐','🙂','😄'][n-1] + '</span></button>').join('') +
+        '</div>' +
+        '<div class="complaint-box" id="rate-complaint-box" style="display:none;">' +
+          '<p><b>Sorry to hear that.</b> Raise this as a complaint so Ramesh and our team can follow up?</p>' +
+          '<label><input type="checkbox" id="rate-complaint-check"> Raise this as a formal complaint</label>' +
+          '<textarea class="response-box" id="rate-complaint-text" placeholder="What went wrong? (optional)" style="margin-top:8px;"></textarea>' +
+        '</div>' +
+        '<div class="ppx"><button class="btn btn-primary" onclick="submitPendingRating(\'' + b.id + '\')">Submit feedback</button></div>';
+    } else if(b.ratings){
+      html += '<div class="ppx" style="font-size:12px; color:var(--ink-soft); padding-top:2px;">You rated this service ' + b.ratings.service + '/5 and Ramesh ' + b.ratings.tech + '/5.' +
+        (b.complaintId ? ' A complaint is on file (' + (findComplaint(b.complaintId)?.status || '—') + ').' : '') + '</div>';
+    }
+    box.innerHTML = html;
+  }
+
+  function renderCustomerProfile(){
+    const s1 = STATE.bookings.find(b => b.bachatSlot === 1);
+    const s2 = STATE.bookings.find(b => b.bachatSlot === 2);
+    let html = '<div class="pack-card"><div class="pack-head"><b>Bachat Package</b><span class="badge copper">Active</span></div>';
+    html += '<div class="pack-row"><span class="pack-num done">✓</span><span class="ptxt"><b>Service 1 · Deep Cleaning</b><span>Completed' + (s1 ? (' · #' + s1.id) : '') + '</span></span></div>';
+    if(s2 && s2.status === 'Completed'){
+      html += '<div class="pack-row"><span class="pack-num done">✓</span><span class="ptxt"><b>Service 2 · Deep Cleaning</b><span>Completed · #' + s2.id + '</span></span></div>';
+    } else if(s2){
+      html += '<div class="pack-row"><span class="pack-num due">2</span><span class="ptxt"><b>Service 2 · Deep Cleaning</b><span>' + s2.status + ' · #' + s2.id + '</span></span></div>';
+    } else {
+      html += '<div class="pack-row"><span class="pack-num due">2</span><span class="ptxt"><b>Service 2 · Deep Cleaning</b><span>Due by 14 Sep · Not booked yet</span></span><span class="pact" onclick="custGo(\'home\')">Book now →</span></div>';
+    }
+    html += '</div>';
+    document.getElementById('cust-pack-content').innerHTML = html;
+
+    const hist = STATE.bookings.map(b =>
+      '<div class="order-card" style="margin-bottom:10px;"><div class="order-top" style="margin-bottom:0;"><div><b>' + b.category + ' · ' + b.service + '</b><span>#' + b.id + '</span></div>' +
+      '<span class="badge ' + statusBadgeClass(b.status) + '">' + b.status + '</span></div></div>'
+    ).join('');
+    document.getElementById('cust-history-content').innerHTML = hist || '<p class="ppx" style="font-size:12px;color:var(--ink-soft);">No orders yet.</p>';
+  }
+
+  render();
+  connectApi();
+</script>
+
+</body>
+</html>
