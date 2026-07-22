@@ -1,7 +1,9 @@
 # RasoiCare backend
 
-A real Flask + SQLite REST API. This is the server that the Customer app,
-Technician app, and Admin dashboard all call, so an action on one device
+Serves three separate apps — Customer, Technician, and Admin — each its
+own page (`/customer`, `/technician`, `/admin`), plus a landing hub at
+`/`. A real Flask + SQLite REST API is the server all three call, so an
+action on one device
 (e.g. a technician marking a job complete) is visible to another device
 (e.g. the customer's phone) as soon as it polls the API.
 
