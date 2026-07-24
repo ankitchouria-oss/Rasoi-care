@@ -8,17 +8,26 @@
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --ink:#14181B; --ink-soft:#4B4E4F;
+    --ink:#14181B; --ink-soft:#4B4E4F; --text:#14181B;
     --paper:#FBF9F5; --card:#FFFFFF; --line:#E4DECF;
     --copper:#B4793A; --copper-deep:#8C5A24; --copper-tint:#F3E4CF;
     --display:'Instrument Serif', serif; --body:'Manrope', sans-serif; --mono:'JetBrains Mono', monospace;
   }
+  :root[data-theme="dark"]{
+    --text:#F5F0E4; --ink-soft:#9B968B;
+    --paper:#0D1013; --card:#171C20; --line:#2B3237;
+    --copper:#DE9E63; --copper-deep:#F2BC82; --copper-tint:rgba(222,158,99,0.16);
+  }
   *{margin:0;padding:0;box-sizing:border-box;}
-  body{ font-family:var(--body); color:var(--ink); background:var(--paper); min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
+  body{ font-family:var(--body); color:var(--text); background:var(--paper); min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
   a{ text-decoration:none; color:inherit; }
+  button{ font-family:inherit; cursor:pointer; }
+  .theme-toggle{ position:fixed; top:20px; right:20px; width:34px; height:34px; border-radius:10px; border:1.4px solid var(--line); background:var(--card); color:var(--text); font-size:14px; display:flex; align-items:center; justify-content:center; }
   .wrap{ max-width:760px; width:100%; }
+  .eyebrow{ font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--copper-deep); margin-bottom:10px; }
   .brand{ display:flex; align-items:center; gap:9px; font-family:var(--display); font-size:26px; margin-bottom:8px; }
   .brand .dot{ width:10px; height:10px; border-radius:50%; background:var(--copper); }
+  .tagline{ font-family:var(--display); font-style:italic; font-size:16px; color:var(--ink-soft); margin-bottom:32px; }
   .sub{ font-size:14px; color:var(--ink-soft); margin-bottom:32px; }
   .grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
   .card{ background:var(--card); border:1.4px solid var(--line); border-radius:16px; padding:22px 20px; display:block; transition:border-color .15s, transform .15s; }
@@ -31,9 +40,11 @@
 </style>
 </head>
 <body>
+<button class="theme-toggle" id="theme-btn" onclick="toggleTheme()" title="Toggle theme">🌙</button>
 <div class="wrap">
+  <div class="eyebrow">Expert care for the heart of your home</div>
   <div class="brand"><span class="dot"></span>RasoiCare</div>
-  <p class="sub">Three separate apps, one shared backend. Pick one.</p>
+  <p class="sub">Open the console for your role.</p>
   <div class="grid">
     <a class="card" href="/customer">
       <span class="em">📱</span>
@@ -55,5 +66,22 @@
     </a>
   </div>
 </div>
+<script>
+  function applyStoredTheme(){
+    if(localStorage.getItem('rc_theme') === 'dark'){ document.documentElement.setAttribute('data-theme','dark'); }
+    updateThemeUI();
+  }
+  function toggleTheme(){
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    if(isDark){ document.documentElement.removeAttribute('data-theme'); localStorage.setItem('rc_theme','light'); }
+    else { document.documentElement.setAttribute('data-theme','dark'); localStorage.setItem('rc_theme','dark'); }
+    updateThemeUI();
+  }
+  function updateThemeUI(){
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    document.getElementById('theme-btn').textContent = dark ? '☀' : '🌙';
+  }
+  applyStoredTheme();
+</script>
 </body>
 </html>

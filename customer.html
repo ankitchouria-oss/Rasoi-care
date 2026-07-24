@@ -8,29 +8,41 @@
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --ink:#14181B; --ink-soft:#4B4E4F;
-    --paper:#FBF9F5; --card:#FFFFFF; --line:#E4DECF;
+    --ink:#14181B; --ink-soft:#4B4E4F; --text:#14181B;
+    --paper:#FBF9F5; --card:#FFFFFF; --line:#E4DECF; --stage-bg:#DDD7C8;
     --copper:#B4793A; --copper-deep:#8C5A24; --copper-tint:#F3E4CF;
     --emerald:#3E7C59; --emerald-tint:#E4EFE7;
     --amber:#B8912A; --amber-tint:#F5EAD1;
     --rust:#B5453D; --rust-tint:#F5E1DE;
     --display:'Instrument Serif', serif; --body:'Manrope', sans-serif; --mono:'JetBrains Mono', monospace;
   }
+  :root[data-theme="dark"]{
+    --text:#F5F0E4; --ink-soft:#9B968B;
+    --paper:#0D1013; --card:#171C20; --line:#2B3237; --stage-bg:#050607;
+    --copper:#DE9E63; --copper-deep:#F2BC82; --copper-tint:rgba(222,158,99,0.16);
+    --emerald:#5FCB8C; --emerald-tint:rgba(95,203,140,0.16);
+    --amber:#E9C55C; --amber-tint:rgba(233,197,92,0.16);
+    --rust:#E8887D; --rust-tint:rgba(232,136,125,0.16);
+  }
+  :root[data-theme="dark"] .device{ box-shadow:0 30px 90px -14px rgba(222,158,99,0.14), 0 30px 60px -18px rgba(0,0,0,0.65); }
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-  body{ font-family:var(--body); color:var(--ink); background:#DDD7C8; min-height:100vh; }
+  body{ font-family:var(--body); color:var(--text); background:var(--stage-bg); min-height:100vh; }
   button, input, textarea{ font-family:inherit; }
   button{ cursor:pointer; border:none; background:none; }
-  a{ text-decoration:none; color:inherit; }
+  a{ text-decoration:none; color:inherit; cursor:pointer; }
   :focus-visible{ outline:2px solid var(--copper-deep); outline-offset:2px; }
 
   .topbar{ position:sticky; top:0; z-index:50; background:var(--ink); color:#fff; }
-  .topbar-inner{ max-width:1180px; margin:0 auto; padding:14px 22px; display:flex; align-items:center; gap:20px; flex-wrap:wrap; }
+  .topbar-inner{ max-width:1180px; margin:0 auto; padding:14px 22px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
   .brand{ display:flex; align-items:center; gap:9px; font-family:var(--display); font-size:18px; flex:0 0 auto; }
   .brand .dot{ width:9px; height:9px; border-radius:50%; background:var(--copper); }
   .brand a{ font-family:var(--mono); font-size:11px; font-weight:700; color:#C9C6BF; border:1px solid rgba(255,255,255,0.2); padding:6px 10px; border-radius:8px; }
   .brand a:hover{ color:#fff; border-color:rgba(255,255,255,0.4); }
-  .reset-btn{ margin-left:auto; font-family:var(--mono); font-size:11px; font-weight:700; color:#C9C6BF; border:1px solid rgba(255,255,255,0.2); padding:8px 12px; border-radius:9px; }
-  .reset-btn:hover{ color:#fff; border-color:rgba(255,255,255,0.4); }
+  .icon-btn{ width:30px; height:30px; border-radius:8px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); color:#fff; font-size:13px; display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
+  .icon-btn:hover{ border-color:rgba(255,255,255,0.4); }
+  .icon-btn.push{ margin-left:auto; }
+  .dev-panel{ display:none; }
+  .dev-panel.open{ display:block; }
   .ticker-row{ background:rgba(255,255,255,0.05); border-top:1px solid rgba(255,255,255,0.08); }
   .ticker{ max-width:1180px; margin:0 auto; padding:8px 22px; font-family:var(--mono); font-size:11px; color:#C9A876; display:flex; align-items:center; gap:8px; }
   .ticker .pulse{ width:6px; height:6px; border-radius:50%; background:#67D394; flex:0 0 auto; animation:pulse 1.8s infinite; }
@@ -41,15 +53,17 @@
   .conn-dot{ width:8px; height:8px; border-radius:50%; background:var(--rust); flex:0 0 auto; }
   .conn-dot.ok{ background:#67D394; }
   .conn-label{ font-family:var(--mono); font-size:10.5px; color:#9C988F; }
-  .conn-url{ font-family:var(--mono); font-size:11px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.16); color:#fff; padding:6px 10px; border-radius:8px; width:280px; }
+  .conn-url{ font-family:var(--mono); font-size:11px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.16); color:#fff; padding:6px 10px; border-radius:8px; width:260px; }
   .conn-btn{ font-family:var(--mono); font-size:10.5px; font-weight:700; color:#fff; background:var(--copper); padding:6px 12px; border-radius:8px; }
   .conn-synced{ margin-left:auto; font-family:var(--mono); font-size:10px; color:#75726A; }
+  .reset-btn{ font-family:var(--mono); font-size:10.5px; font-weight:700; color:#C9C6BF; border:1px solid rgba(255,255,255,0.2); padding:6px 12px; border-radius:9px; }
+  .reset-btn:hover{ color:#fff; border-color:rgba(255,255,255,0.4); }
 
   .stage{ max-width:1180px; margin:0 auto; padding:20px 22px 60px; display:flex; justify-content:center; }
 
   .device{ width:390px; height:800px; background:#000; border-radius:40px; padding:11px; box-shadow:0 30px 60px -18px rgba(20,24,27,0.4); margin:0 auto; }
   .screen-frame{ position:relative; width:100%; height:100%; background:var(--paper); border-radius:30px; overflow:hidden; display:flex; flex-direction:column; }
-  .pstatusbar{ height:38px; flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; padding:0 22px; font-family:var(--mono); font-size:12px; font-weight:600; }
+  .pstatusbar{ height:38px; flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; padding:0 22px; font-family:var(--mono); font-size:12px; font-weight:600; color:var(--text); }
   .ptag{ font-family:var(--mono); font-size:9.5px; font-weight:700; background:var(--ink); color:#fff; padding:2px 7px; border-radius:20px; }
 
   .pbody{ flex:1; position:relative; overflow:hidden; }
@@ -58,6 +72,7 @@
   .pscreen.active{ display:flex; }
 
   .ptabbar{ position:absolute; left:0; right:0; bottom:0; height:70px; background:rgba(251,249,245,0.92); backdrop-filter:blur(8px); border-top:1px solid var(--line); display:flex; align-items:flex-start; padding-top:10px; z-index:20; }
+  :root[data-theme="dark"] .ptabbar{ background:rgba(13,16,19,0.92); }
   .ptab{ flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; color:var(--ink-soft); font-size:9.5px; font-weight:700; }
   .ptab svg{ width:18px; height:18px; }
   .ptab.active{ color:var(--copper-deep); }
@@ -67,6 +82,10 @@
   .psec h3{ font-size:14.5px; font-weight:800; }
   .eyebrow{ font-family:var(--mono); font-size:9.5px; letter-spacing:0.07em; text-transform:uppercase; color:var(--copper-deep); }
 
+  .back-row{ display:flex; align-items:center; gap:10px; padding:16px 20px 6px; }
+  .back-btn{ width:30px; height:30px; border-radius:9px; border:1.4px solid var(--line); display:flex; align-items:center; justify-content:center; background:var(--card); flex:0 0 auto; }
+  .back-row h3{ font-size:15px; font-weight:800; }
+
   .greet-card{ margin:14px 20px 14px; padding:18px; border-radius:18px; background:linear-gradient(155deg,#1B2023,var(--ink)); color:#fff; }
   .greet-card h2{ font-family:var(--display); font-size:20px; font-weight:400; margin-top:4px; }
   .greet-card p{ font-size:12px; color:#C9C6BF; margin-top:2px; }
@@ -75,7 +94,7 @@
   .btn{ display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13.5px; padding:13px 18px; border-radius:12px; width:100%; }
   .btn-primary{ background:var(--ink); color:#fff; }
   .btn-primary:disabled{ opacity:0.45; }
-  .btn-outline{ background:transparent; border:1.4px solid var(--ink); color:var(--ink); }
+  .btn-outline{ background:transparent; border:1.4px solid var(--text); color:var(--text); }
   .btn-sm{ padding:9px 14px; font-size:12px; border-radius:10px; width:auto; }
 
   .book-opt{ margin:0 20px 10px; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:13px 15px; border-radius:14px; border:1.4px solid var(--line); background:var(--card); text-align:left; }
@@ -108,7 +127,6 @@
   .face-row{ display:flex; justify-content:space-between; gap:5px; padding:0 20px; margin-bottom:12px; }
   .face-btn{ flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:8px 2px; border-radius:11px; border:1.4px solid var(--line); background:var(--card); }
   .face-btn .em{ font-size:17px; filter:grayscale(1); opacity:0.5; }
-  .face-btn span{ display:none; }
   .face-btn.sel{ border-color:var(--copper); background:var(--copper-tint); }
   .face-btn.sel .em{ filter:grayscale(0); opacity:1; }
 
@@ -129,6 +147,219 @@
   .pack-row .ptxt b{ display:block; font-size:11.5px; font-weight:700; }
   .pack-row .ptxt span{ font-size:10px; color:var(--ink-soft); font-family:var(--mono); }
   .pack-row .pact{ font-family:var(--mono); font-size:10px; font-weight:700; color:var(--copper-deep); white-space:nowrap; }
+
+  /* ---- splash / onboarding / auth ---- */
+  .splash-wrap{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; }
+  .splash-mark{ width:64px; height:64px; border-radius:20px; background:var(--copper); display:flex; align-items:center; justify-content:center; font-family:var(--display); font-size:30px; color:#fff; animation:pop .5s cubic-bezier(.34,1.56,.64,1); }
+  @keyframes pop{ from{ transform:scale(.6); opacity:0; } to{ transform:scale(1); opacity:1; } }
+  .splash-wrap h1{ font-family:var(--display); font-size:26px; font-weight:400; }
+  .splash-wrap p{ font-size:11.5px; color:var(--ink-soft); font-family:var(--mono); letter-spacing:0.04em; }
+
+  .onboard-viewport{ flex:1; overflow:hidden; }
+  .onboard-track{ display:flex; height:100%; transition:transform .32s ease; }
+  .onboard-slide{ flex:0 0 100%; width:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:0 30px; gap:14px; }
+  .onboard-ico{ width:76px; height:76px; border-radius:24px; background:var(--copper-tint); display:flex; align-items:center; justify-content:center; font-size:32px; }
+  .onboard-slide h2{ font-family:var(--display); font-size:22px; font-weight:400; }
+  .onboard-slide p{ font-size:12.5px; color:var(--ink-soft); line-height:1.55; }
+  .onboard-foot{ padding:18px 20px 26px; }
+  .onboard-dots{ display:flex; justify-content:center; gap:6px; margin-bottom:16px; }
+  .onboard-dots .dot{ width:6px; height:6px; border-radius:50%; background:var(--line); }
+  .onboard-dots .dot.active{ background:var(--copper); width:16px; border-radius:3px; }
+  .onboard-skip{ text-align:center; margin-top:12px; font-size:11.5px; color:var(--ink-soft); font-weight:700; }
+
+  .auth-wrap{ flex:1; display:flex; flex-direction:column; padding:34px 24px 24px; gap:6px; }
+  .auth-wrap .brand{ color:var(--text); margin-bottom:18px; }
+  .auth-title{ font-family:var(--display); font-size:24px; font-weight:400; }
+  .auth-sub{ font-size:12px; color:var(--ink-soft); margin-bottom:18px; line-height:1.5; }
+  .field{ margin-bottom:14px; }
+  .field label{ display:block; font-family:var(--mono); font-size:9.5px; text-transform:uppercase; letter-spacing:0.05em; color:var(--ink-soft); margin-bottom:6px; }
+  .field input{ width:100%; padding:13px 14px; border-radius:12px; border:1.4px solid var(--line); background:var(--card); color:var(--text); font-size:14px; }
+  .field input:focus{ border-color:var(--copper); }
+  .field-error{ display:none; color:var(--rust); font-size:11px; margin:-6px 0 10px; font-weight:700; }
+  .auth-link{ display:block; text-align:center; margin-top:16px; font-size:12px; font-weight:700; color:var(--copper-deep); }
+  .auth-note{ margin-top:14px; font-size:11.5px; color:var(--emerald); font-weight:700; text-align:center; }
+  .otp-boxes{ display:flex; gap:10px; margin-bottom:20px; }
+  .otp-box{ flex:1; aspect-ratio:1; text-align:center; font-size:20px; font-weight:800; border-radius:12px; border:1.4px solid var(--line); background:var(--card); color:var(--text); }
+  .otp-box:focus{ border-color:var(--copper); }
+
+  /* ---- home extras ---- */
+  .loc-row{ margin:0 20px 10px; display:flex; align-items:center; gap:8px; }
+  .loc-row .lbl{ font-size:12px; font-weight:700; }
+  .loc-row .change{ margin-left:auto; font-family:var(--mono); font-size:10px; font-weight:700; color:var(--copper-deep); }
+  .search-row{ margin:0 20px 14px; }
+  .search-row input{ width:100%; padding:12px 14px; border-radius:13px; border:1.4px solid var(--line); background:var(--card); color:var(--text); font-size:13px; }
+
+  .hscroll{ display:flex; gap:10px; overflow-x:auto; padding:0 20px 4px; scrollbar-width:none; }
+  .hscroll::-webkit-scrollbar{ display:none; }
+  .banner-card{ flex:0 0 auto; width:240px; height:96px; border-radius:16px; padding:14px; display:flex; flex-direction:column; justify-content:center; gap:3px; color:#fff; }
+  .banner-card b{ font-size:13.5px; font-weight:800; }
+  .banner-card span{ font-size:10.5px; opacity:0.85; }
+  .banner-card.c1{ background:linear-gradient(135deg,#8C5A24,var(--copper)); }
+  .banner-card.c2{ background:linear-gradient(135deg,#2C4A3A,var(--emerald)); }
+
+  .cat-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; padding:0 20px 6px; }
+  .cat-card{ display:flex; flex-direction:column; align-items:center; gap:6px; padding:10px 4px; border-radius:14px; border:1.4px solid var(--line); background:var(--card); text-align:center; }
+  .cat-card .mono-badge{ width:38px; height:38px; border-radius:12px; background:var(--copper-tint); color:var(--copper-deep); display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-size:10px; font-weight:800; }
+  .cat-card span{ font-size:9.5px; font-weight:700; line-height:1.2; }
+  .cat-card.hide{ display:none; }
+
+  .offer-card{ flex:0 0 auto; padding:9px 14px; border-radius:20px; border:1.4px solid var(--copper); background:var(--copper-tint); color:var(--copper-deep); font-size:11px; font-weight:700; white-space:nowrap; }
+
+  .review-summary{ margin:0 20px 6px; display:flex; align-items:center; gap:12px; }
+  .review-summary .rv-score{ font-family:var(--display); font-size:34px; font-weight:400; }
+  .review-summary .rv-meta{ font-size:10.5px; color:var(--ink-soft); }
+  .review-card{ flex:0 0 auto; width:210px; border-radius:14px; border:1.4px solid var(--line); background:var(--card); padding:12px 13px; }
+  .review-card .stars{ color:var(--amber); font-size:11px; margin-bottom:5px; }
+  .review-card p{ font-size:11px; line-height:1.5; color:var(--ink-soft); }
+  .review-card .who{ margin-top:6px; font-size:10px; font-weight:700; color:var(--text); }
+
+  .faq-item{ margin:0 20px 8px; border-radius:13px; border:1.4px solid var(--line); background:var(--card); overflow:hidden; }
+  .faq-q{ width:100%; padding:13px 14px; display:flex; align-items:center; justify-content:space-between; font-size:12.5px; font-weight:700; text-align:left; }
+  .faq-q .car{ transition:transform .2s; color:var(--ink-soft); }
+  .faq-item.open .faq-q .car{ transform:rotate(180deg); }
+  .faq-a{ display:none; padding:0 14px 14px; font-size:11.5px; color:var(--ink-soft); line-height:1.55; }
+  .faq-item.open .faq-a{ display:block; }
+
+  /* ---- checkout / payment / confirm ---- */
+  .addr-card{ margin:0 20px 12px; border-radius:15px; border:1.4px solid var(--line); background:var(--card); padding:14px 15px; display:flex; gap:10px; align-items:flex-start; }
+  .addr-card b{ font-size:12.5px; display:block; }
+  .addr-card p{ font-size:11.5px; color:var(--ink-soft); margin-top:2px; line-height:1.45; }
+  .addr-card .change2{ margin-left:auto; font-family:var(--mono); font-size:10px; font-weight:700; color:var(--copper-deep); flex:0 0 auto; }
+  .slot-row{ display:flex; flex-wrap:wrap; gap:8px; padding:0 20px 14px; }
+  .slot-chip{ padding:9px 13px; border-radius:11px; border:1.4px solid var(--line); background:var(--card); font-size:11.5px; font-weight:700; }
+  .slot-chip.sel{ border-color:var(--copper); background:var(--copper-tint); color:var(--copper-deep); }
+
+  .pay-amt{ margin:6px 20px 16px; text-align:center; }
+  .pay-amt .lbl{ font-family:var(--mono); font-size:10px; color:var(--ink-soft); text-transform:uppercase; }
+  .pay-amt .val{ font-family:var(--display); font-size:38px; font-weight:400; }
+  .pay-method{ margin:0 20px 10px; display:flex; align-items:center; gap:12px; padding:13px 14px; border-radius:14px; border:1.4px solid var(--line); background:var(--card); }
+  .pay-method .radio{ width:18px; height:18px; border-radius:50%; border:1.6px solid var(--line); flex:0 0 auto; position:relative; }
+  .pay-method.sel .radio{ border-color:var(--copper); }
+  .pay-method.sel .radio::after{ content:''; position:absolute; inset:3px; border-radius:50%; background:var(--copper); }
+  .pay-method b{ font-size:12.5px; display:block; }
+  .pay-method span{ font-size:10px; color:var(--ink-soft); }
+
+  .confirm-wrap{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:0 26px; gap:8px; }
+  .confirm-check{ width:70px; height:70px; border-radius:50%; background:var(--emerald-tint); color:var(--emerald); display:flex; align-items:center; justify-content:center; font-size:32px; animation:pop .4s cubic-bezier(.34,1.56,.64,1); margin-bottom:6px; }
+  .confirm-wrap h2{ font-family:var(--display); font-size:23px; font-weight:400; }
+  .confirm-wrap p{ font-size:12px; color:var(--ink-soft); }
+  .confirm-foot{ width:100%; padding:20px 24px 26px; }
+
+  /* ---- invoice / chat ---- */
+  .invoice-card{ margin:6px 20px 16px; border-radius:16px; border:1.4px solid var(--line); background:var(--card); padding:16px; }
+  .invoice-row{ display:flex; justify-content:space-between; font-size:12px; padding:6px 0; }
+  .invoice-row.total{ border-top:1.4px dashed var(--line); margin-top:6px; padding-top:10px; font-weight:800; font-size:13.5px; }
+  .invoice-meta{ font-size:10.5px; color:var(--ink-soft); margin-bottom:10px; font-family:var(--mono); }
+
+  .chat-wrap{ flex:1; display:flex; flex-direction:column; padding:10px 16px 0; gap:10px; }
+  .chat-msg{ max-width:78%; padding:10px 13px; border-radius:14px; font-size:12px; line-height:1.4; }
+  .chat-msg.them{ align-self:flex-start; background:var(--card); border:1.4px solid var(--line); border-bottom-left-radius:4px; }
+  .chat-msg.me{ align-self:flex-end; background:var(--ink); color:#fff; border-bottom-right-radius:4px; }
+  .chat-time{ font-family:var(--mono); font-size:9px; color:var(--ink-soft); margin-top:2px; }
+  .chat-input-row{ display:flex; gap:8px; padding:12px 20px 20px; position:sticky; bottom:0; background:var(--paper); }
+  .chat-input-row input{ flex:1; padding:11px 14px; border-radius:20px; border:1.4px solid var(--line); background:var(--card); color:var(--text); font-size:12.5px; }
+  .chat-send{ width:38px; height:38px; border-radius:50%; background:var(--ink); color:#fff; display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
+
+  /* ---- wallet ---- */
+  .wallet-hero{ margin:14px 20px; border-radius:18px; padding:20px; background:linear-gradient(155deg,#1B2023,var(--ink)); color:#fff; }
+  .wallet-hero .lbl{ font-family:var(--mono); font-size:10px; color:#C9C6BF; text-transform:uppercase; }
+  .wallet-hero .amt{ font-family:var(--display); font-size:32px; font-weight:400; margin-top:4px; }
+  .wallet-stats{ display:flex; gap:10px; padding:0 20px 14px; }
+  .wallet-stat{ flex:1; border-radius:14px; border:1.4px solid var(--line); background:var(--card); padding:12px; text-align:center; }
+  .wallet-stat .n{ font-family:var(--display); font-size:20px; font-weight:400; }
+  .wallet-stat .l{ font-size:9.5px; color:var(--ink-soft); font-weight:700; }
+  .refer-card{ margin:0 20px 16px; border-radius:14px; border:1.4px dashed var(--copper); background:var(--copper-tint); padding:14px; display:flex; align-items:center; gap:10px; }
+  .refer-card b{ font-family:var(--mono); font-size:14px; letter-spacing:0.04em; color:var(--copper-deep); flex:1; }
+  .earn-row{ margin:0 20px 8px; display:flex; align-items:center; gap:10px; padding:11px 13px; border-radius:12px; border:1.4px solid var(--line); background:var(--card); }
+  .earn-row .ic{ width:28px; height:28px; border-radius:9px; background:var(--emerald-tint); color:var(--emerald); display:flex; align-items:center; justify-content:center; font-size:13px; flex:0 0 auto; }
+  .earn-row b{ font-size:11.5px; display:block; }
+  .earn-row span{ font-size:10px; color:var(--ink-soft); }
+
+  /* ---- profile extras ---- */
+  .amc-card{ margin:0 20px 14px; border-radius:16px; border:1.4px solid var(--line); background:var(--card); padding:16px; }
+  .amc-card .atop{ display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+  .amc-card .atop b{ font-size:13px; font-weight:800; }
+  .amc-card ul{ list-style:none; margin-top:8px; display:flex; flex-direction:column; gap:5px; }
+  .amc-card li{ font-size:11px; color:var(--ink-soft); display:flex; gap:6px; align-items:baseline; }
+  .amc-card li::before{ content:'✓'; color:var(--emerald); font-weight:800; }
+  .settings-row{ margin:0 20px 8px; display:flex; align-items:center; gap:10px; padding:13px 14px; border-radius:13px; border:1.4px solid var(--line); background:var(--card); }
+  .settings-row b{ font-size:12.5px; flex:1; }
+  .toggle-switch{ width:38px; height:22px; border-radius:20px; background:var(--line); position:relative; flex:0 0 auto; }
+  .toggle-switch::after{ content:''; position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:50%; background:#fff; transition:left .15s; box-shadow:0 1px 3px rgba(0,0,0,0.3); }
+  .toggle-switch.on{ background:var(--copper); }
+  .toggle-switch.on::after{ left:18px; }
+
+  /* ---- status pill / core categories / quick-fix / RasoiKavach ---- */
+  .status-pill{ margin-top:12px; display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.16); border-radius:12px; padding:9px 12px; }
+  .status-pill .dot{ width:7px; height:7px; border-radius:50%; background:#67D394; flex:0 0 auto; animation:pulse 1.8s infinite; }
+  .status-pill span{ font-size:11.5px; color:#EFECE4; font-weight:600; }
+
+  .core-cat-row{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; padding:0 20px 6px; }
+  .core-cat-card{ border-radius:16px; padding:14px 12px; background:linear-gradient(160deg,#232A2E,#12161A); color:#fff; text-align:left; display:flex; flex-direction:column; gap:20px; min-height:108px; }
+  .core-cat-card .cc-ico{ font-size:20px; }
+  .core-cat-card b{ font-family:var(--display); font-size:14.5px; font-weight:400; display:block; line-height:1.15; }
+  .core-cat-card span{ font-size:9px; color:#B9B5AB; line-height:1.3; display:block; margin-top:3px; }
+
+  .quickfix-row{ display:flex; gap:10px; overflow-x:auto; padding:0 20px 4px; scrollbar-width:none; }
+  .quickfix-row::-webkit-scrollbar{ display:none; }
+  .quickfix-chip{ flex:0 0 auto; width:190px; border-radius:14px; border:1.4px solid var(--line); background:var(--card); padding:12px 13px; text-align:left; }
+  .quickfix-chip .qf-q{ font-size:11.5px; font-weight:700; line-height:1.35; margin-bottom:8px; display:block; }
+  .quickfix-chip .qf-go{ font-family:var(--mono); font-size:10px; font-weight:700; color:var(--copper-deep); }
+
+  .kavach-card{ margin:6px 20px 18px; border-radius:18px; padding:20px; background:linear-gradient(155deg,#3A2A12,#8C5A24 60%,var(--copper)); color:#fff; position:relative; overflow:hidden; }
+  .kavach-card .kv-eyebrow{ font-family:var(--mono); font-size:9.5px; letter-spacing:0.08em; text-transform:uppercase; color:#F3E4CF; }
+  .kavach-card h3{ font-family:var(--display); font-size:22px; font-weight:400; margin:4px 0 8px; }
+  .kavach-card p{ font-size:12px; color:#F3E4CF; line-height:1.5; margin-bottom:14px; max-width:88%; }
+  .kavach-card button{ background:#fff; color:var(--copper-deep); font-weight:800; font-size:12px; padding:10px 16px; border-radius:10px; }
+
+  /* ---- brand picker ---- */
+  .brand-chip{ margin:0 20px 10px; display:block; width:calc(100% - 40px); padding:14px 16px; border-radius:14px; border:1.4px solid var(--line); background:var(--card); text-align:left; font-size:13px; font-weight:700; }
+  .brand-chip.sel{ border-color:var(--copper); background:var(--copper-tint); color:var(--copper-deep); }
+
+  /* ---- specialist toggle ---- */
+  .specialist-row{ margin:0 20px 14px; display:flex; align-items:center; gap:12px; padding:13px 14px; border-radius:14px; border:1.4px dashed var(--copper); background:var(--copper-tint); }
+  .specialist-row .sp-txt b{ font-size:12.5px; display:block; }
+  .specialist-row .sp-txt span{ font-size:10.5px; color:var(--ink-soft); }
+  .specialist-row .toggle-switch{ margin-left:auto; }
+
+  /* ---- live map ---- */
+  .livemap-ph{ margin:14px 20px 16px; height:200px; border-radius:18px; background:repeating-linear-gradient(135deg, var(--line), var(--line) 10px, var(--paper) 10px, var(--paper) 20px); border:1.4px solid var(--line); position:relative; overflow:hidden; }
+  .livemap-ph .pin{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:34px; filter:drop-shadow(0 3px 5px rgba(0,0,0,0.3)); }
+  .livemap-ph .pin-you{ position:absolute; bottom:16px; right:18px; font-size:22px; }
+  .tech-live-card{ margin:0 20px 12px; border-radius:16px; border:1.4px solid var(--line); background:var(--card); padding:14px 15px; display:flex; align-items:center; gap:12px; }
+  .tech-live-card .eta{ margin-left:auto; text-align:right; }
+  .tech-live-card .eta b{ display:block; font-family:var(--display); font-size:18px; font-weight:400; }
+  .tech-live-card .eta span{ font-size:9px; color:var(--ink-soft); text-transform:uppercase; font-family:var(--mono); }
+  .verify-badges{ display:flex; flex-direction:column; gap:6px; padding:0 20px; }
+  .verify-badges .vb-row{ display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--ink-soft); }
+  .verify-badges .vb-row b{ color:var(--emerald); }
+
+  /* ---- google login ---- */
+  .google-btn{ display:flex; align-items:center; justify-content:center; gap:10px; width:100%; padding:12px 16px; border-radius:12px; border:1.4px solid var(--line); background:var(--card); color:var(--text); font-weight:700; font-size:13px; margin-bottom:16px; }
+  .google-btn .g-mark{ width:18px; height:18px; border-radius:50%; background:conic-gradient(#4285F4 0% 25%, #34A853 25% 50%, #FBBC05 50% 75%, #EA4335 75% 100%); flex:0 0 auto; }
+  .auth-divider{ display:flex; align-items:center; gap:10px; margin:2px 0 16px; }
+  .auth-divider::before, .auth-divider::after{ content:''; flex:1; height:1px; background:var(--line); }
+  .auth-divider span{ font-size:10px; color:var(--ink-soft); font-family:var(--mono); text-transform:uppercase; }
+
+  /* ---- kitchen health score ---- */
+  .nudge-banner{ margin:0 20px 14px; border-radius:14px; border:1.4px solid var(--amber); background:var(--amber-tint); padding:13px 14px; display:flex; align-items:center; gap:10px; }
+  .nudge-banner p{ font-size:11.5px; color:#6B520F; line-height:1.4; flex:1; }
+  .health-card{ margin:0 20px 10px; border-radius:14px; border:1.4px solid var(--line); background:var(--card); padding:13px 14px; }
+  .health-card .h-top{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px; }
+  .health-card .h-top b{ font-size:12.5px; font-weight:800; }
+  .health-card .h-top span{ font-family:var(--mono); font-size:10.5px; font-weight:700; }
+  .health-bar{ height:7px; border-radius:4px; background:var(--line); overflow:hidden; }
+  .health-bar i{ display:block; height:100%; border-radius:4px; }
+  .health-card .h-label{ font-size:10px; color:var(--ink-soft); margin-top:6px; }
+
+  /* ---- amc plans ---- */
+  .amc-plan-card{ margin:0 20px 12px; border-radius:16px; border:1.4px solid var(--line); background:var(--card); padding:16px; }
+  .amc-plan-card .ap-top{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px; }
+  .amc-plan-card .ap-top b{ font-family:var(--display); font-size:18px; font-weight:400; }
+  .amc-plan-card .ap-price{ font-family:var(--mono); font-size:12px; font-weight:700; color:var(--copper-deep); }
+  .amc-plan-card ul{ list-style:none; margin:8px 0 12px; display:flex; flex-direction:column; gap:5px; }
+  .amc-plan-card li{ font-size:11px; color:var(--ink-soft); display:flex; gap:6px; align-items:baseline; }
+  .amc-plan-card li::before{ content:'✓'; color:var(--emerald); font-weight:800; }
 </style>
 </head>
 <body>
@@ -136,24 +367,27 @@
 <div class="topbar">
   <div class="topbar-inner">
     <div class="brand"><span class="dot"></span>RasoiCare — Customer</div>
-    <a href="/">← All apps</a>
-    <button class="reset-btn" onclick="resetDemo()">↺ Reset server data</button>
+    <button class="icon-btn push" id="theme-btn" onclick="toggleTheme()" title="Toggle theme">🌙</button>
+    <button class="icon-btn" onclick="toggleDevPanel()" title="Developer options">⚙</button>
   </div>
-  <div class="ticker-row">
-    <div class="ticker"><span class="pulse"></span><span id="ticker-text">Ready.</span></div>
-  </div>
-  <div class="connbar">
-    <div class="connbar-inner">
-      <span class="conn-dot" id="conn-dot"></span>
-      <span class="conn-label">API:</span>
-      <input class="conn-url" id="conn-url-input" value="http://127.0.0.1:8420" spellcheck="false">
-      <script>
-        if (location.protocol.startsWith('http')) {
-          document.getElementById('conn-url-input').value = location.origin;
-        }
-      </script>
-      <button class="conn-btn" onclick="connectApi()">Connect</button>
-      <span class="conn-synced" id="conn-synced">not connected</span>
+  <div class="dev-panel" id="dev-panel">
+    <div class="ticker-row">
+      <div class="ticker"><span class="pulse"></span><span id="ticker-text">Ready.</span></div>
+    </div>
+    <div class="connbar">
+      <div class="connbar-inner">
+        <span class="conn-dot" id="conn-dot"></span>
+        <span class="conn-label">API:</span>
+        <input class="conn-url" id="conn-url-input" value="http://127.0.0.1:8420" spellcheck="false">
+        <script>
+          if (location.protocol.startsWith('http')) {
+            document.getElementById('conn-url-input').value = location.origin;
+          }
+        </script>
+        <button class="conn-btn" onclick="connectApi()">Connect</button>
+        <button class="reset-btn" onclick="resetDemo()">↺ Reset data</button>
+        <span class="conn-synced" id="conn-synced">not connected</span>
+      </div>
     </div>
   </div>
 </div>
@@ -161,40 +395,296 @@
 <div class="stage">
   <div class="device">
     <div class="screen-frame">
-      <div class="pstatusbar"><span>9:41</span><span class="ptag">CUSTOMER · AMIT</span></div>
+      <div class="pstatusbar"><span>9:41</span><span class="ptag" id="cust-tag">GUEST</span></div>
       <div class="pbody">
 
-        <div class="pscreen active" id="cust-home">
-          <div class="greet-card">
-            <div style="display:flex; align-items:center; justify-content:space-between;">
-              <div class="avatar">A</div>
-            </div>
-            <h2>Hello, Amit.</h2>
-            <p>Book a service below to see it sync live.</p>
+        <!-- SPLASH -->
+        <div class="pscreen active" id="cust-splash">
+          <div class="splash-wrap">
+            <div class="splash-mark">R</div>
+            <h1>RasoiCare</h1>
+            <p>EXPERT CARE FOR THE HEART OF YOUR HOME</p>
           </div>
-          <div class="psec" style="padding-top:4px;"><h3>Book a service</h3></div>
-          <div id="cust-book-options"></div>
         </div>
 
+        <!-- ONBOARDING -->
+        <div class="pscreen" id="cust-onboard">
+          <div class="onboard-viewport">
+            <div class="onboard-track" id="onboard-track">
+              <div class="onboard-slide">
+                <div class="onboard-ico">📅</div>
+                <h2>Book in seconds</h2>
+                <p>Pick an appliance, describe the issue, and get a verified technician on the way — no phone calls needed.</p>
+              </div>
+              <div class="onboard-slide">
+                <div class="onboard-ico">📍</div>
+                <h2>Track it live</h2>
+                <p>Watch your order move from requested to on-the-way to completed, in real time.</p>
+              </div>
+              <div class="onboard-slide">
+                <div class="onboard-ico">🛡️</div>
+                <h2>Backed by trust</h2>
+                <p>Rated technicians, transparent invoices, and a team that follows up if anything's off.</p>
+              </div>
+            </div>
+          </div>
+          <div class="onboard-foot">
+            <div class="onboard-dots">
+              <span class="dot active" data-i="0"></span><span class="dot" data-i="1"></span><span class="dot" data-i="2"></span>
+            </div>
+            <button class="btn btn-primary" id="onboard-next-btn" onclick="onboardNext()">Next</button>
+            <div class="onboard-skip" onclick="finishOnboarding()">Skip</div>
+          </div>
+        </div>
+
+        <!-- LOGIN -->
+        <div class="pscreen" id="cust-login">
+          <div class="auth-wrap">
+            <div class="brand"><span class="dot" style="background:var(--copper);width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:6px;"></span>RasoiCare</div>
+            <h2 class="auth-title">Welcome back</h2>
+            <p class="auth-sub">Sign in to book and track your services</p>
+            <button class="google-btn" onclick="googleLogin()"><span class="g-mark"></span>Continue with Google</button>
+            <div class="auth-divider"><span>or use mobile number</span></div>
+            <div class="field"><label>Mobile number</label><input id="login-phone" type="tel" inputmode="numeric" maxlength="10" placeholder="98765 43210"></div>
+            <div class="field-error" id="login-error"></div>
+            <button class="btn btn-primary" onclick="submitLogin()">Send OTP</button>
+            <a class="auth-link" onclick="custGo('forgot')">Forgot / trouble logging in?</a>
+          </div>
+        </div>
+
+        <!-- OTP -->
+        <div class="pscreen" id="cust-otp">
+          <div class="auth-wrap">
+            <h2 class="auth-title">Verify OTP</h2>
+            <p class="auth-sub" id="otp-sub">Code sent to your number</p>
+            <div class="otp-boxes">
+              <input class="otp-box" maxlength="1" inputmode="numeric" oninput="otpAdvance(this)">
+              <input class="otp-box" maxlength="1" inputmode="numeric" oninput="otpAdvance(this)">
+              <input class="otp-box" maxlength="1" inputmode="numeric" oninput="otpAdvance(this)">
+              <input class="otp-box" maxlength="1" inputmode="numeric" oninput="otpAdvance(this)">
+            </div>
+            <div class="field-error" id="otp-error"></div>
+            <button class="btn btn-primary" onclick="submitOtp()">Verify &amp; continue</button>
+            <a class="auth-link" onclick="custGo('login')">Change number</a>
+          </div>
+        </div>
+
+        <!-- REGISTER -->
+        <div class="pscreen" id="cust-register">
+          <div class="auth-wrap">
+            <h2 class="auth-title">Tell us about you</h2>
+            <p class="auth-sub">One-time setup — takes 10 seconds.</p>
+            <div class="field"><label>Full name</label><input id="reg-name" placeholder="Amit Sharma"></div>
+            <div class="field"><label>Email (optional)</label><input id="reg-email" type="email" placeholder="amit@email.com"></div>
+            <button class="btn btn-primary" onclick="submitRegister()">Create account</button>
+          </div>
+        </div>
+
+        <!-- FORGOT -->
+        <div class="pscreen" id="cust-forgot">
+          <div class="auth-wrap">
+            <h2 class="auth-title">Reset access</h2>
+            <p class="auth-sub">Enter your registered mobile number and we'll send reset instructions.</p>
+            <div class="field"><label>Mobile number</label><input id="forgot-phone" type="tel" inputmode="numeric" maxlength="10" placeholder="98765 43210"></div>
+            <button class="btn btn-primary" onclick="submitForgot()">Send instructions</button>
+            <a class="auth-link" onclick="custGo('login')">Back to login</a>
+            <p class="auth-note" id="forgot-note" style="display:none;">✅ If that number is registered, instructions have been sent.</p>
+          </div>
+        </div>
+
+        <!-- HOME -->
+        <div class="pscreen" id="cust-home">
+          <div class="greet-card">
+            <div style="display:flex; align-items:center; justify-content:space-between;">
+              <div class="avatar" id="cust-avatar">R</div>
+            </div>
+            <h2 id="cust-greet-name">Hello.</h2>
+            <p>Is your kitchen running smoothly today?</p>
+            <div id="cust-status-pill"></div>
+          </div>
+          <div class="loc-row">
+            <span class="lbl">📍 Home · Pune 411045</span>
+            <a class="change">Change</a>
+          </div>
+          <div class="search-row"><input id="cust-search" placeholder="Search chimney, hob, fridge…" oninput="filterCategories()"></div>
+          <div id="cust-bachat-banner"></div>
+          <div class="psec" style="padding-top:2px;"><h3>Core categories</h3></div>
+          <div class="core-cat-row" id="core-cat-row"></div>
+          <div class="psec"><h3>Quick fix</h3></div>
+          <div class="quickfix-row" id="quickfix-row"></div>
+          <div id="kavach-card-slot"></div>
+          <div class="hscroll" style="margin-bottom:14px;">
+            <div class="banner-card c1"><b>₹100 off</b><span>on your first service booking</span></div>
+            <div class="banner-card c2"><b>Refer & earn ₹150</b><span>for every friend who books</span></div>
+          </div>
+          <div class="psec" style="padding-top:4px;"><h3>More appliances</h3></div>
+          <div class="cat-grid" id="cust-cat-grid"></div>
+          <div id="cust-rebook"></div>
+          <div class="psec"><h3>Offers for you</h3></div>
+          <div class="hscroll" style="margin-bottom:16px;">
+            <div class="offer-card">🎟 10% off AMC renewal</div>
+            <div class="offer-card">🔧 Free filter check this month</div>
+            <div class="offer-card">⭐ Priority slots for members</div>
+          </div>
+          <div class="psec"><h3>Loved by 10,000+ homes</h3></div>
+          <div class="review-summary">
+            <div class="rv-score">4.8</div>
+            <div class="rv-meta">out of 5<br>2,340 ratings</div>
+          </div>
+          <div class="hscroll" style="margin-bottom:16px;">
+            <div class="review-card"><div class="stars">★★★★★</div><p>"Technician arrived on time and fixed our chimney suction in 20 minutes."</p><div class="who">— Priya, Baner</div></div>
+            <div class="review-card"><div class="stars">★★★★★</div><p>"Booking took less than a minute and the invoice was completely transparent."</p><div class="who">— Rohan, Kothrud</div></div>
+            <div class="review-card"><div class="stars">★★★★☆</div><p>"Good service overall, would've liked an earlier slot."</p><div class="who">— Sana, Wakad</div></div>
+          </div>
+          <div class="psec"><h3>Frequently asked</h3></div>
+          <div id="cust-faq"></div>
+        </div>
+
+        <!-- BRAND PICKER -->
+        <div class="pscreen" id="cust-brand">
+          <div class="back-row"><button class="back-btn" onclick="custGo('home')">←</button><h3 id="brand-title">Appliance</h3></div>
+          <div class="psec" style="padding-top:2px;"><h3>What's the brand?</h3></div>
+          <div id="brand-chip-list"></div>
+        </div>
+
+        <!-- CATEGORY / ISSUE PICKER -->
+        <div class="pscreen" id="cust-category">
+          <div class="back-row"><button class="back-btn" onclick="custGo('brand')">←</button><h3 id="cat-title">Service</h3></div>
+          <div class="psec" style="padding-top:2px;"><h3>What's the issue?</h3></div>
+          <div id="cat-issue-list"></div>
+        </div>
+
+        <!-- CHECKOUT -->
+        <div class="pscreen" id="cust-checkout">
+          <div class="back-row"><button class="back-btn" onclick="custGo('category')">←</button><h3>Confirm details</h3></div>
+          <div id="checkout-summary"></div>
+          <div class="psec" style="padding-top:2px;"><h3>Service address</h3></div>
+          <div class="addr-card"><span>🏠</span><div><b>Home</b><p>221B, MG Road, Baner, Pune 411045</p></div><a class="change2">Change</a></div>
+          <div class="psec" style="padding-top:2px;"><h3>Choose a slot</h3></div>
+          <div class="slot-row" id="slot-row"></div>
+          <div class="specialist-row">
+            <div class="sp-txt"><b>Certified Brand Specialist</b><span>Extra-vetted expert for your brand (+₹99)</span></div>
+            <button class="toggle-switch" id="specialist-toggle" onclick="toggleSpecialist()"></button>
+          </div>
+          <div class="ppx"><button class="btn btn-primary" onclick="custGo('payment')">Continue to payment</button></div>
+        </div>
+
+        <!-- PAYMENT -->
+        <div class="pscreen" id="cust-payment">
+          <div class="back-row"><button class="back-btn" onclick="custGo('checkout')">←</button><h3>Payment</h3></div>
+          <div class="pay-amt"><div class="lbl">Amount payable</div><div class="val" id="pay-amount">₹0</div></div>
+          <div class="psec" style="padding-top:2px;"><h3>Payment method</h3></div>
+          <div id="pay-methods"></div>
+          <div class="ppx" style="margin-top:8px;"><button class="btn btn-primary" id="pay-btn" onclick="payNow()">Pay now</button></div>
+        </div>
+
+        <!-- CONFIRM -->
+        <div class="pscreen" id="cust-confirm">
+          <div class="confirm-wrap">
+            <div class="confirm-check">✓</div>
+            <h2>Booking confirmed</h2>
+            <p id="confirm-detail">Your technician has been notified.</p>
+          </div>
+          <div class="confirm-foot"><button class="btn btn-primary" onclick="custGo('track')">Track my order</button></div>
+        </div>
+
+        <!-- TRACK -->
         <div class="pscreen" id="cust-track">
           <div class="psec" style="padding-top:16px;"><h3>Your latest order</h3></div>
           <div id="cust-track-content"></div>
         </div>
 
+        <!-- INVOICE -->
+        <div class="pscreen" id="cust-invoice">
+          <div class="back-row"><button class="back-btn" onclick="custGo('track')">←</button><h3>Invoice</h3></div>
+          <div id="invoice-content"></div>
+        </div>
+
+        <!-- CHAT -->
+        <div class="pscreen" id="cust-chat">
+          <div class="back-row"><button class="back-btn" onclick="custGo('track')">←</button><h3>Chat with technician</h3></div>
+          <div class="chat-wrap" id="chat-msgs"></div>
+          <div class="chat-input-row">
+            <input id="chat-input" placeholder="Type a message…" onkeydown="if(event.key==='Enter') sendChat();">
+            <button class="chat-send" onclick="sendChat()">➤</button>
+          </div>
+        </div>
+
+        <!-- LIVE MAP -->
+        <div class="pscreen" id="cust-livemap">
+          <div class="back-row"><button class="back-btn" onclick="custGo('track')">←</button><h3>Track &amp; relax</h3></div>
+          <div class="livemap-ph"><span class="pin">🚚</span><span class="pin-you">📍</span></div>
+          <div class="tech-live-card">
+            <div class="avatar">R</div>
+            <div><b style="font-size:12.5px;">Ramesh Kumar</b><div style="font-size:10.5px;color:var(--ink-soft);">RasoiSpark specialist</div></div>
+            <div class="eta" id="livemap-eta"><b>10</b><span>mins away</span></div>
+          </div>
+          <div class="verify-badges">
+            <div class="vb-row"><b>✓</b> Background verified</div>
+            <div class="vb-row"><b>✓</b> ID checked</div>
+            <div class="vb-row"><b>✓</b> Safety trained</div>
+          </div>
+          <div class="ppx" style="margin-top:16px;"><button class="btn btn-outline btn-sm" onclick="custGo('chat')">💬 Message technician</button></div>
+        </div>
+
+        <!-- AMC PLANS -->
+        <div class="pscreen" id="cust-amc">
+          <div class="back-row"><button class="back-btn" onclick="custGo('home')">←</button><h3>RasoiKavach plans</h3></div>
+          <div class="psec" style="padding-top:2px;"><h3>Choose your protection</h3></div>
+          <div id="amc-plan-list"></div>
+        </div>
+
+        <!-- WALLET -->
+        <div class="pscreen" id="cust-wallet">
+          <div class="psec" style="padding-top:16px;"><h3>Wallet</h3></div>
+          <div class="wallet-hero"><div class="lbl">Available balance</div><div class="amt" id="wallet-balance">₹0</div></div>
+          <div class="wallet-stats">
+            <div class="wallet-stat"><div class="n" id="wallet-points">0</div><div class="l">LOYALTY PTS</div></div>
+            <div class="wallet-stat"><div class="n" id="wallet-bookings">0</div><div class="l">SERVICES DONE</div></div>
+          </div>
+          <div class="psec"><h3>Refer & earn</h3></div>
+          <div class="refer-card"><b>RASOI-AMIT23</b><button class="btn btn-outline btn-sm" onclick="copyReferral()">Copy</button></div>
+          <div class="psec"><h3>Ways to earn</h3></div>
+          <div class="earn-row"><span class="ic">👥</span><div><b>Refer a friend</b><span>Earn ₹150 when they complete their first service</span></div></div>
+          <div class="earn-row"><span class="ic">⭐</span><div><b>Rate a service</b><span>+10 points every time you leave feedback</span></div></div>
+          <div class="earn-row"><span class="ic">🛡️</span><div><b>Subscribe to AMC</b><span>+50 points on activation</span></div></div>
+        </div>
+
+        <!-- PROFILE -->
         <div class="pscreen" id="cust-profile">
-          <div class="psec" style="padding-top:16px;"><h3>Bachat Package</h3></div>
+          <div class="psec" style="padding-top:16px;"><h3 id="profile-name">Profile</h3></div>
+          <div class="amc-card">
+            <div class="atop"><b>RasoiCare Membership</b><span class="badge emerald">Active</span></div>
+            <p style="font-size:11px;color:var(--ink-soft);">Renews 14 Dec 2026</p>
+            <ul>
+              <li>Priority scheduling on all bookings</li>
+              <li>2 free check-ups per year</li>
+              <li>10% off every repair</li>
+            </ul>
+          </div>
+          <div class="psec" style="padding-top:2px;"><h3>Kitchen Health Score</h3></div>
+          <div id="health-nudge"></div>
+          <div id="health-cards"></div>
+          <div class="psec" style="padding-top:2px;"><h3>Bachat Package</h3></div>
           <div id="cust-pack-content"></div>
           <div class="psec"><h3>Order history</h3></div>
           <div id="cust-history-content"></div>
+          <div class="psec"><h3>Settings</h3></div>
+          <div class="settings-row"><b>Dark mode</b><button class="toggle-switch" id="settings-theme-toggle" onclick="toggleTheme()"></button></div>
+          <div class="settings-row"><b>Push notifications</b><button class="toggle-switch on" onclick="this.classList.toggle('on')"></button></div>
+          <div class="ppx" style="margin-top:6px;"><button class="btn btn-outline" onclick="logout()">Log out</button></div>
         </div>
 
       </div>
-      <div class="ptabbar">
+      <div class="ptabbar" id="ptabbar">
         <button class="ptab active" data-tab="home" onclick="custGo('home')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 11l8-7 8 7v9a1 1 0 01-1 1h-4v-6H9v6H5a1 1 0 01-1-1v-9z"/></svg>Home
         </button>
         <button class="ptab" data-tab="track" onclick="custGo('track')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 21s7-6.5 7-12a7 7 0 10-14 0c0 5.5 7 12 7 12z"/><circle cx="12" cy="9" r="2.4"/></svg>Track
+        </button>
+        <button class="ptab" data-tab="wallet" onclick="custGo('wallet')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 14h2"/></svg>Wallet
         </button>
         <button class="ptab" data-tab="profile" onclick="custGo('profile')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.9 3.1-6 7-6s7 2.1 7 6"/></svg>Profile
@@ -205,17 +695,39 @@
 </div>
 
 <script>
+  function applyStoredTheme(){
+    if(localStorage.getItem('rc_theme') === 'dark'){ document.documentElement.setAttribute('data-theme','dark'); }
+    updateThemeUI();
+  }
+  function toggleTheme(){
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    if(isDark){ document.documentElement.removeAttribute('data-theme'); localStorage.setItem('rc_theme','light'); }
+    else { document.documentElement.setAttribute('data-theme','dark'); localStorage.setItem('rc_theme','dark'); }
+    updateThemeUI();
+  }
+  function updateThemeUI(){
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const btn = document.getElementById('theme-btn'); if(btn) btn.textContent = dark ? '☀' : '🌙';
+    const sw = document.getElementById('settings-theme-toggle'); if(sw) sw.classList.toggle('on', dark);
+  }
+  function toggleDevPanel(){ document.getElementById('dev-panel').classList.toggle('open'); }
+  applyStoredTheme();
+
   let API_BASE = document.getElementById('conn-url-input').value.trim();
-  let STATE = { bookings:[], complaints:[], technicians:[], stats:{}, connected:false };
+  let STATE = { bookings:[], complaints:[], technicians:[], stats:{}, healthScore:[], connected:false };
   let pollTimer = null;
 
+  function authHeaders(){
+    const token = localStorage.getItem('rc_token');
+    return token ? { 'Authorization': 'Bearer ' + token } : {};
+  }
   async function apiGet(path){
-    const r = await fetch(API_BASE + path);
+    const r = await fetch(API_BASE + path, { headers: authHeaders() });
     if(!r.ok) throw new Error('GET ' + path + ' failed: ' + r.status);
     return r.json();
   }
   async function apiPost(path, body){
-    const r = await fetch(API_BASE + path, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{}) });
+    const r = await fetch(API_BASE + path, { method:'POST', headers: Object.assign({'Content-Type':'application/json'}, authHeaders()), body: JSON.stringify(body||{}) });
     if(!r.ok) throw new Error('POST ' + path + ' failed: ' + r.status);
     return r.json();
   }
@@ -249,6 +761,9 @@
       STATE.bookings = bookings; STATE.complaints = complaints;
       STATE.connected = true;
       setConnStatus(true, 'last synced ' + new Date().toLocaleTimeString());
+      if(localStorage.getItem('rc_token')){
+        try{ STATE.healthScore = await apiGet('/api/health-score'); } catch(e){ /* endpoint may not exist yet */ }
+      }
       render();
     } catch(err){
       STATE.connected = false;
@@ -259,49 +774,345 @@
   function log(msg){ document.getElementById('ticker-text').textContent = msg; }
 
   const STATUS_ORDER = ['Requested','Accepted','On the way','In Progress','Completed'];
-  const BOOK_CATALOG = [
-    { category:'RasoiAir', service:'Deep Cleaning', price:1600 },
-    { category:'RasoiAir', service:'Low Suction', price:399 },
-    { category:'RasoiSpark', service:'Ignition Fix', price:399 }
+
+  const APPLIANCES = [
+    { id:'chimney',   name:'Chimney',             mono:'CH', family:'RasoiAir',   brands:['Faber','Elica','Glen','Kaff'],           issues:[ {label:'Deep Cleaning',price:1600}, {label:'Low Suction',price:399}, {label:'Noisy Motor',price:499} ] },
+    { id:'hob',       name:'Hob',                 mono:'HB', family:'RasoiSpark', brands:['Prestige','Sunflame','Glen','Faber'],    issues:[ {label:'Ignition Fix',price:399}, {label:'Burner Cleaning',price:299} ] },
+    { id:'cooktop',   name:'Cooktop',             mono:'CT', family:'RasoiSpark', brands:['Prestige','Sunflame','Glen','Faber'],    issues:[ {label:'Ignition Fix',price:399}, {label:'Auto-shutoff Issue',price:449} ] },
+    { id:'microwave', name:'Built-in Microwave',  mono:'MW', family:'RasoiBuilt', brands:['Bosch','Siemens','IFB'],                 issues:[ {label:'Not Heating',price:599}, {label:'Door / Hinge Repair',price:399}, {label:'General Service',price:349} ] },
+    { id:'dishwasher',name:'Dishwasher',          mono:'DW', family:'RasoiWash',  brands:['Bosch','IFB','Faber'],                   issues:[ {label:'Not Draining',price:549}, {label:'General Service',price:399} ] },
+    { id:'fridge',    name:'Refrigerator',        mono:'RF', family:'RasoiChill', brands:['LG','Samsung','Whirlpool','Haier'],      issues:[ {label:'Not Cooling',price:699}, {label:'Gas Refill',price:1200}, {label:'General Service',price:399} ] },
+    { id:'otg',       name:'OTG',                 mono:'OT', family:'RasoiBuilt', brands:['Bosch','Siemens','IFB'],                 issues:[ {label:'Not Heating',price:399}, {label:'General Service',price:299} ] },
+    { id:'purifier',  name:'Water Purifier',      mono:'WP', family:'RasoiPure',  brands:['Kent','Aquaguard','Pureit'],             issues:[ {label:'Filter Change',price:499}, {label:'Not Purifying',price:399}, {label:'Annual Service',price:349} ] }
+  ];
+  const CORE_CATEGORIES = [
+    { applianceId:'chimney',   ico:'♨',  name:'RasoiAir',   tag:'Chimney Deep Clean & Repair' },
+    { applianceId:'hob',       ico:'🔥', name:'RasoiSpark', tag:'Hob Breakdown & Ignition Fix' },
+    { applianceId:'microwave', ico:'⬜', name:'RasoiBuilt', tag:'Inbuilt Appliance Specialist' }
+  ];
+  const QUICKFIX = [
+    { q:'Chimney making heavy noise?', go:'Book Inspection', applianceId:'chimney', issueLabel:'Noisy Motor' },
+    { q:'Hob flame is yellow/weak?',   go:'Book Jet Cleaning', applianceId:'hob',    issueLabel:'Burner Cleaning' },
+    { q:'Ignition spark not working?', go:'Book Spark Fix', applianceId:'cooktop',   issueLabel:'Ignition Fix' }
+  ];
+  const SLOTS = ['Today · 4–6 PM','Today · 6–8 PM','Tomorrow · 10–12 PM'];
+  const FAQS = [
+    { q:'How do I book a service?', a:'Pick an appliance on the Home tab, choose the issue you\'re facing, confirm your address and slot, and pay — a technician is assigned instantly.' },
+    { q:'Can I reschedule after booking?', a:'Yes, open the order under Track and message your technician to request a new slot.' },
+    { q:'What payment methods are supported?', a:'UPI, cards, and cash on service completion.' },
+    { q:'Is there a warranty on repairs?', a:'All repairs carry a 30-day service warranty — raise a complaint from the rating screen if the issue returns.' }
   ];
 
-  function findComplaint(id){ return STATE.complaints.find(c => c.id === id); }
+  /* Safe to embed inside a double-quoted onclick="..." attribute with
+     single-quoted JS string args — JSON.stringify()'s own double quotes
+     would otherwise prematurely close the HTML attribute. */
+  function jsStr(s){ return "'" + String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'") + "'"; }
 
-  async function createBooking(category, service, price, bachatSlot){
+  function findComplaint(id){ return STATE.complaints.find(c => c.id === id); }
+  function currentUser(){ return JSON.parse(localStorage.getItem('rc_user') || 'null'); }
+
+  function updateIdentity(){
+    const u = currentUser();
+    const name = u ? u.name : 'Guest';
+    document.getElementById('cust-tag').textContent = 'CUSTOMER · ' + name.split(' ')[0].toUpperCase();
+    document.getElementById('cust-avatar').textContent = name[0].toUpperCase();
+    document.getElementById('cust-greet-name').textContent = 'Hello, ' + name.split(' ')[0] + '.';
+    document.getElementById('profile-name').textContent = name;
+  }
+
+  /* ---------------- navigation ---------------- */
+  const TABS = ['home','track','wallet','profile'];
+  function custGo(id){
+    document.querySelectorAll('.pscreen').forEach(s => s.classList.remove('active'));
+    document.getElementById('cust-' + id).classList.add('active');
+    const isTab = TABS.includes(id);
+    document.getElementById('ptabbar').style.display = isTab ? 'flex' : 'none';
+    if(isTab) document.querySelectorAll('.ptab').forEach(t => t.classList.toggle('active', t.dataset.tab === id));
+    if(id === 'home') renderCustomerHome();
+    if(id === 'track') renderCustomerTrack();
+    if(id === 'wallet') renderCustomerWallet();
+    if(id === 'profile') renderCustomerProfile();
+    if(id === 'invoice') renderInvoice();
+    if(id === 'chat') renderChat();
+    if(id === 'livemap') renderLiveMap();
+    if(id === 'amc') renderAmcPlans();
+  }
+
+  async function boot(){
+    updateIdentity();
+    await connectApi();
+    custGo('splash');
+    setTimeout(() => {
+      if(currentUser()) custGo('home');
+      else if(localStorage.getItem('rc_onboarded')) custGo('login');
+      else custGo('onboard');
+    }, 1100);
+  }
+
+  /* ---------------- onboarding ---------------- */
+  let onboardIdx = 0;
+  function onboardGoto(i){
+    onboardIdx = Math.max(0, Math.min(2, i));
+    document.getElementById('onboard-track').style.transform = 'translateX(-' + (onboardIdx * 100) + '%)';
+    document.querySelectorAll('.onboard-dots .dot').forEach((d, idx) => d.classList.toggle('active', idx === onboardIdx));
+    document.getElementById('onboard-next-btn').textContent = onboardIdx === 2 ? 'Get started' : 'Next';
+  }
+  function onboardNext(){ onboardIdx >= 2 ? finishOnboarding() : onboardGoto(onboardIdx + 1); }
+  function finishOnboarding(){ localStorage.setItem('rc_onboarded','1'); custGo('login'); }
+
+  /* ---------------- auth ----------------
+     Real JWT auth backs this now (POST /api/auth/register, /api/auth/login).
+     The UI is still phone+OTP (OTP itself stays simulated — any 4 digits
+     work, matching how it always has), so we derive an email/password pair
+     from the phone number rather than adding new fields: not real security,
+     but it lets the existing phone-first UX drive the real auth API. */
+  let pendingPhone = '';
+  function deriveCredentials(phone, email){
+    return {
+      email: (email && email.trim()) ? email.trim().toLowerCase() : (phone + '@rasoicare.demo'),
+      password: 'rc-' + phone
+    };
+  }
+  function submitLogin(){
+    const v = document.getElementById('login-phone').value.replace(/\D/g,'');
+    const err = document.getElementById('login-error');
+    if(v.length !== 10){ err.textContent = 'Enter a valid 10-digit mobile number.'; err.style.display = 'block'; return; }
+    err.style.display = 'none';
+    pendingPhone = v;
+    document.getElementById('otp-sub').textContent = 'Code sent to +91 ' + v.slice(0,5) + 'XXXXX';
+    document.querySelectorAll('.otp-box').forEach(b => b.value = '');
+    custGo('otp');
+  }
+  function otpAdvance(el){
+    if(el.value && el.nextElementSibling) el.nextElementSibling.focus();
+  }
+  async function submitOtp(){
+    const boxes = document.querySelectorAll('.otp-box');
+    const code = Array.from(boxes).map(b => b.value).join('');
+    const err = document.getElementById('otp-error');
+    if(code.length !== 4){ err.textContent = 'Enter the 4-digit code.'; err.style.display = 'block'; return; }
+    err.style.display = 'none';
+    const existing = currentUser();
+    if(existing && existing.phone === pendingPhone){
+      const creds = deriveCredentials(pendingPhone, existing.email);
+      try{
+        const resp = await apiPost('/api/auth/login', { email: creds.email, password: creds.password });
+        localStorage.setItem('rc_token', resp.token);
+        localStorage.setItem('rc_onboarded','1');
+        updateIdentity();
+        custGo('home');
+      } catch(e){ err.textContent = 'Could not sign in — try again.'; err.style.display = 'block'; }
+    } else {
+      custGo('register');
+    }
+  }
+  async function submitRegister(){
+    const name = document.getElementById('reg-name').value.trim() || 'Guest User';
+    const email = document.getElementById('reg-email').value.trim();
+    const creds = deriveCredentials(pendingPhone, email);
+    try{
+      const resp = await apiPost('/api/auth/register', { email: creds.email, password: creds.password, name, phone: pendingPhone });
+      localStorage.setItem('rc_token', resp.token);
+      localStorage.setItem('rc_user', JSON.stringify({ name: resp.user.name, phone: pendingPhone, email: creds.email }));
+      localStorage.setItem('rc_onboarded','1');
+      updateIdentity();
+      custGo('home');
+    } catch(e){ log('⚠️ Could not create account — try again.'); }
+  }
+  function submitForgot(){ document.getElementById('forgot-note').style.display = 'block'; }
+  function logout(){ localStorage.removeItem('rc_user'); localStorage.removeItem('rc_token'); updateIdentity(); custGo('login'); }
+
+  /* Mocked Google sign-in: no real OAuth call, just exercises the real
+     /api/auth/* endpoints with a fixed demo profile, skipping OTP. */
+  async function googleLogin(){
+    const demo = { name: 'Amit Sharma', email: 'amit.sharma@gmail.com', phone: '9876500000' };
+    try{
+      const resp = await apiPost('/api/auth/login', { email: demo.email, password: 'google-oauth-demo' });
+      finishGoogleLogin(resp, demo);
+    } catch(e){
+      try{
+        const resp = await apiPost('/api/auth/register', { email: demo.email, password: 'google-oauth-demo', name: demo.name, phone: demo.phone });
+        finishGoogleLogin(resp, demo);
+      } catch(e2){ log('⚠️ Google sign-in failed.'); }
+    }
+  }
+  function finishGoogleLogin(resp, demo){
+    localStorage.setItem('rc_token', resp.token);
+    localStorage.setItem('rc_user', JSON.stringify({ name: resp.user.name, phone: demo.phone, email: demo.email }));
+    localStorage.setItem('rc_onboarded','1');
+    updateIdentity();
+    custGo('home');
+  }
+
+  /* ---------------- home ---------------- */
+  const ETA_BY_STATUS = { 'Accepted':'Assigning', 'On the way':'10 mins', 'In Progress':'At your door' };
+  function renderCustomerHome(){
+    const active = STATE.bookings.find(b => ['Accepted','On the way','In Progress'].includes(b.status));
+    document.getElementById('cust-status-pill').innerHTML = active
+      ? '<div class="status-pill"><span class="dot"></span><span>🚚 Technician Ramesh · ' + (active.category) + ' — ' + ETA_BY_STATUS[active.status] + '</span></div>'
+      : '';
+
+    const bachatDone2 = STATE.bookings.some(b => b.bachatSlot === 2);
+    const banner = document.getElementById('cust-bachat-banner');
+    banner.innerHTML = bachatDone2 ? '' :
+      '<button class="book-opt bachat" onclick="createBachatBooking()">' +
+        '<span class="bo-l"><b>Bachat Package · Service 2</b><span>RasoiAir · Deep Cleaning</span></span>' +
+        '<span class="badge emerald">Included</span>' +
+      '</button>';
+
+    document.getElementById('core-cat-row').innerHTML = CORE_CATEGORIES.map(c =>
+      '<button class="core-cat-card" onclick="openCategory(\'' + c.applianceId + '\')">' +
+        '<span class="cc-ico">' + c.ico + '</span>' +
+        '<span><b>' + c.name + '</b><span>' + c.tag + '</span></span>' +
+      '</button>'
+    ).join('');
+
+    document.getElementById('quickfix-row').innerHTML = QUICKFIX.map(qf => {
+      const a = APPLIANCES.find(x => x.id === qf.applianceId);
+      const iss = a.issues.find(i => i.label === qf.issueLabel);
+      return '<button class="quickfix-chip" onclick="startCheckout(\'' + a.family + '\',' + jsStr(a.name + ' · ' + iss.label) + ',' + iss.price + ')">' +
+        '<span class="qf-q">⚡ ' + qf.q + '</span><span class="qf-go">' + qf.go + ' →</span>' +
+      '</button>';
+    }).join('');
+
+    document.getElementById('kavach-card-slot').innerHTML =
+      '<div class="kavach-card"><div class="kv-eyebrow">RasoiKavach · Annual Maintenance</div>' +
+      '<h3>Protect your premium kitchen</h3>' +
+      '<p>Get unlimited breakdown support & 4 deep cleans a year with RasoiKavach.</p>' +
+      '<button onclick="custGo(\'amc\')">View plans</button></div>';
+
+    document.getElementById('cust-cat-grid').innerHTML = APPLIANCES.map(a =>
+      '<button class="cat-card" data-name="' + a.name.toLowerCase() + '" onclick="openCategory(\'' + a.id + '\')">' +
+        '<span class="mono-badge">' + a.mono + '</span><span>' + a.name + '</span>' +
+      '</button>'
+    ).join('');
+
+    const last = STATE.bookings[0];
+    document.getElementById('cust-rebook').innerHTML = last ?
+      '<div class="psec"><h3>Book again</h3></div>' +
+      '<button class="book-opt" onclick="startCheckout(\'' + last.category + '\',' + jsStr(last.service) + ',' + last.price + ')">' +
+        '<span class="bo-l"><b>' + last.category + ' · ' + last.service + '</b><span>Same as your last order</span></span>' +
+        '<span class="badge copper">₹' + last.price + '</span>' +
+      '</button>' : '';
+
+    document.getElementById('cust-faq').innerHTML = FAQS.map((f,i) =>
+      '<div class="faq-item" id="faq-' + i + '"><button class="faq-q" onclick="toggleFaq(' + i + ')"><span>' + f.q + '</span><span class="car">⌄</span></button>' +
+      '<div class="faq-a">' + f.a + '</div></div>'
+    ).join('');
+  }
+  function toggleFaq(i){ document.getElementById('faq-' + i).classList.toggle('open'); }
+  function filterCategories(){
+    const q = document.getElementById('cust-search').value.trim().toLowerCase();
+    document.querySelectorAll('.cat-card').forEach(c => c.classList.toggle('hide', q && !c.dataset.name.includes(q)));
+  }
+
+  async function createBachatBooking(){
     if(!STATE.connected){ log('⚠️ Not connected — hit Connect first.'); return; }
-    log('🔔 Booking ' + category + ' · ' + service + '…');
-    const b = await apiPost('/api/bookings', { category, service, price, bachatSlot: bachatSlot || null });
-    log('🔔 Booked ' + category + ' · ' + service + ' (#' + b.id + ')');
+    const b = await apiPost('/api/bookings', { category:'RasoiAir', service:'Deep Cleaning', price:0, bachatSlot:2 });
+    log('🔔 Booked RasoiAir · Deep Cleaning (#' + b.id + ')');
     custGo('track');
     await refreshAll();
   }
 
-  async function submitPendingRating(bookingId){
-    const raise = document.getElementById('rate-complaint-check')?.checked;
-    const text = document.getElementById('rate-complaint-text')?.value;
-    const resp = await apiPost('/api/bookings/' + bookingId + '/rating', {
-      serviceRating: pendingRating.service, techRating: pendingRating.tech,
-      raiseComplaint: !!raise, complaintText: text
-    });
-    log('⭐ Rated #' + bookingId + (resp.complaint ? ' · complaint ' + resp.complaint.id + ' raised' : ''));
-    pendingRating = { service:3, tech:3 };
-    await refreshAll();
+  /* ---------------- brand / category / checkout / payment / confirm ---------------- */
+  let pendingBooking = null;
+  let selectedSlot = 0;
+  let selectedApplianceId = null;
+  let isSpecialist = false;
+
+  function openCategory(applianceId){
+    const a = APPLIANCES.find(x => x.id === applianceId);
+    selectedApplianceId = applianceId;
+    document.getElementById('brand-title').textContent = a.name;
+    document.getElementById('brand-chip-list').innerHTML = a.brands.map(b =>
+      '<button class="brand-chip" onclick="selectBrand(\'' + b + '\')">' + b + '</button>'
+    ).join('');
+    custGo('brand');
   }
 
-  async function resetDemo(){
+  function selectBrand(brand){
+    const a = APPLIANCES.find(x => x.id === selectedApplianceId);
+    document.getElementById('cat-title').textContent = a.name + ' · ' + brand;
+    document.getElementById('cat-issue-list').innerHTML = a.issues.map(iss =>
+      '<button class="book-opt" onclick="startCheckout(\'' + a.family + '\',' + jsStr(a.name + ' (' + brand + ') · ' + iss.label) + ',' + iss.price + ')">' +
+        '<span class="bo-l"><b>' + iss.label + '</b><span>' + a.name + ' · ' + brand + '</span></span>' +
+        '<span class="badge copper">₹' + iss.price + '</span>' +
+      '</button>'
+    ).join('');
+    custGo('category');
+  }
+
+  function startCheckout(family, serviceLabel, price){
+    pendingBooking = { category: family, service: serviceLabel, basePrice: price, price: price };
+    selectedSlot = 0;
+    isSpecialist = false;
+    renderCheckoutSummary();
+    const toggle = document.getElementById('specialist-toggle');
+    if(toggle) toggle.classList.remove('on');
+    document.getElementById('slot-row').innerHTML = SLOTS.map((s,i) =>
+      '<button class="slot-chip' + (i===0?' sel':'') + '" onclick="pickSlot(' + i + ',this)">' + s + '</button>'
+    ).join('');
+    custGo('checkout');
+  }
+  function renderCheckoutSummary(){
+    pendingBooking.price = pendingBooking.basePrice + (isSpecialist ? 99 : 0);
+    document.getElementById('checkout-summary').innerHTML =
+      '<div class="order-card"><div class="order-top"><div><b>' + pendingBooking.service + '</b><span>' + pendingBooking.category + (isSpecialist ? ' · + Certified Specialist' : '') + '</span></div>' +
+      '<span class="badge copper">₹' + pendingBooking.price + '</span></div></div>';
+  }
+  function toggleSpecialist(){
+    isSpecialist = !isSpecialist;
+    document.getElementById('specialist-toggle').classList.toggle('on', isSpecialist);
+    renderCheckoutSummary();
+  }
+  function pickSlot(i, el){
+    selectedSlot = i;
+    el.parentElement.querySelectorAll('.slot-chip').forEach(c => c.classList.remove('sel'));
+    el.classList.add('sel');
+  }
+
+  let selectedPayMethod = 'UPI';
+  function renderPayScreen(){
+    document.getElementById('pay-amount').textContent = '₹' + pendingBooking.price;
+    const methods = [
+      { id:'UPI', label:'UPI', sub:'Google Pay, PhonePe, Paytm' },
+      { id:'Card', label:'Credit / Debit card', sub:'Visa, Mastercard, RuPay' },
+      { id:'Cash', label:'Cash on service', sub:'Pay the technician directly' }
+    ];
+    document.getElementById('pay-methods').innerHTML = methods.map(m =>
+      '<button class="pay-method' + (m.id===selectedPayMethod?' sel':'') + '" onclick="pickPayMethod(\'' + m.id + '\',this)">' +
+        '<span class="radio"></span><span><b>' + m.label + '</b><span>' + m.sub + '</span></span>' +
+      '</button>'
+    ).join('');
+  }
+  function pickPayMethod(id, el){
+    selectedPayMethod = id;
+    el.parentElement.querySelectorAll('.pay-method').forEach(m => m.classList.remove('sel'));
+    el.classList.add('sel');
+  }
+
+  let lastConfirmedBooking = null;
+  async function payNow(){
     if(!STATE.connected){ log('⚠️ Not connected — hit Connect first.'); return; }
-    await apiPost('/api/reset', {});
-    log('↺ Server data reset to seed state.');
-    custGo('home');
-    await refreshAll();
+    const btn = document.getElementById('pay-btn');
+    btn.disabled = true; btn.textContent = 'Processing…';
+    await new Promise(r => setTimeout(r, 700));
+    try{
+      const b = await apiPost('/api/bookings', { category: pendingBooking.category, service: pendingBooking.service, price: pendingBooking.price });
+      lastConfirmedBooking = b;
+      log('💳 Paid ₹' + pendingBooking.price + ' via ' + selectedPayMethod + ' · booked #' + b.id);
+      document.getElementById('confirm-detail').textContent = 'Order #' + b.id + ' · ' + b.category + ' · ' + b.service + ' · ' + SLOTS[selectedSlot];
+      custGo('confirm');
+      await refreshAll();
+    } finally {
+      btn.disabled = false; btn.textContent = 'Pay now';
+    }
   }
+  // hook payment screen render into navigation
+  const _custGoOrig = custGo;
+  custGo = function(id){ _custGoOrig(id); if(id === 'payment') renderPayScreen(); };
 
-  function custGo(tab){
-    document.querySelectorAll('.pscreen').forEach(s => s.classList.remove('active'));
-    document.getElementById('cust-' + tab).classList.add('active');
-    document.querySelectorAll('.ptab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
-  }
-
+  /* ---------------- track / invoice / chat ---------------- */
   function statusBadgeClass(s){
     if(s === 'Completed') return 'emerald';
     if(s === 'Requested') return 'copper';
@@ -313,8 +1124,8 @@
       '<stop offset="0" stop-color="#B5453D"/><stop offset="0.5" stop-color="#B8912A"/><stop offset="1" stop-color="#3E7C59"/></linearGradient></defs>' +
       '<path d="M16 100 A84 84 0 0 1 184 100" stroke="var(--line)" stroke-width="14" fill="none" stroke-linecap="round"/>' +
       '<path d="M16 100 A84 84 0 0 1 184 100" stroke="url(#grad' + idSuffix + ')" stroke-width="14" fill="none" stroke-linecap="round" opacity="0.28"/>' +
-      '<circle cx="100" cy="100" r="5" fill="var(--ink)"/>' +
-      '<line id="needle-' + idSuffix + '" x1="100" y1="100" x2="100" y2="30" stroke="var(--ink)" stroke-width="3.5" stroke-linecap="round" style="transform-origin:100px 100px; transition:transform .3s cubic-bezier(.34,1.56,.64,1);"/></svg>';
+      '<circle cx="100" cy="100" r="5" fill="var(--text)"/>' +
+      '<line id="needle-' + idSuffix + '" x1="100" y1="100" x2="100" y2="30" stroke="var(--text)" stroke-width="3.5" stroke-linecap="round" style="transform-origin:100px 100px; transition:transform .3s cubic-bezier(.34,1.56,.64,1);"/></svg>';
   }
 
   const RATING_COLORS = { 1:'#B5453D', 2:'#C9773F', 3:'#B8912A', 4:'#6B9A57', 5:'#3E7C59' };
@@ -340,34 +1151,17 @@
   }
 
   function render(){
-    renderCustomerHome();
-    renderCustomerTrack();
-    renderCustomerProfile();
-  }
-
-  function renderCustomerHome(){
-    const box = document.getElementById('cust-book-options');
-    let html = BOOK_CATALOG.map(o =>
-      '<button class="book-opt" onclick="createBooking(\'' + o.category + '\',\'' + o.service + '\',' + o.price + ')">' +
-        '<span class="bo-l"><b>' + o.service + '</b><span>' + o.category + '</span></span>' +
-        '<span class="badge copper">₹' + o.price + '</span>' +
-      '</button>'
-    ).join('');
-
-    const bachatDone2 = STATE.bookings.some(b => b.bachatSlot === 2);
-    if(!bachatDone2){
-      html += '<button class="book-opt bachat" onclick="createBooking(\'RasoiAir\',\'Deep Cleaning\',0,2)">' +
-        '<span class="bo-l"><b>Bachat Package · Service 2</b><span>RasoiAir · Deep Cleaning</span></span>' +
-        '<span class="badge emerald">Included</span>' +
-      '</button>';
-    }
-    box.innerHTML = html;
+    updateIdentity();
+    if(document.getElementById('cust-home').classList.contains('active')) renderCustomerHome();
+    if(document.getElementById('cust-track').classList.contains('active')) renderCustomerTrack();
+    if(document.getElementById('cust-wallet').classList.contains('active')) renderCustomerWallet();
+    if(document.getElementById('cust-profile').classList.contains('active')) renderCustomerProfile();
   }
 
   function renderCustomerTrack(){
     const box = document.getElementById('cust-track-content');
     const b = STATE.bookings[0];
-    if(!b){ box.innerHTML = '<p class="ppx" style="font-size:12px;color:var(--ink-soft);">No orders yet.</p>'; return; }
+    if(!b){ box.innerHTML = '<p class="ppx" style="font-size:12px;color:var(--ink-soft);">No orders yet — book a service from Home.</p>'; return; }
     const idx = STATUS_ORDER.indexOf(b.status);
     const steps = STATUS_ORDER.map((s,i) => '<i class="' + (i < idx ? 'done' : i === idx ? 'now' : '') + '"></i>').join('');
 
@@ -378,8 +1172,16 @@
       '<div class="step-labels"><span>Requested</span><span>Completed</span></div>' +
       '</div>';
 
+    if(['Accepted','On the way','In Progress'].includes(b.status)){
+      html += '<div class="ppx" style="margin-bottom:8px; display:flex; gap:8px;">' +
+        '<button class="btn btn-primary btn-sm" style="flex:1;" onclick="custGo(\'livemap\')">🚚 Track &amp; relax</button>' +
+        '<button class="btn btn-outline btn-sm" style="flex:1;" onclick="custGo(\'chat\')">💬 Chat</button>' +
+        '</div>';
+    }
+
     if(b.status === 'Completed' && !b.ratings){
-      html += '<div class="psec" style="padding-top:6px;"><h3>Rate this service</h3></div>' +
+      html += '<div class="ppx" style="margin-bottom:10px;"><button class="btn btn-outline btn-sm" onclick="custGo(\'invoice\')">🧾 View invoice</button></div>' +
+        '<div class="psec" style="padding-top:6px;"><h3>Rate this service</h3></div>' +
         '<div class="meter-card">' + gaugeSVG('service') +
         '<div class="meter-value" id="mval-service">3 / 5</div><div class="meter-label" id="mlbl-service">How was the service?</div></div>' +
         '<div class="face-row">' +
@@ -393,17 +1195,127 @@
         '<div class="complaint-box" id="rate-complaint-box" style="display:none;">' +
           '<p><b>Sorry to hear that.</b> Raise this as a complaint so Ramesh and our team can follow up?</p>' +
           '<label><input type="checkbox" id="rate-complaint-check"> Raise this as a formal complaint</label>' +
-          '<textarea class="response-box" id="rate-complaint-text" placeholder="What went wrong? (optional)" style="margin-top:8px;"></textarea>' +
+          '<textarea class="response-box" id="rate-complaint-text" placeholder="What went wrong? (optional)" style="margin-top:8px;width:100%;border-radius:11px;border:1.4px solid var(--line);background:var(--paper);padding:10px 12px;font-size:12px;color:var(--text);resize:none;min-height:60px;"></textarea>' +
         '</div>' +
         '<div class="ppx"><button class="btn btn-primary" onclick="submitPendingRating(\'' + b.id + '\')">Submit feedback</button></div>';
     } else if(b.ratings){
-      html += '<div class="ppx" style="font-size:12px; color:var(--ink-soft); padding-top:2px;">You rated this service ' + b.ratings.service + '/5 and Ramesh ' + b.ratings.tech + '/5.' +
+      html += '<div class="ppx" style="margin-bottom:10px;"><button class="btn btn-outline btn-sm" onclick="custGo(\'invoice\')">🧾 View invoice</button></div>' +
+        '<div class="ppx" style="font-size:12px; color:var(--ink-soft); padding-top:2px;">You rated this service ' + b.ratings.service + '/5 and Ramesh ' + b.ratings.tech + '/5.' +
         (b.complaintId ? ' A complaint is on file (' + (findComplaint(b.complaintId)?.status || '—') + ').' : '') + '</div>';
     }
     box.innerHTML = html;
   }
 
+  async function submitPendingRating(bookingId){
+    const raise = document.getElementById('rate-complaint-check')?.checked;
+    const text = document.getElementById('rate-complaint-text')?.value;
+    const resp = await apiPost('/api/bookings/' + bookingId + '/rating', {
+      serviceRating: pendingRating.service, techRating: pendingRating.tech,
+      raiseComplaint: !!raise, complaintText: text
+    });
+    log('⭐ Rated #' + bookingId + (resp.complaint ? ' · complaint ' + resp.complaint.id + ' raised' : ''));
+    pendingRating = { service:3, tech:3 };
+    await refreshAll();
+  }
+
+  function renderInvoice(){
+    const b = STATE.bookings[0];
+    const box = document.getElementById('invoice-content');
+    if(!b){ box.innerHTML = '<p class="ppx" style="font-size:12px;color:var(--ink-soft);">No orders yet.</p>'; return; }
+    const total = b.price;
+    const subtotal = Math.round(total / 1.18);
+    const gst = total - subtotal;
+    box.innerHTML = '<div class="invoice-card">' +
+      '<div class="invoice-meta">Order #' + b.id + ' · ' + new Date(b.createdAt).toLocaleDateString() + '</div>' +
+      '<div class="invoice-row"><span>' + b.category + ' · ' + b.service + '</span><span>₹' + subtotal + '</span></div>' +
+      '<div class="invoice-row"><span>GST (18%)</span><span>₹' + gst + '</span></div>' +
+      '<div class="invoice-row total"><span>Total paid</span><span>₹' + total + '</span></div>' +
+      '</div>' +
+      '<div class="ppx"><button class="btn btn-outline" onclick="window.print()">Print / download invoice</button></div>';
+  }
+
+  const CHAT_SEED = [ { who:'them', text:'Hi! This is Ramesh, I\'ll be handling your service today.' } ];
+  let chatMsgs = null;
+  function renderChat(){
+    if(!chatMsgs) chatMsgs = CHAT_SEED.slice();
+    document.getElementById('chat-msgs').innerHTML = chatMsgs.map(m =>
+      '<div class="chat-msg ' + m.who + '">' + m.text + '</div>'
+    ).join('');
+    document.getElementById('chat-msgs').scrollTop = 999999;
+  }
+  function sendChat(){
+    const input = document.getElementById('chat-input');
+    const val = input.value.trim();
+    if(!val) return;
+    chatMsgs.push({ who:'me', text: val });
+    input.value = '';
+    renderChat();
+    setTimeout(() => { chatMsgs.push({ who:'them', text:'Got it, thanks for letting me know!' }); renderChat(); }, 900);
+  }
+
+  /* ---------------- live map / amc ---------------- */
+  function renderLiveMap(){
+    const b = STATE.bookings.find(x => ['Accepted','On the way','In Progress'].includes(x.status)) || STATE.bookings[0];
+    const eta = b ? (ETA_BY_STATUS[b.status] || '—') : '—';
+    document.getElementById('livemap-eta').innerHTML = '<b style="font-size:14px;">' + eta + '</b><span>' + (b ? b.status : 'No active order') + '</span>';
+  }
+
+  async function renderAmcPlans(){
+    const box = document.getElementById('amc-plan-list');
+    box.innerHTML = '<p class="ppx" style="font-size:12px;color:var(--ink-soft);">Loading plans…</p>';
+    try{
+      const plans = await apiGet('/api/amc/plans');
+      box.innerHTML = plans.map(p =>
+        '<div class="amc-plan-card"><div class="ap-top"><b>' + p.name + '</b><span class="ap-price">₹' + p.price + '/yr</span></div>' +
+        '<ul>' + p.benefits.map(x => '<li>' + x + '</li>').join('') + '</ul>' +
+        '<button class="btn btn-primary btn-sm" style="width:100%;" onclick="subscribeAmc(\'' + p.id + '\', this)">Subscribe</button></div>'
+      ).join('');
+    } catch(e){
+      box.innerHTML = '<p class="ppx" style="font-size:12px;color:var(--ink-soft);">Could not load plans — check the connection.</p>';
+    }
+  }
+  async function subscribeAmc(planId, el){
+    el.disabled = true; el.textContent = 'Subscribing…';
+    try{
+      await apiPost('/api/amc/subscribe', { plan_id: planId });
+      log('🛡️ Subscribed to RasoiKavach.');
+      el.textContent = 'Subscribed ✓';
+    } catch(e){
+      el.disabled = false; el.textContent = 'Subscribe';
+      log('⚠️ Could not subscribe — try again.');
+    }
+  }
+
+  /* ---------------- kitchen health score ---------------- */
+  function renderKitchenHealth(){
+    const list = STATE.healthScore || [];
+    const low = list.filter(h => h.value_pct < 30);
+    document.getElementById('health-nudge').innerHTML = low.length ?
+      '<div class="nudge-banner"><span>⚠️</span><p><b>' + low[0].appliance_name + '</b> needs attention — ' + low[0].metric_name + ' is low. Book a check-up?</p>' +
+      '<button class="btn btn-primary btn-sm" onclick="openCategory(\'' + (low[0].appliance_id || '').replace('app_','') + '\')">Book</button></div>' : '';
+    document.getElementById('health-cards').innerHTML = list.length ? list.map(h => {
+      const color = h.value_pct >= 60 ? 'var(--emerald)' : h.value_pct >= 30 ? 'var(--amber)' : 'var(--rust)';
+      return '<div class="health-card"><div class="h-top"><b>' + h.appliance_name + '</b><span style="color:' + color + ';">' + h.value_pct + '%</span></div>' +
+        '<div class="health-bar"><i style="width:' + h.value_pct + '%;background:' + color + ';"></i></div>' +
+        '<div class="h-label">' + h.metric_name + ' · ' + h.status_label + '</div></div>';
+    }).join('') : '<p class="ppx" style="font-size:11.5px;color:var(--ink-soft);">No health data yet — it appears here after your first completed service.</p>';
+  }
+
+  /* ---------------- wallet ---------------- */
+  function renderCustomerWallet(){
+    const completed = STATE.bookings.filter(b => b.status === 'Completed').length;
+    document.getElementById('wallet-balance').textContent = '₹' + (completed * 50);
+    document.getElementById('wallet-points').textContent = completed * 10;
+    document.getElementById('wallet-bookings').textContent = completed;
+  }
+  function copyReferral(){
+    if(navigator.clipboard) navigator.clipboard.writeText('RASOI-AMIT23');
+    log('📋 Referral code copied.');
+  }
+
+  /* ---------------- profile ---------------- */
   function renderCustomerProfile(){
+    renderKitchenHealth();
     const s1 = STATE.bookings.find(b => b.bachatSlot === 1);
     const s2 = STATE.bookings.find(b => b.bachatSlot === 2);
     let html = '<div class="pack-card"><div class="pack-head"><b>Bachat Package</b><span class="badge copper">Active</span></div>';
@@ -425,8 +1337,15 @@
     document.getElementById('cust-history-content').innerHTML = hist || '<p class="ppx" style="font-size:12px;color:var(--ink-soft);">No orders yet.</p>';
   }
 
-  render();
-  connectApi();
+  async function resetDemo(){
+    if(!STATE.connected){ log('⚠️ Not connected — hit Connect first.'); return; }
+    await apiPost('/api/reset', {});
+    log('↺ Server data reset to seed state.');
+    custGo('home');
+    await refreshAll();
+  }
+
+  boot();
 </script>
 
 </body>

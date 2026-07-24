@@ -3,34 +3,46 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RasoiCare — Technician</title>
+<title>RasoiCare Partner</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --ink:#14181B; --ink-soft:#4B4E4F;
-    --paper:#FBF9F5; --card:#FFFFFF; --line:#E4DECF;
-    --copper:#B4793A; --copper-deep:#8C5A24; --copper-tint:#F3E4CF;
+    --ink:#12181C; --ink-soft:#4B5459; --text:#12181C;
+    --paper:#F5F8F9; --card:#FFFFFF; --line:#DCE4E7; --stage-bg:#CDD6DA;
+    --copper:#2E6F8E; --copper-deep:#1F4F66; --copper-tint:#DCEAF0;
     --emerald:#3E7C59; --emerald-tint:#E4EFE7;
     --amber:#B8912A; --amber-tint:#F5EAD1;
     --rust:#B5453D; --rust-tint:#F5E1DE;
     --display:'Instrument Serif', serif; --body:'Manrope', sans-serif; --mono:'JetBrains Mono', monospace;
   }
+  :root[data-theme="dark"]{
+    --text:#EAF2F5; --ink-soft:#93A3AA;
+    --paper:#0A0F12; --card:#141C20; --line:#243035; --stage-bg:#05080A;
+    --copper:#6FB8D9; --copper-deep:#9ED2EA; --copper-tint:rgba(111,184,217,0.16);
+    --emerald:#5FCB8C; --emerald-tint:rgba(95,203,140,0.16);
+    --amber:#E9C55C; --amber-tint:rgba(233,197,92,0.16);
+    --rust:#E8887D; --rust-tint:rgba(232,136,125,0.16);
+  }
+  :root[data-theme="dark"] .device{ box-shadow:0 30px 90px -14px rgba(111,184,217,0.14), 0 30px 60px -18px rgba(0,0,0,0.65); }
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-  body{ font-family:var(--body); color:var(--ink); background:#DDD7C8; min-height:100vh; }
+  body{ font-family:var(--body); color:var(--text); background:var(--stage-bg); min-height:100vh; }
   button, input, textarea{ font-family:inherit; }
   button{ cursor:pointer; border:none; background:none; }
-  a{ text-decoration:none; color:inherit; }
+  a{ text-decoration:none; color:inherit; cursor:pointer; }
   :focus-visible{ outline:2px solid var(--copper-deep); outline-offset:2px; }
 
   .topbar{ position:sticky; top:0; z-index:50; background:var(--ink); color:#fff; }
-  .topbar-inner{ max-width:1180px; margin:0 auto; padding:14px 22px; display:flex; align-items:center; gap:20px; flex-wrap:wrap; }
+  .topbar-inner{ max-width:1180px; margin:0 auto; padding:14px 22px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
   .brand{ display:flex; align-items:center; gap:9px; font-family:var(--display); font-size:18px; flex:0 0 auto; }
   .brand .dot{ width:9px; height:9px; border-radius:50%; background:var(--copper); }
   .brand a{ font-family:var(--mono); font-size:11px; font-weight:700; color:#C9C6BF; border:1px solid rgba(255,255,255,0.2); padding:6px 10px; border-radius:8px; }
   .brand a:hover{ color:#fff; border-color:rgba(255,255,255,0.4); }
-  .reset-btn{ margin-left:auto; font-family:var(--mono); font-size:11px; font-weight:700; color:#C9C6BF; border:1px solid rgba(255,255,255,0.2); padding:8px 12px; border-radius:9px; }
-  .reset-btn:hover{ color:#fff; border-color:rgba(255,255,255,0.4); }
+  .icon-btn{ width:30px; height:30px; border-radius:8px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); color:#fff; font-size:13px; display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
+  .icon-btn:hover{ border-color:rgba(255,255,255,0.4); }
+  .icon-btn.push{ margin-left:auto; }
+  .dev-panel{ display:none; }
+  .dev-panel.open{ display:block; }
   .ticker-row{ background:rgba(255,255,255,0.05); border-top:1px solid rgba(255,255,255,0.08); }
   .ticker{ max-width:1180px; margin:0 auto; padding:8px 22px; font-family:var(--mono); font-size:11px; color:#C9A876; display:flex; align-items:center; gap:8px; }
   .ticker .pulse{ width:6px; height:6px; border-radius:50%; background:#67D394; flex:0 0 auto; animation:pulse 1.8s infinite; }
@@ -41,15 +53,17 @@
   .conn-dot{ width:8px; height:8px; border-radius:50%; background:var(--rust); flex:0 0 auto; }
   .conn-dot.ok{ background:#67D394; }
   .conn-label{ font-family:var(--mono); font-size:10.5px; color:#9C988F; }
-  .conn-url{ font-family:var(--mono); font-size:11px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.16); color:#fff; padding:6px 10px; border-radius:8px; width:280px; }
+  .conn-url{ font-family:var(--mono); font-size:11px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.16); color:#fff; padding:6px 10px; border-radius:8px; width:260px; }
   .conn-btn{ font-family:var(--mono); font-size:10.5px; font-weight:700; color:#fff; background:var(--copper); padding:6px 12px; border-radius:8px; }
   .conn-synced{ margin-left:auto; font-family:var(--mono); font-size:10px; color:#75726A; }
+  .reset-btn{ font-family:var(--mono); font-size:10.5px; font-weight:700; color:#C9C6BF; border:1px solid rgba(255,255,255,0.2); padding:6px 12px; border-radius:9px; }
+  .reset-btn:hover{ color:#fff; border-color:rgba(255,255,255,0.4); }
 
   .stage{ max-width:1180px; margin:0 auto; padding:20px 22px 60px; display:flex; justify-content:center; }
 
   .device{ width:390px; height:800px; background:#000; border-radius:40px; padding:11px; box-shadow:0 30px 60px -18px rgba(20,24,27,0.4); margin:0 auto; }
   .screen-frame{ position:relative; width:100%; height:100%; background:var(--paper); border-radius:30px; overflow:hidden; display:flex; flex-direction:column; }
-  .pstatusbar{ height:38px; flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; padding:0 22px; font-family:var(--mono); font-size:12px; font-weight:600; }
+  .pstatusbar{ height:38px; flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; padding:0 22px; font-family:var(--mono); font-size:12px; font-weight:600; color:var(--text); }
   .ptag{ font-family:var(--mono); font-size:9.5px; font-weight:700; background:var(--ink); color:#fff; padding:2px 7px; border-radius:20px; }
 
   .pbody{ flex:1; position:relative; overflow:hidden; }
@@ -58,6 +72,7 @@
   .pscreen.active{ display:flex; }
 
   .ptabbar{ position:absolute; left:0; right:0; bottom:0; height:70px; background:rgba(251,249,245,0.92); backdrop-filter:blur(8px); border-top:1px solid var(--line); display:flex; align-items:flex-start; padding-top:10px; z-index:20; }
+  :root[data-theme="dark"] .ptabbar{ background:rgba(13,16,19,0.92); }
   .ptab{ flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; color:var(--ink-soft); font-size:9.5px; font-weight:700; }
   .ptab svg{ width:18px; height:18px; }
   .ptab.active{ color:var(--copper-deep); }
@@ -66,6 +81,10 @@
   .psec{ display:flex; align-items:baseline; justify-content:space-between; padding:18px 20px 10px; }
   .psec h3{ font-size:14.5px; font-weight:800; }
 
+  .back-row{ display:flex; align-items:center; gap:10px; padding:16px 20px 6px; }
+  .back-btn{ width:30px; height:30px; border-radius:9px; border:1.4px solid var(--line); display:flex; align-items:center; justify-content:center; background:var(--card); flex:0 0 auto; }
+  .back-row h3{ font-size:15px; font-weight:800; }
+
   .greet-card{ margin:14px 20px 14px; padding:18px; border-radius:18px; background:linear-gradient(155deg,#1B2023,var(--ink)); color:#fff; }
   .greet-card h2{ font-family:var(--display); font-size:20px; font-weight:400; margin-top:4px; }
   .greet-card p{ font-size:12px; color:#C9C6BF; margin-top:2px; }
@@ -73,6 +92,7 @@
 
   .btn{ display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13.5px; padding:13px 18px; border-radius:12px; width:100%; }
   .btn-primary{ background:var(--ink); color:#fff; }
+  .btn-outline{ background:transparent; border:1.4px solid var(--text); color:var(--text); }
   .btn-sm{ padding:9px 14px; font-size:12px; border-radius:10px; width:auto; }
 
   .badge{ display:inline-flex; align-items:center; gap:4px; font-family:var(--mono); font-size:9.5px; font-weight:700; padding:3px 8px; border-radius:20px; white-space:nowrap; }
@@ -81,7 +101,7 @@
   .badge.rust{ background:var(--rust-tint); color:var(--rust); }
   .badge.copper{ background:var(--copper-tint); color:var(--copper-deep); }
 
-  .job-card{ margin:0 20px 10px; border-radius:14px; border:1.4px solid var(--line); background:var(--card); padding:13px 14px; }
+  .job-card{ margin:0 20px 10px; border-radius:14px; border:1.4px solid var(--line); background:var(--card); padding:13px 14px; text-align:left; width:calc(100% - 40px); }
   .job-card.pending{ border-color:var(--copper); background:var(--copper-tint); }
   .job-top{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:4px; gap:8px; }
   .job-top b{ font-size:12.5px; font-weight:800; }
@@ -95,33 +115,66 @@
   .mini-meter{ display:flex; gap:3px; margin-top:6px; }
   .mini-meter .dot{ width:6px; height:6px; border-radius:50%; background:var(--line); }
   .mini-meter .dot.on{ background:var(--rust); }
-  .response-box{ margin-top:10px; width:100%; border-radius:11px; border:1.4px solid var(--line); background:var(--paper); padding:10px 12px; font-size:12px; color:var(--ink); resize:none; min-height:60px; }
+  .response-box{ margin-top:10px; width:100%; border-radius:11px; border:1.4px solid var(--line); background:var(--paper); padding:10px 12px; font-size:12px; color:var(--text); resize:none; min-height:60px; }
   .cbtn-row{ display:flex; gap:8px; margin-top:8px; }
+
+  /* ---- job detail ---- */
+  .detail-card{ margin:0 20px 14px; border-radius:16px; border:1.4px solid var(--line); background:var(--card); padding:15px 16px; }
+  .detail-card h4{ font-size:12px; font-weight:800; margin-bottom:8px; }
+  .detail-row{ display:flex; gap:10px; font-size:11.5px; color:var(--ink-soft); padding:3px 0; }
+  .detail-row b{ color:var(--text); font-weight:700; min-width:64px; }
+  .map-ph{ margin:0 20px 12px; height:120px; border-radius:16px; background:repeating-linear-gradient(135deg, var(--line), var(--line) 10px, var(--paper) 10px, var(--paper) 20px); border:1.4px solid var(--line); display:flex; align-items:center; justify-content:center; position:relative; }
+  .map-ph .pin{ font-size:26px; }
+  .photo-row{ display:flex; gap:10px; }
+  .photo-slot{ flex:1; aspect-ratio:1; border-radius:13px; border:1.6px dashed var(--line); background:var(--paper); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; font-size:10.5px; color:var(--ink-soft); overflow:hidden; position:relative; cursor:pointer; }
+  .photo-slot img{ width:100%; height:100%; object-fit:cover; position:absolute; inset:0; }
+  .photo-slot input{ display:none; }
+  .inv-line{ display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .inv-line input{ border:1.4px solid var(--line); background:var(--paper); color:var(--text); border-radius:9px; padding:8px 10px; font-size:11.5px; }
+  .inv-line input.desc{ flex:1; }
+  .inv-line input.amt{ width:72px; text-align:right; }
+  .inv-total{ display:flex; justify-content:space-between; font-weight:800; font-size:13.5px; border-top:1.4px dashed var(--line); padding-top:10px; margin-top:4px; }
+  .sig-pad{ border-radius:13px; border:1.4px solid var(--line); background:var(--paper); touch-action:none; width:100%; height:140px; display:block; }
+  .sig-row{ display:flex; gap:8px; margin-top:8px; }
+  .pay-toggle-row{ display:flex; gap:8px; margin-bottom:10px; }
+  .pay-toggle{ flex:1; padding:11px; text-align:center; border-radius:11px; border:1.4px solid var(--line); background:var(--paper); font-size:12px; font-weight:700; }
+  .pay-toggle.sel{ border-color:var(--copper); background:var(--copper-tint); color:var(--copper-deep); }
+
+  .earn-hero{ margin:14px 20px; border-radius:18px; padding:20px; background:linear-gradient(155deg,#1B2023,var(--ink)); color:#fff; }
+  .earn-hero .lbl{ font-family:var(--mono); font-size:10px; color:#C9C6BF; text-transform:uppercase; }
+  .earn-hero .amt{ font-family:var(--display); font-size:32px; font-weight:400; margin-top:4px; }
+  .earn-stats{ display:flex; gap:10px; padding:0 20px 6px; }
+  .earn-stat{ flex:1; border-radius:14px; border:1.4px solid var(--line); background:var(--card); padding:12px; text-align:center; }
+  .earn-stat .n{ font-family:var(--display); font-size:20px; font-weight:400; }
+  .earn-stat .l{ font-size:9.5px; color:var(--ink-soft); font-weight:700; }
 </style>
 </head>
 <body>
 
 <div class="topbar">
   <div class="topbar-inner">
-    <div class="brand"><span class="dot"></span>RasoiCare — Technician</div>
-    <a href="/">← All apps</a>
-    <button class="reset-btn" onclick="resetDemo()">↺ Reset server data</button>
+    <div class="brand"><span class="dot"></span>RasoiCare Partner</div>
+    <button class="icon-btn push" id="theme-btn" onclick="toggleTheme()" title="Toggle theme">🌙</button>
+    <button class="icon-btn" onclick="toggleDevPanel()" title="Developer options">⚙</button>
   </div>
-  <div class="ticker-row">
-    <div class="ticker"><span class="pulse"></span><span id="ticker-text">Ready.</span></div>
-  </div>
-  <div class="connbar">
-    <div class="connbar-inner">
-      <span class="conn-dot" id="conn-dot"></span>
-      <span class="conn-label">API:</span>
-      <input class="conn-url" id="conn-url-input" value="http://127.0.0.1:8420" spellcheck="false">
-      <script>
-        if (location.protocol.startsWith('http')) {
-          document.getElementById('conn-url-input').value = location.origin;
-        }
-      </script>
-      <button class="conn-btn" onclick="connectApi()">Connect</button>
-      <span class="conn-synced" id="conn-synced">not connected</span>
+  <div class="dev-panel" id="dev-panel">
+    <div class="ticker-row">
+      <div class="ticker"><span class="pulse"></span><span id="ticker-text">Ready.</span></div>
+    </div>
+    <div class="connbar">
+      <div class="connbar-inner">
+        <span class="conn-dot" id="conn-dot"></span>
+        <span class="conn-label">API:</span>
+        <input class="conn-url" id="conn-url-input" value="http://127.0.0.1:8420" spellcheck="false">
+        <script>
+          if (location.protocol.startsWith('http')) {
+            document.getElementById('conn-url-input').value = location.origin;
+          }
+        </script>
+        <button class="conn-btn" onclick="connectApi()">Connect</button>
+        <button class="reset-btn" onclick="resetDemo()">↺ Reset data</button>
+        <span class="conn-synced" id="conn-synced">not connected</span>
+      </div>
     </div>
   </div>
 </div>
@@ -146,15 +199,79 @@
           <div id="tech-completed-content"></div>
         </div>
 
+        <div class="pscreen" id="tech-detail">
+          <div class="back-row"><button class="back-btn" onclick="techGo('jobs')">←</button><h3 id="detail-title">Job</h3></div>
+          <div class="detail-card" id="detail-summary"></div>
+
+          <div class="psec" style="padding-top:2px;"><h3>Customer</h3></div>
+          <div class="detail-card">
+            <div class="detail-row"><b>Name</b><span id="detail-cust-name">Amit Sharma</span></div>
+            <div class="detail-row"><b>Address</b><span>221B, MG Road, Baner, Pune 411045</span></div>
+            <div class="detail-row"><b>Phone</b><span>+91 98XXXXXX21</span></div>
+          </div>
+          <div class="map-ph"><span class="pin">📍</span></div>
+          <div class="ppx" style="margin-bottom:16px;"><button class="btn btn-outline btn-sm" onclick="log('🗺️ Opening navigation…')">Navigate to customer</button></div>
+
+          <div class="psec" style="padding-top:2px;"><h3>Job photos</h3></div>
+          <div class="ppx" style="margin-bottom:16px;">
+            <div class="photo-row">
+              <label class="photo-slot" id="photo-before"><span>📷 Before</span><input type="file" accept="image/*" onchange="handlePhoto(this,'before')"></label>
+              <label class="photo-slot" id="photo-after"><span>📷 After</span><input type="file" accept="image/*" onchange="handlePhoto(this,'after')"></label>
+            </div>
+          </div>
+
+          <div class="psec" style="padding-top:2px;"><h3>Invoice</h3></div>
+          <div class="detail-card" id="invoice-builder"></div>
+
+          <div class="psec" style="padding-top:2px;"><h3>Customer signature</h3></div>
+          <div class="ppx" style="margin-bottom:8px;">
+            <canvas class="sig-pad" id="sig-pad" width="320" height="140"></canvas>
+            <div class="sig-row">
+              <button class="btn btn-outline btn-sm" onclick="clearSignature()">Clear</button>
+              <button class="btn btn-primary btn-sm" onclick="saveSignature()" style="flex:1;">Save signature</button>
+            </div>
+            <p id="sig-status" style="font-size:10.5px;color:var(--ink-soft);margin-top:6px;"></p>
+          </div>
+
+          <div class="psec" style="padding-top:2px;"><h3>Collect payment</h3></div>
+          <div class="ppx" style="margin-bottom:16px;">
+            <div class="pay-toggle-row">
+              <button class="pay-toggle sel" id="paytog-cash" onclick="pickCollectMethod('cash')">Cash</button>
+              <button class="pay-toggle" id="paytog-upi" onclick="pickCollectMethod('upi')">UPI</button>
+            </div>
+            <button class="btn btn-primary" id="collect-btn" onclick="collectPayment()">Mark payment collected</button>
+          </div>
+
+          <div class="psec" style="padding-top:2px;"><h3>Log kitchen health</h3></div>
+          <div class="ppx" style="margin-bottom:16px;" id="health-log-wrap"></div>
+
+          <div class="ppx" id="detail-advance-wrap" style="margin-bottom:20px;"></div>
+        </div>
+
+        <div class="pscreen" id="tech-earnings">
+          <div class="psec" style="padding-top:16px;"><h3>Earnings</h3></div>
+          <div class="earn-hero"><div class="lbl">Total collected</div><div class="amt" id="earn-total">₹0</div></div>
+          <div class="earn-stats" style="margin-bottom:16px;">
+            <div class="earn-stat"><div class="n" id="earn-today">₹0</div><div class="l">TODAY</div></div>
+            <div class="earn-stat"><div class="n" id="earn-jobs">0</div><div class="l">JOBS DONE</div></div>
+            <div class="earn-stat"><div class="n" id="earn-rating">—</div><div class="l">RATING</div></div>
+          </div>
+          <div class="psec"><h3>Recent payouts</h3></div>
+          <div id="earn-list"></div>
+        </div>
+
         <div class="pscreen" id="tech-complaints">
           <div class="psec" style="padding-top:16px;"><h3>Complaints</h3></div>
           <div id="tech-complaints-content"></div>
         </div>
 
       </div>
-      <div class="ptabbar">
+      <div class="ptabbar" id="ptabbar">
         <button class="ptab active" data-tab="jobs" onclick="techGo('jobs')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>Jobs
+        </button>
+        <button class="ptab" data-tab="earnings" onclick="techGo('earnings')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v9M9.5 9.8c0-1.2 1.1-2 2.5-2s2.5.7 2.5 1.8c0 2.4-5 1.2-5 3.6 0 1.1 1.1 1.8 2.5 1.8s2.5-.8 2.5-2"/></svg>Earnings
         </button>
         <button class="ptab" data-tab="complaints" onclick="techGo('complaints')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4h16v12H8l-4 4V4z"/></svg>Complaints
@@ -165,6 +282,23 @@
 </div>
 
 <script>
+  function applyStoredTheme(){
+    if(localStorage.getItem('rc_theme') === 'dark'){ document.documentElement.setAttribute('data-theme','dark'); }
+    updateThemeUI();
+  }
+  function toggleTheme(){
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    if(isDark){ document.documentElement.removeAttribute('data-theme'); localStorage.setItem('rc_theme','light'); }
+    else { document.documentElement.setAttribute('data-theme','dark'); localStorage.setItem('rc_theme','dark'); }
+    updateThemeUI();
+  }
+  function updateThemeUI(){
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const btn = document.getElementById('theme-btn'); if(btn) btn.textContent = dark ? '☀' : '🌙';
+  }
+  function toggleDevPanel(){ document.getElementById('dev-panel').classList.toggle('open'); }
+  applyStoredTheme();
+
   let API_BASE = document.getElementById('conn-url-input').value.trim();
   let STATE = { bookings:[], complaints:[], connected:false };
   let pollTimer = null;
@@ -224,13 +358,26 @@
   function log(msg){ document.getElementById('ticker-text').textContent = msg; }
 
   const STATUS_ORDER = ['Requested','Accepted','On the way','In Progress','Completed'];
+  const TABS = ['jobs','earnings','complaints'];
 
   function findBooking(id){ return STATE.bookings.find(b => b.id === id); }
+
+  function techGo(id){
+    document.querySelectorAll('.pscreen').forEach(s => s.classList.remove('active'));
+    document.getElementById('tech-' + id).classList.add('active');
+    const isTab = TABS.includes(id);
+    document.getElementById('ptabbar').style.display = isTab ? 'flex' : 'none';
+    if(isTab) document.querySelectorAll('.ptab').forEach(t => t.classList.toggle('active', t.dataset.tab === id));
+    if(id === 'jobs') renderTechJobs();
+    if(id === 'earnings') renderEarnings();
+    if(id === 'complaints') renderTechComplaints();
+  }
 
   async function techAdvance(bookingId){
     const b = await apiPatch('/api/bookings/' + bookingId + '/advance', {});
     log('🔧 Ramesh moved #' + b.id + ' to "' + b.status + '"');
     await refreshAll();
+    if(currentDetailId === bookingId) openJobDetail(bookingId);
   }
 
   async function techResolve(complaintId, responseText){
@@ -247,12 +394,6 @@
     await refreshAll();
   }
 
-  function techGo(tab){
-    document.querySelectorAll('.pscreen').forEach(s => s.classList.remove('active'));
-    document.getElementById('tech-' + tab).classList.add('active');
-    document.querySelectorAll('.ptab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
-  }
-
   function miniMeter(n){
     let d = '';
     for(let i=1;i<=5;i++) d += '<span class="dot' + (i<=n?' on':'') + '"></span>';
@@ -260,8 +401,10 @@
   }
 
   function render(){
-    renderTechJobs();
-    renderTechComplaints();
+    if(document.getElementById('tech-jobs').classList.contains('active')) renderTechJobs();
+    if(document.getElementById('tech-earnings').classList.contains('active')) renderEarnings();
+    if(document.getElementById('tech-complaints').classList.contains('active')) renderTechComplaints();
+    if(document.getElementById('tech-detail').classList.contains('active') && currentDetailId) refreshDetailSummary();
   }
 
   function renderTechJobs(){
@@ -270,20 +413,20 @@
     const done = STATE.bookings.filter(b => b.status === 'Completed');
 
     document.getElementById('tech-new-content').innerHTML = reqs.length ? reqs.map(b =>
-      '<div class="job-card pending"><div class="job-top"><b>' + b.category + ' · ' + b.service + '</b><span class="badge copper">₹' + b.price + '</span></div>' +
+      '<button class="job-card pending" onclick="openJobDetail(\'' + b.id + '\')"><div class="job-top"><b>' + b.category + ' · ' + b.service + '</b><span class="badge copper">₹' + b.price + '</span></div>' +
       '<div class="meta">Order #' + b.id + '</div>' +
-      '<div class="job-actions"><button class="btn btn-primary btn-sm" onclick="techAdvance(\'' + b.id + '\')">Accept job</button></div></div>'
+      '<div class="job-actions"><button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); techAdvance(\'' + b.id + '\')">Accept job</button></div></button>'
     ).join('') : '<p class="ppx" style="font-size:11.5px; color:var(--ink-soft);">No new requests right now.</p>';
 
     document.getElementById('tech-active-content').innerHTML = active.length ? active.map(b =>
-      '<div class="job-card"><div class="job-top"><b>' + b.category + ' · ' + b.service + '</b><span class="badge amber">' + b.status + '</span></div>' +
+      '<button class="job-card" onclick="openJobDetail(\'' + b.id + '\')"><div class="job-top"><b>' + b.category + ' · ' + b.service + '</b><span class="badge amber">' + b.status + '</span></div>' +
       '<div class="meta">Order #' + b.id + ' · ₹' + b.price + '</div>' +
-      '<div class="job-actions"><button class="btn btn-primary btn-sm" onclick="techAdvance(\'' + b.id + '\')">Move to \'' + STATUS_ORDER[STATUS_ORDER.indexOf(b.status)+1] + '\'</button></div></div>'
+      '<div class="job-actions"><button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); techAdvance(\'' + b.id + '\')">Move to \'' + STATUS_ORDER[STATUS_ORDER.indexOf(b.status)+1] + '\'</button></div></button>'
     ).join('') : '<p class="ppx" style="font-size:11.5px; color:var(--ink-soft);">Nothing in progress.</p>';
 
     document.getElementById('tech-completed-content').innerHTML = done.length ? done.map(b =>
-      '<div class="job-card"><div class="job-top"><b>' + b.category + ' · ' + b.service + '</b><span class="badge emerald">Completed</span></div>' +
-      '<div class="meta">Order #' + b.id + ' · ' + (b.ratings ? ('Rated ' + b.ratings.tech + '/5') : 'Awaiting rating') + '</div></div>'
+      '<button class="job-card" onclick="openJobDetail(\'' + b.id + '\')"><div class="job-top"><b>' + b.category + ' · ' + b.service + '</b><span class="badge emerald">Completed</span></div>' +
+      '<div class="meta">Order #' + b.id + ' · ' + (b.ratings ? ('Rated ' + b.ratings.tech + '/5') : 'Awaiting rating') + '</div></button>'
     ).join('') : '<p class="ppx" style="font-size:11.5px; color:var(--ink-soft);">No completed jobs yet.</p>';
   }
 
@@ -303,6 +446,178 @@
     }).join('');
   }
 
+  /* ---------------- job detail ---------------- */
+  let currentDetailId = null;
+  let invoiceLines = [];
+  let signatureSaved = false;
+  let collectMethod = 'cash';
+  let jobPhotos = {};
+
+  function openJobDetail(id){
+    currentDetailId = id;
+    jobPhotos = {}; signatureSaved = false; collectMethod = 'cash';
+    const b = findBooking(id);
+    invoiceLines = [
+      { desc: b.service + ' (labor)', amt: Math.round(b.price * 0.7) },
+      { desc: 'Parts & consumables', amt: b.price - Math.round(b.price * 0.7) }
+    ];
+    document.getElementById('detail-title').textContent = 'Order #' + id;
+    renderInvoiceBuilder();
+    techGo('detail');
+    refreshDetailSummary();
+    document.getElementById('photo-before').innerHTML = '<span>📷 Before</span><input type="file" accept="image/*" onchange="handlePhoto(this,\'before\')">';
+    document.getElementById('photo-after').innerHTML = '<span>📷 After</span><input type="file" accept="image/*" onchange="handlePhoto(this,\'after\')">';
+    document.getElementById('sig-status').textContent = '';
+    document.getElementById('paytog-cash').classList.add('sel');
+    document.getElementById('paytog-upi').classList.remove('sel');
+    clearSignature();
+  }
+
+  function refreshDetailSummary(){
+    const b = findBooking(currentDetailId);
+    if(!b) return;
+    document.getElementById('detail-summary').innerHTML =
+      '<h4>' + b.category + ' · ' + b.service + '</h4>' +
+      '<div class="detail-row"><b>Status</b><span class="badge ' + (b.status==='Completed'?'emerald':b.status==='Requested'?'copper':'amber') + '">' + b.status + '</span></div>' +
+      '<div class="detail-row"><b>Amount</b><span>₹' + b.price + '</span></div>' +
+      '<div class="detail-row"><b>Booked</b><span>' + new Date(b.createdAt).toLocaleString() + '</span></div>';
+
+    const idx = STATUS_ORDER.indexOf(b.status);
+    const wrap = document.getElementById('detail-advance-wrap');
+    wrap.innerHTML = idx < STATUS_ORDER.length - 1
+      ? '<button class="btn btn-primary" onclick="techAdvance(\'' + b.id + '\')">Move to \'' + STATUS_ORDER[idx+1] + '\'</button>'
+      : '<p style="font-size:11.5px;color:var(--ink-soft);text-align:center;">This job is complete.</p>';
+
+    const collectBtn = document.getElementById('collect-btn');
+    collectBtn.disabled = b.status !== 'Completed';
+    collectBtn.textContent = b.price === 0 ? 'No payment due' : (b.status === 'Completed' ? 'Mark payment collected' : 'Available once completed');
+    if(b.price === 0) collectBtn.disabled = true;
+
+    renderHealthLog(b);
+  }
+
+  const HEALTH_METRIC_SUGGESTIONS = {
+    RasoiAir:'Filter Saturation', RasoiSpark:'Gas Pressure', RasoiBuilt:'Seal Condition',
+    RasoiWash:'Drain Efficiency', RasoiChill:'Cooling Efficiency', RasoiPure:'Filter Life'
+  };
+  function renderHealthLog(b){
+    const wrap = document.getElementById('health-log-wrap');
+    if(b.status !== 'Completed'){
+      wrap.innerHTML = '<p style="font-size:11px;color:var(--ink-soft);">Available once the job is marked completed.</p>';
+      return;
+    }
+    const suggestion = HEALTH_METRIC_SUGGESTIONS[b.category] || 'Condition';
+    wrap.innerHTML =
+      '<input id="health-metric" value="' + suggestion + '" placeholder="Metric name" style="width:100%;margin-bottom:8px;padding:9px 11px;border-radius:9px;border:1.4px solid var(--line);background:var(--paper);color:var(--text);font-size:12px;">' +
+      '<input id="health-value" type="range" min="0" max="100" value="80" style="width:100%;" oninput="document.getElementById(\'health-value-lbl\').textContent = this.value + \'%\'">' +
+      '<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--ink-soft);margin:2px 0 8px;"><span>0%</span><span id="health-value-lbl">80%</span><span>100%</span></div>' +
+      '<input id="health-status" value="Optimal" placeholder="Status label (e.g. Optimal, Needs attention)" style="width:100%;margin-bottom:10px;padding:9px 11px;border-radius:9px;border:1.4px solid var(--line);background:var(--paper);color:var(--text);font-size:12px;">' +
+      '<button class="btn btn-primary btn-sm" style="width:100%;" onclick="saveHealthLog(\'' + b.id + '\')">Save health reading</button>' +
+      '<p id="health-log-status" style="font-size:10.5px;color:var(--ink-soft);margin-top:6px;"></p>';
+  }
+  async function saveHealthLog(bookingId){
+    const metric_name = document.getElementById('health-metric').value.trim();
+    const value_pct = Number(document.getElementById('health-value').value);
+    const status_label = document.getElementById('health-status').value.trim();
+    const statusEl = document.getElementById('health-log-status');
+    if(!metric_name || !status_label){ statusEl.textContent = 'Fill in both fields.'; return; }
+    try{
+      await apiPost('/api/bookings/' + bookingId + '/health-update', { metric_name, value_pct, status_label });
+      statusEl.textContent = '✅ Saved · ' + new Date().toLocaleTimeString();
+      log('🩺 Logged ' + metric_name + ' (' + value_pct + '%) for #' + bookingId);
+    } catch(e){
+      statusEl.textContent = '⚠️ Could not save — check the connection.';
+    }
+  }
+
+  function handlePhoto(input, slot){
+    const file = input.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      jobPhotos[slot] = e.target.result;
+      document.getElementById('photo-' + slot).innerHTML = '<img src="' + e.target.result + '">' +
+        '<input type="file" accept="image/*" onchange="handlePhoto(this,\'' + slot + '\')">';
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function renderInvoiceBuilder(){
+    const box = document.getElementById('invoice-builder');
+    const total = invoiceLines.reduce((s,l) => s + (Number(l.amt) || 0), 0);
+    box.innerHTML = invoiceLines.map((l,i) =>
+      '<div class="inv-line"><input class="desc" value="' + l.desc + '" oninput="invoiceLines[' + i + '].desc=this.value">' +
+      '<input class="amt" type="number" value="' + l.amt + '" oninput="invoiceLines[' + i + '].amt=this.value; renderInvoiceBuilder();"></div>'
+    ).join('') +
+    '<button class="btn btn-outline btn-sm" style="width:auto;margin-bottom:10px;" onclick="invoiceLines.push({desc:\'New item\',amt:0}); renderInvoiceBuilder();">+ Add line</button>' +
+    '<div class="inv-total"><span>Total</span><span>₹' + total + '</span></div>';
+  }
+
+  let sigCtx = null, sigDrawing = false;
+  function initSignaturePad(){
+    const canvas = document.getElementById('sig-pad');
+    sigCtx = canvas.getContext('2d');
+    sigCtx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--text') || '#14181B';
+    sigCtx.lineWidth = 2;
+    sigCtx.lineCap = 'round';
+    const pos = e => {
+      const rect = canvas.getBoundingClientRect();
+      const p = e.touches ? e.touches[0] : e;
+      return { x: (p.clientX - rect.left) * (canvas.width/rect.width), y: (p.clientY - rect.top) * (canvas.height/rect.height) };
+    };
+    const start = e => { sigDrawing = true; const p = pos(e); sigCtx.beginPath(); sigCtx.moveTo(p.x,p.y); };
+    const move = e => { if(!sigDrawing) return; const p = pos(e); sigCtx.lineTo(p.x,p.y); sigCtx.stroke(); e.preventDefault(); };
+    const end = () => { sigDrawing = false; };
+    canvas.addEventListener('mousedown', start);
+    canvas.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', end);
+    canvas.addEventListener('touchstart', start, {passive:true});
+    canvas.addEventListener('touchmove', move, {passive:false});
+    canvas.addEventListener('touchend', end);
+  }
+  function clearSignature(){
+    if(!sigCtx) return;
+    sigCtx.clearRect(0,0,320,140);
+    signatureSaved = false;
+    document.getElementById('sig-status').textContent = '';
+  }
+  function saveSignature(){
+    signatureSaved = true;
+    document.getElementById('sig-status').textContent = '✅ Signature captured · ' + new Date().toLocaleTimeString();
+  }
+
+  function pickCollectMethod(m){
+    collectMethod = m;
+    document.getElementById('paytog-cash').classList.toggle('sel', m === 'cash');
+    document.getElementById('paytog-upi').classList.toggle('sel', m === 'upi');
+  }
+  function collectPayment(){
+    log('💰 Collected ₹' + (findBooking(currentDetailId)?.price || 0) + ' via ' + collectMethod.toUpperCase() + ' for #' + currentDetailId);
+    document.getElementById('collect-btn').textContent = 'Payment collected ✓';
+    document.getElementById('collect-btn').disabled = true;
+  }
+
+  /* ---------------- earnings ---------------- */
+  function renderEarnings(){
+    const done = STATE.bookings.filter(b => b.status === 'Completed');
+    const total = done.reduce((s,b) => s + b.price, 0);
+    const todayStr = new Date().toDateString();
+    const today = done.filter(b => new Date(b.createdAt).toDateString() === todayStr).reduce((s,b) => s + b.price, 0);
+    const ratings = done.filter(b => b.ratings).map(b => b.ratings.tech);
+    const avgRating = ratings.length ? (ratings.reduce((a,c)=>a+c,0)/ratings.length).toFixed(1) : '—';
+
+    document.getElementById('earn-total').textContent = '₹' + total;
+    document.getElementById('earn-today').textContent = '₹' + today;
+    document.getElementById('earn-jobs').textContent = done.length;
+    document.getElementById('earn-rating').textContent = avgRating === '—' ? '—' : avgRating + '★';
+
+    document.getElementById('earn-list').innerHTML = done.length ? done.map(b =>
+      '<div class="job-card"><div class="job-top"><b>' + b.category + ' · ' + b.service + '</b><span class="badge emerald">₹' + b.price + '</span></div>' +
+      '<div class="meta">#' + b.id + ' · ' + new Date(b.createdAt).toLocaleDateString() + '</div></div>'
+    ).join('') : '<p class="ppx" style="font-size:11.5px;color:var(--ink-soft);">No completed jobs yet.</p>';
+  }
+
+  initSignaturePad();
   render();
   connectApi();
 </script>

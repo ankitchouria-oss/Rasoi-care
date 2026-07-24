@@ -3,34 +3,46 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RasoiCare — Admin</title>
+<title>RasoiCare Ops</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --ink:#14181B; --ink-soft:#4B4E4F;
-    --paper:#FBF9F5; --card:#FFFFFF; --line:#E4DECF;
-    --copper:#B4793A; --copper-deep:#8C5A24; --copper-tint:#F3E4CF;
+    --ink:#181722; --ink-soft:#514D63; --text:#181722;
+    --paper:#F7F6FA; --card:#FFFFFF; --line:#E1DEEA; --stage-bg:#D6D3E0;
+    --copper:#5B4B8A; --copper-deep:#3E2F66; --copper-tint:#E8E3F5;
     --emerald:#3E7C59; --emerald-tint:#E4EFE7;
     --amber:#B8912A; --amber-tint:#F5EAD1;
     --rust:#B5453D; --rust-tint:#F5E1DE;
     --display:'Instrument Serif', serif; --body:'Manrope', sans-serif; --mono:'JetBrains Mono', monospace;
   }
+  :root[data-theme="dark"]{
+    --text:#EFEDF7; --ink-soft:#9F9AB3;
+    --paper:#0D0C13; --card:#181622; --line:#2C2939; --stage-bg:#08070C;
+    --copper:#A796D9; --copper-deep:#C7BCEA; --copper-tint:rgba(167,150,217,0.16);
+    --emerald:#5FCB8C; --emerald-tint:rgba(95,203,140,0.16);
+    --amber:#E9C55C; --amber-tint:rgba(233,197,92,0.16);
+    --rust:#E8887D; --rust-tint:rgba(232,136,125,0.16);
+  }
+  :root[data-theme="dark"] .admin-shell{ box-shadow:0 30px 90px -14px rgba(167,150,217,0.10); }
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-  body{ font-family:var(--body); color:var(--ink); background:#DDD7C8; min-height:100vh; }
+  body{ font-family:var(--body); color:var(--text); background:var(--stage-bg); min-height:100vh; }
   button, input, textarea{ font-family:inherit; }
   button{ cursor:pointer; border:none; background:none; }
   a{ text-decoration:none; color:inherit; }
   :focus-visible{ outline:2px solid var(--copper-deep); outline-offset:2px; }
 
   .topbar{ position:sticky; top:0; z-index:50; background:var(--ink); color:#fff; }
-  .topbar-inner{ max-width:1180px; margin:0 auto; padding:14px 22px; display:flex; align-items:center; gap:20px; flex-wrap:wrap; }
+  .topbar-inner{ max-width:1180px; margin:0 auto; padding:14px 22px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
   .brand{ display:flex; align-items:center; gap:9px; font-family:var(--display); font-size:18px; flex:0 0 auto; }
   .brand .dot{ width:9px; height:9px; border-radius:50%; background:var(--copper); }
   .brand a{ font-family:var(--mono); font-size:11px; font-weight:700; color:#C9C6BF; border:1px solid rgba(255,255,255,0.2); padding:6px 10px; border-radius:8px; }
   .brand a:hover{ color:#fff; border-color:rgba(255,255,255,0.4); }
-  .reset-btn{ margin-left:auto; font-family:var(--mono); font-size:11px; font-weight:700; color:#C9C6BF; border:1px solid rgba(255,255,255,0.2); padding:8px 12px; border-radius:9px; }
-  .reset-btn:hover{ color:#fff; border-color:rgba(255,255,255,0.4); }
+  .icon-btn{ width:30px; height:30px; border-radius:8px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); color:#fff; font-size:13px; display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
+  .icon-btn:hover{ border-color:rgba(255,255,255,0.4); }
+  .icon-btn.push{ margin-left:auto; }
+  .dev-panel{ display:none; }
+  .dev-panel.open{ display:block; }
   .ticker-row{ background:rgba(255,255,255,0.05); border-top:1px solid rgba(255,255,255,0.08); }
   .ticker{ max-width:1180px; margin:0 auto; padding:8px 22px; font-family:var(--mono); font-size:11px; color:#C9A876; display:flex; align-items:center; gap:8px; }
   .ticker .pulse{ width:6px; height:6px; border-radius:50%; background:#67D394; flex:0 0 auto; animation:pulse 1.8s infinite; }
@@ -41,9 +53,11 @@
   .conn-dot{ width:8px; height:8px; border-radius:50%; background:var(--rust); flex:0 0 auto; }
   .conn-dot.ok{ background:#67D394; }
   .conn-label{ font-family:var(--mono); font-size:10.5px; color:#9C988F; }
-  .conn-url{ font-family:var(--mono); font-size:11px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.16); color:#fff; padding:6px 10px; border-radius:8px; width:280px; }
+  .conn-url{ font-family:var(--mono); font-size:11px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.16); color:#fff; padding:6px 10px; border-radius:8px; width:260px; }
   .conn-btn{ font-family:var(--mono); font-size:10.5px; font-weight:700; color:#fff; background:var(--copper); padding:6px 12px; border-radius:8px; }
   .conn-synced{ margin-left:auto; font-family:var(--mono); font-size:10px; color:#75726A; }
+  .reset-btn{ font-family:var(--mono); font-size:10.5px; font-weight:700; color:#C9C6BF; border:1px solid rgba(255,255,255,0.2); padding:6px 12px; border-radius:9px; }
+  .reset-btn:hover{ color:#fff; border-color:rgba(255,255,255,0.4); }
 
   .stage{ max-width:1180px; margin:0 auto; padding:20px 22px 60px; display:flex; justify-content:center; }
 
@@ -56,19 +70,20 @@
 
   .btn{ display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13.5px; padding:13px 18px; border-radius:12px; width:100%; }
   .btn-primary{ background:var(--ink); color:#fff; }
-  .btn-outline{ background:transparent; border:1.4px solid var(--ink); color:var(--ink); }
+  .btn-outline{ background:transparent; border:1.4px solid var(--text); color:var(--text); }
 
   .mini-meter{ display:flex; gap:3px; margin-top:6px; }
   .mini-meter .dot{ width:6px; height:6px; border-radius:50%; background:var(--line); }
   .mini-meter .dot.on{ background:var(--rust); }
 
   .admin-shell{ width:100%; max-width:1000px; margin:0 auto; background:var(--card); border:1px solid var(--line); border-radius:20px; overflow:hidden; display:flex; height:700px; position:relative; }
-  .a-sidebar{ width:190px; flex:0 0 auto; background:var(--ink); color:#fff; padding:18px 12px; display:flex; flex-direction:column; }
+  .a-sidebar{ width:190px; flex:0 0 auto; background:var(--ink); color:#fff; padding:18px 12px; display:flex; flex-direction:column; overflow-y:auto; }
   .a-brand{ display:flex; align-items:center; gap:8px; padding:6px 8px 20px; font-family:var(--display); font-size:16px; }
   .a-brand .dot{ width:8px; height:8px; border-radius:50%; background:var(--copper); }
-  .a-nav{ display:flex; align-items:center; gap:9px; padding:10px 10px; border-radius:9px; font-size:12.5px; font-weight:700; color:#C9C6BF; width:100%; text-align:left; }
+  .a-nav{ display:flex; align-items:center; gap:9px; padding:10px 10px; border-radius:9px; font-size:12.5px; font-weight:700; color:#C9C6BF; width:100%; text-align:left; flex:0 0 auto; }
   .a-nav.active{ background:rgba(255,255,255,0.08); color:#fff; }
   .a-nav .count{ margin-left:auto; font-family:var(--mono); font-size:9.5px; background:var(--rust); color:#fff; padding:1px 6px; border-radius:20px; }
+  .a-nav-label{ font-family:var(--mono); font-size:9px; text-transform:uppercase; letter-spacing:0.06em; color:#8A867D; padding:14px 10px 6px; }
   .a-main{ flex:1; min-width:0; overflow-y:auto; }
   .a-topbar{ height:56px; display:flex; align-items:center; padding:0 22px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--card); z-index:5; }
   .a-topbar h1{ font-family:var(--display); font-size:19px; font-weight:400; }
@@ -82,7 +97,7 @@
 
   .a-grid2{ display:grid; grid-template-columns:1.5fr 1fr; gap:14px; }
   .a-panel{ background:var(--card); border:1px solid var(--line); border-radius:13px; overflow:hidden; }
-  .a-panel-head{ padding:12px 16px; border-bottom:1px solid var(--line); font-size:12.5px; font-weight:800; }
+  .a-panel-head{ padding:12px 16px; border-bottom:1px solid var(--line); font-size:12.5px; font-weight:800; display:flex; justify-content:space-between; align-items:center; }
 
   table{ width:100%; border-collapse:collapse; }
   th{ text-align:left; font-family:var(--mono); font-size:9.5px; text-transform:uppercase; color:var(--ink-soft); font-weight:600; padding:9px 16px; border-bottom:1px solid var(--line); }
@@ -107,6 +122,16 @@
   .tstats b{ display:block; font-family:var(--mono); font-size:12.5px; }
   .tstats span{ font-size:8.5px; color:var(--ink-soft); text-transform:uppercase; }
 
+  .chart-wrap{ padding:16px; }
+  .chart-wrap svg{ width:100%; height:200px; overflow:visible; }
+  .chart-legend{ display:flex; flex-wrap:wrap; gap:10px; padding:0 16px 16px; }
+  .chart-legend span{ display:flex; align-items:center; gap:5px; font-size:10.5px; color:var(--ink-soft); }
+  .chart-legend i{ width:8px; height:8px; border-radius:50%; }
+
+  .inv-status.ok{ color:var(--emerald); }
+  .inv-status.low{ color:var(--amber); }
+  .inv-status.out{ color:var(--rust); }
+
   .a-drawer-overlay{ position:absolute; inset:0; background:rgba(20,24,27,0.35); z-index:60; display:none; }
   .a-drawer-overlay.active{ display:block; }
   .a-drawer{ position:absolute; top:0; right:-360px; width:340px; height:100%; background:var(--card); z-index:61; box-shadow:-14px 0 30px rgba(20,24,27,0.15); transition:right .22s ease; display:flex; flex-direction:column; }
@@ -122,6 +147,7 @@
   @media (max-width:760px){
     .admin-shell{ height:auto; flex-direction:column; }
     .a-sidebar{ width:100%; flex-direction:row; overflow-x:auto; padding:10px; }
+    .a-nav-label{ display:none; }
     .kpi-row{ grid-template-columns:repeat(2,1fr); }
     .a-grid2{ grid-template-columns:1fr; }
     .tech-grid{ grid-template-columns:1fr; }
@@ -132,25 +158,28 @@
 
 <div class="topbar">
   <div class="topbar-inner">
-    <div class="brand"><span class="dot"></span>RasoiCare — Admin</div>
-    <a href="/">← All apps</a>
-    <button class="reset-btn" onclick="resetDemo()">↺ Reset server data</button>
+    <div class="brand"><span class="dot"></span>RasoiCare Ops</div>
+    <button class="icon-btn push" id="theme-btn" onclick="toggleTheme()" title="Toggle theme">🌙</button>
+    <button class="icon-btn" onclick="toggleDevPanel()" title="Developer options">⚙</button>
   </div>
-  <div class="ticker-row">
-    <div class="ticker"><span class="pulse"></span><span id="ticker-text">Ready.</span></div>
-  </div>
-  <div class="connbar">
-    <div class="connbar-inner">
-      <span class="conn-dot" id="conn-dot"></span>
-      <span class="conn-label">API:</span>
-      <input class="conn-url" id="conn-url-input" value="http://127.0.0.1:8420" spellcheck="false">
-      <script>
-        if (location.protocol.startsWith('http')) {
-          document.getElementById('conn-url-input').value = location.origin;
-        }
-      </script>
-      <button class="conn-btn" onclick="connectApi()">Connect</button>
-      <span class="conn-synced" id="conn-synced">not connected</span>
+  <div class="dev-panel" id="dev-panel">
+    <div class="ticker-row">
+      <div class="ticker"><span class="pulse"></span><span id="ticker-text">Ready.</span></div>
+    </div>
+    <div class="connbar">
+      <div class="connbar-inner">
+        <span class="conn-dot" id="conn-dot"></span>
+        <span class="conn-label">API:</span>
+        <input class="conn-url" id="conn-url-input" value="http://127.0.0.1:8420" spellcheck="false">
+        <script>
+          if (location.protocol.startsWith('http')) {
+            document.getElementById('conn-url-input').value = location.origin;
+          }
+        </script>
+        <button class="conn-btn" onclick="connectApi()">Connect</button>
+        <button class="reset-btn" onclick="resetDemo()">↺ Reset data</button>
+        <span class="conn-synced" id="conn-synced">not connected</span>
+      </div>
     </div>
   </div>
 </div>
@@ -163,6 +192,10 @@
       <button class="a-nav" data-p="bookings" onclick="adminGo('bookings')">Bookings</button>
       <button class="a-nav" data-p="complaints" onclick="adminGo('complaints')">Complaints <span class="count" id="admin-complaint-count">0</span></button>
       <button class="a-nav" data-p="technicians" onclick="adminGo('technicians')">Technicians</button>
+      <div class="a-nav-label">Business</div>
+      <button class="a-nav" data-p="analytics" onclick="adminGo('analytics')">Analytics</button>
+      <button class="a-nav" data-p="payments" onclick="adminGo('payments')">Payments</button>
+      <button class="a-nav" data-p="inventory" onclick="adminGo('inventory')">Inventory</button>
     </div>
     <div class="a-main">
       <div class="a-topbar"><h1 id="admin-page-title">Overview</h1></div>
@@ -196,12 +229,37 @@
       <div class="a-page" id="a-technicians">
         <div class="tech-grid" id="admin-tech-grid"></div>
       </div>
+
+      <div class="a-page" id="a-analytics">
+        <div class="kpi-row" id="analytics-kpis" style="grid-template-columns:repeat(3,1fr);"></div>
+        <div class="a-panel" style="margin-bottom:14px;">
+          <div class="a-panel-head">Revenue by day (completed bookings)</div>
+          <div class="chart-wrap" id="revenue-chart"></div>
+        </div>
+        <div class="a-panel">
+          <div class="a-panel-head">Revenue by appliance family</div>
+          <div class="chart-wrap" id="family-chart"></div>
+          <div class="chart-legend" id="family-legend"></div>
+        </div>
+      </div>
+
+      <div class="a-page" id="a-payments">
+        <div class="a-panel">
+          <table><thead><tr><th>Order</th><th>Service</th><th>Amount</th><th>Payment status</th><th>Date</th></tr></thead><tbody id="admin-payments-table"></tbody></table>
+        </div>
+      </div>
+
+      <div class="a-page" id="a-inventory">
+        <div class="a-panel">
+          <table><thead><tr><th>Part</th><th>Category</th><th>In stock</th><th>Reorder level</th><th>Status</th></tr></thead><tbody id="admin-inventory-table"></tbody></table>
+        </div>
+      </div>
     </div>
 
     <div class="a-drawer-overlay" id="a-overlay" onclick="closeAdminDrawer()"></div>
     <div class="a-drawer" id="a-drawer">
       <div class="a-drawer-head"><h3 id="a-drawer-title">Complaint</h3>
-        <button onclick="closeAdminDrawer()"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#14181B" stroke-width="1.6"><path d="M3 3l10 10M13 3L3 13"/></svg></button>
+        <button onclick="closeAdminDrawer()"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3l10 10M13 3L3 13"/></svg></button>
       </div>
       <div class="a-drawer-body" id="a-drawer-body"></div>
       <div class="a-drawer-foot" id="a-drawer-foot"></div>
@@ -210,6 +268,23 @@
 </div>
 
 <script>
+  function applyStoredTheme(){
+    if(localStorage.getItem('rc_theme') === 'dark'){ document.documentElement.setAttribute('data-theme','dark'); }
+    updateThemeUI();
+  }
+  function toggleTheme(){
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    if(isDark){ document.documentElement.removeAttribute('data-theme'); localStorage.setItem('rc_theme','light'); }
+    else { document.documentElement.setAttribute('data-theme','dark'); localStorage.setItem('rc_theme','dark'); }
+    updateThemeUI();
+  }
+  function updateThemeUI(){
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const btn = document.getElementById('theme-btn'); if(btn) btn.textContent = dark ? '☀' : '🌙';
+  }
+  function toggleDevPanel(){ document.getElementById('dev-panel').classList.toggle('open'); }
+  applyStoredTheme();
+
   let API_BASE = document.getElementById('conn-url-input').value.trim();
   let STATE = { bookings:[], complaints:[], technicians:[], stats:{}, connected:false };
   let pollTimer = null;
@@ -291,12 +366,12 @@
     await refreshAll();
   }
 
+  const PAGE_TITLES = { overview:'Overview', bookings:'Bookings', complaints:'Complaints', technicians:'Technicians', analytics:'Analytics', payments:'Payments', inventory:'Inventory' };
   function adminGo(page){
     document.querySelectorAll('.a-page').forEach(p => p.classList.remove('active'));
     document.getElementById('a-' + page).classList.add('active');
     document.querySelectorAll('.a-nav').forEach(n => n.classList.toggle('active', n.dataset.p === page));
-    const titles = { overview:'Overview', bookings:'Bookings', complaints:'Complaints', technicians:'Technicians' };
-    document.getElementById('admin-page-title').textContent = titles[page];
+    document.getElementById('admin-page-title').textContent = PAGE_TITLES[page];
   }
 
   function statusBadgeClass(s){
@@ -317,6 +392,9 @@
     renderAdminBookings();
     renderAdminComplaints();
     renderAdminTechnicians();
+    renderAnalytics();
+    renderPayments();
+    renderInventory();
   }
 
   function renderAdminOverview(){
@@ -375,6 +453,78 @@
   function closeAdminDrawer(){
     document.getElementById('a-overlay').classList.remove('active');
     document.getElementById('a-drawer').classList.remove('active');
+  }
+
+  /* ---------------- analytics ---------------- */
+  const FAMILY_COLORS = { RasoiAir:'#B4793A', RasoiSpark:'#B8912A', RasoiBuilt:'#3E7C59', RasoiWash:'#5B7FB8', RasoiChill:'#3F9BB0', RasoiPure:'#8C6FB0' };
+  function renderAnalytics(){
+    const done = STATE.bookings.filter(b => b.status === 'Completed');
+    const totalRevenue = done.reduce((s,b) => s + b.price, 0);
+    const avgTicket = done.length ? Math.round(totalRevenue / done.length) : 0;
+    document.getElementById('analytics-kpis').innerHTML =
+      '<div class="kpi-card"><div class="lbl">Completed jobs</div><div class="val">' + done.length + '</div></div>' +
+      '<div class="kpi-card"><div class="lbl">Total revenue</div><div class="val">₹' + totalRevenue.toLocaleString('en-IN') + '</div></div>' +
+      '<div class="kpi-card"><div class="lbl">Avg. ticket size</div><div class="val">₹' + avgTicket + '</div></div>';
+
+    const byDay = {};
+    done.forEach(b => { const d = new Date(b.createdAt).toLocaleDateString('en-IN', {day:'2-digit', month:'short'}); byDay[d] = (byDay[d]||0) + b.price; });
+    const days = Object.keys(byDay);
+    const max = Math.max(1, ...Object.values(byDay));
+    const w = 600, h = 170, barW = days.length ? Math.min(56, (w - 20) / days.length - 10) : 0;
+    let bars = '';
+    days.forEach((d,i) => {
+      const bh = (byDay[d] / max) * (h - 30);
+      const x = 10 + i * ((w - 20) / days.length);
+      bars += '<rect x="' + x + '" y="' + (h - bh - 20) + '" width="' + barW + '" height="' + bh + '" rx="4" fill="var(--copper)" opacity="0.85"/>';
+      bars += '<text x="' + (x + barW/2) + '" y="' + (h - 4) + '" font-size="9" fill="var(--ink-soft)" text-anchor="middle" font-family="JetBrains Mono, monospace">' + d + '</text>';
+    });
+    document.getElementById('revenue-chart').innerHTML = days.length
+      ? '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none">' + bars + '</svg>'
+      : '<p style="font-size:11.5px;color:var(--ink-soft);padding:0 0 10px;">No completed bookings yet.</p>';
+
+    const byFamily = {};
+    done.forEach(b => { byFamily[b.category] = (byFamily[b.category]||0) + b.price; });
+    const families = Object.keys(byFamily);
+    const fmax = Math.max(1, ...Object.values(byFamily));
+    let fbars = '';
+    families.forEach((f,i) => {
+      const bw = (byFamily[f] / fmax) * (w - 120);
+      const y = 14 + i * 30;
+      fbars += '<text x="0" y="' + (y + 14) + '" font-size="10" fill="var(--text)" font-family="Manrope, sans-serif" font-weight="700">' + f + '</text>';
+      fbars += '<rect x="110" y="' + y + '" width="' + bw + '" height="16" rx="6" fill="' + (FAMILY_COLORS[f] || 'var(--copper)') + '"/>';
+      fbars += '<text x="' + (110 + bw + 8) + '" y="' + (y + 13) + '" font-size="9.5" fill="var(--ink-soft)" font-family="JetBrains Mono, monospace">₹' + byFamily[f] + '</text>';
+    });
+    document.getElementById('family-chart').innerHTML = families.length
+      ? '<svg viewBox="0 0 ' + w + ' ' + (families.length * 30 + 10) + '" preserveAspectRatio="none">' + fbars + '</svg>'
+      : '<p style="font-size:11.5px;color:var(--ink-soft);padding:0 0 10px;">No completed bookings yet.</p>';
+    document.getElementById('family-legend').innerHTML = families.map(f =>
+      '<span><i style="background:' + (FAMILY_COLORS[f] || 'var(--copper)') + '"></i>' + f + '</span>'
+    ).join('');
+  }
+
+  /* ---------------- payments ---------------- */
+  function renderPayments(){
+    document.getElementById('admin-payments-table').innerHTML = STATE.bookings.map(b =>
+      '<tr><td><b>#' + b.id + '</b></td><td>' + b.category + ' · ' + b.service + '</td><td>₹' + b.price + '</td><td><span class="badge ' + (b.status==='Completed'?'emerald':'amber') + '">' + (b.status==='Completed'?'Paid':'Pending') + '</span></td><td style="font-family:var(--mono); font-size:10.5px; color:var(--ink-soft);">' + new Date(b.createdAt).toLocaleDateString() + '</td></tr>'
+    ).join('') || '<tr><td colspan="5" style="color:var(--ink-soft);">No payments yet.</td></tr>';
+  }
+
+  /* ---------------- inventory ---------------- */
+  const INVENTORY = [
+    { part:'Chimney filter mesh', cat:'RasoiAir', stock:42, reorder:15 },
+    { part:'Exhaust motor', cat:'RasoiAir', stock:6, reorder:5 },
+    { part:'Hob ignition coil', cat:'RasoiSpark', stock:18, reorder:10 },
+    { part:'Burner valve', cat:'RasoiSpark', stock:3, reorder:8 },
+    { part:'Microwave door latch', cat:'RasoiBuilt', stock:0, reorder:5 },
+    { part:'Dishwasher drain pump', cat:'RasoiWash', stock:9, reorder:6 },
+    { part:'Fridge compressor gas (R600a)', cat:'RasoiChill', stock:21, reorder:10 },
+    { part:'Purifier RO membrane', cat:'RasoiPure', stock:27, reorder:12 }
+  ];
+  function renderInventory(){
+    document.getElementById('admin-inventory-table').innerHTML = INVENTORY.map(i => {
+      const status = i.stock === 0 ? { c:'out', l:'Out of stock' } : i.stock <= i.reorder ? { c:'low', l:'Low stock' } : { c:'ok', l:'In stock' };
+      return '<tr><td><b>' + i.part + '</b></td><td>' + i.cat + '</td><td>' + i.stock + '</td><td>' + i.reorder + '</td><td class="inv-status ' + status.c + '">● ' + status.l + '</td></tr>';
+    }).join('');
   }
 
   render();
