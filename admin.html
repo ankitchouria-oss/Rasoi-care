@@ -152,6 +152,17 @@
     .a-grid2{ grid-template-columns:1fr; }
     .tech-grid{ grid-template-columns:1fr; }
   }
+
+  /* ---- real phone viewport ---- */
+  @media (max-width:560px){
+    html, body{ height:100%; }
+    body{ display:flex; flex-direction:column; min-height:100vh; min-height:100dvh; }
+    .stage{ flex:1; min-height:0; padding:0; margin:0; max-width:none; }
+    .admin-shell{ max-width:none; border-radius:0; border:none; }
+    :root[data-theme="dark"] .admin-shell{ box-shadow:none; }
+    .a-page{ padding:16px 14px 30px; }
+    th, td{ padding:9px 10px; }
+  }
 </style>
 </head>
 <body>

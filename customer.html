@@ -360,6 +360,18 @@
   .amc-plan-card ul{ list-style:none; margin:8px 0 12px; display:flex; flex-direction:column; gap:5px; }
   .amc-plan-card li{ font-size:11px; color:var(--ink-soft); display:flex; gap:6px; align-items:baseline; }
   .amc-plan-card li::before{ content:'✓'; color:var(--emerald); font-weight:800; }
+
+  /* ---- real phone viewport (this is what the Android WebView app
+     actually renders in — the .device mockup above is a desktop preview
+     frame and would otherwise show as a tiny fake phone on a real one) ---- */
+  @media (max-width:560px){
+    html, body{ height:100%; }
+    body{ display:flex; flex-direction:column; min-height:100vh; min-height:100dvh; }
+    .stage{ flex:1; min-height:0; padding:0; margin:0; max-width:none; }
+    .device{ width:100%; max-width:none; height:100%; border-radius:0; padding:0; box-shadow:none; background:transparent; margin:0; }
+    :root[data-theme="dark"] .device{ box-shadow:none; }
+    .screen-frame{ border-radius:0; height:100%; }
+  }
 </style>
 </head>
 <body>
@@ -776,7 +788,7 @@
   const STATUS_ORDER = ['Requested','Accepted','On the way','In Progress','Completed'];
 
   const APPLIANCES = [
-    { id:'chimney',   name:'Chimney',             mono:'CH', family:'RasoiAir',   brands:['Faber','Elica','Glen','Kaff'],           issues:[ {label:'Deep Cleaning',price:1600}, {label:'Low Suction',price:399}, {label:'Noisy Motor',price:499} ] },
+    { id:'chimney',   name:'Chimney',             mono:'CH', family:'RasoiAir',   brands:['Faber','Elica','Glen','Kaff','Hindware','Sunflame','Prestige','Kutchina','Bosch','Siemens','Electrolux','Inalsa','Pigeon','Whirlpool'], issues:[ {label:'Deep Cleaning',price:1499,icon:'🧽',desc:'Full degrease of filters, baffles & motor chamber'}, {label:'Low Suction',price:399,icon:'🌀',desc:'Restore full airflow & smoke extraction'}, {label:'Noisy Motor',price:399,icon:'🔊',desc:'Fix rattling or loud motor noise'} ] },
     { id:'hob',       name:'Hob',                 mono:'HB', family:'RasoiSpark', brands:['Prestige','Sunflame','Glen','Faber'],    issues:[ {label:'Ignition Fix',price:399}, {label:'Burner Cleaning',price:299} ] },
     { id:'cooktop',   name:'Cooktop',             mono:'CT', family:'RasoiSpark', brands:['Prestige','Sunflame','Glen','Faber'],    issues:[ {label:'Ignition Fix',price:399}, {label:'Auto-shutoff Issue',price:449} ] },
     { id:'microwave', name:'Built-in Microwave',  mono:'MW', family:'RasoiBuilt', brands:['Bosch','Siemens','IFB'],                 issues:[ {label:'Not Heating',price:599}, {label:'Door / Hinge Repair',price:399}, {label:'General Service',price:349} ] },
@@ -1035,8 +1047,11 @@
     document.getElementById('cat-title').textContent = a.name + ' · ' + brand;
     document.getElementById('cat-issue-list').innerHTML = a.issues.map(iss =>
       '<button class="book-opt" onclick="startCheckout(\'' + a.family + '\',' + jsStr(a.name + ' (' + brand + ') · ' + iss.label) + ',' + iss.price + ')">' +
-        '<span class="bo-l"><b>' + iss.label + '</b><span>' + a.name + ' · ' + brand + '</span></span>' +
-        '<span class="badge copper">₹' + iss.price + '</span>' +
+        '<span class="bo-l">' +
+          '<b>' + (iss.icon ? iss.icon + ' ' : '') + iss.label + '</b>' +
+          '<span>' + (iss.desc || (a.name + ' · ' + brand)) + '</span>' +
+        '</span>' +
+        '<span class="badge copper">₹' + iss.price + ' + GST</span>' +
       '</button>'
     ).join('');
     custGo('category');
@@ -1055,10 +1070,14 @@
     custGo('checkout');
   }
   function renderCheckoutSummary(){
-    pendingBooking.price = pendingBooking.basePrice + (isSpecialist ? 99 : 0);
+    const subtotal = pendingBooking.basePrice + (isSpecialist ? 99 : 0);
+    const gst = Math.round(subtotal * 0.18);
+    pendingBooking.price = subtotal + gst;
     document.getElementById('checkout-summary').innerHTML =
-      '<div class="order-card"><div class="order-top"><div><b>' + pendingBooking.service + '</b><span>' + pendingBooking.category + (isSpecialist ? ' · + Certified Specialist' : '') + '</span></div>' +
-      '<span class="badge copper">₹' + pendingBooking.price + '</span></div></div>';
+      '<div class="order-card"><div class="order-top"><div><b>' + pendingBooking.service + '</b><span>' + pendingBooking.category + (isSpecialist ? ' · + Certified Specialist' : '') + '</span></div></div>' +
+      '<div class="invoice-row"><span>Service charge</span><span>₹' + subtotal + '</span></div>' +
+      '<div class="invoice-row"><span>GST (18%)</span><span>₹' + gst + '</span></div>' +
+      '<div class="invoice-row total"><span>Total</span><span>₹' + pendingBooking.price + '</span></div></div>';
   }
   function toggleSpecialist(){
     isSpecialist = !isSpecialist;

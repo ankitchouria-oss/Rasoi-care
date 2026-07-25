@@ -24,7 +24,6 @@
     --amber:#E9C55C; --amber-tint:rgba(233,197,92,0.16);
     --rust:#E8887D; --rust-tint:rgba(232,136,125,0.16);
   }
-  :root[data-theme="dark"] .device{ box-shadow:0 30px 90px -14px rgba(111,184,217,0.14), 0 30px 60px -18px rgba(0,0,0,0.65); }
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
   body{ font-family:var(--body); color:var(--text); background:var(--stage-bg); min-height:100vh; }
   button, input, textarea{ font-family:inherit; }
@@ -32,24 +31,29 @@
   a{ text-decoration:none; color:inherit; cursor:pointer; }
   :focus-visible{ outline:2px solid var(--copper-deep); outline-offset:2px; }
 
-  .topbar{ position:sticky; top:0; z-index:50; background:var(--ink); color:#fff; }
-  .topbar-inner{ max-width:1180px; margin:0 auto; padding:14px 22px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  /* ---- ops topbar ---- */
+  .ops-topbar{ position:sticky; top:0; z-index:50; background:var(--ink); color:#fff; }
+  .ops-topbar-inner{ max-width:1400px; margin:0 auto; padding:14px 24px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
   .brand{ display:flex; align-items:center; gap:9px; font-family:var(--display); font-size:18px; flex:0 0 auto; }
   .brand .dot{ width:9px; height:9px; border-radius:50%; background:var(--copper); }
-  .brand a{ font-family:var(--mono); font-size:11px; font-weight:700; color:#C9C6BF; border:1px solid rgba(255,255,255,0.2); padding:6px 10px; border-radius:8px; }
-  .brand a:hover{ color:#fff; border-color:rgba(255,255,255,0.4); }
+  .ops-status-toggle{ display:flex; align-items:center; gap:8px; padding:8px 13px; border-radius:10px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.18); font-size:11.5px; font-weight:700; }
+  .ops-status-toggle .dot{ width:7px; height:7px; border-radius:50%; background:#67D394; flex:0 0 auto; }
+  .ops-status-toggle.off .dot{ background:#8A867D; }
+  .ops-chip{ display:flex; flex-direction:column; padding:6px 13px; border-radius:10px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.18); }
+  .ops-chip .v{ font-family:var(--display); font-size:15px; font-weight:400; line-height:1.1; }
+  .ops-chip .l{ font-family:var(--mono); font-size:8px; color:#B9C6CE; text-transform:uppercase; letter-spacing:0.04em; }
   .icon-btn{ width:30px; height:30px; border-radius:8px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); color:#fff; font-size:13px; display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
   .icon-btn:hover{ border-color:rgba(255,255,255,0.4); }
   .icon-btn.push{ margin-left:auto; }
   .dev-panel{ display:none; }
   .dev-panel.open{ display:block; }
   .ticker-row{ background:rgba(255,255,255,0.05); border-top:1px solid rgba(255,255,255,0.08); }
-  .ticker{ max-width:1180px; margin:0 auto; padding:8px 22px; font-family:var(--mono); font-size:11px; color:#C9A876; display:flex; align-items:center; gap:8px; }
+  .ticker{ max-width:1400px; margin:0 auto; padding:8px 24px; font-family:var(--mono); font-size:11px; color:#C9A876; display:flex; align-items:center; gap:8px; }
   .ticker .pulse{ width:6px; height:6px; border-radius:50%; background:#67D394; flex:0 0 auto; animation:pulse 1.8s infinite; }
   @keyframes pulse{ 0%{box-shadow:0 0 0 0 rgba(103,211,148,.55);} 70%{box-shadow:0 0 0 6px rgba(103,211,148,0);} 100%{box-shadow:0 0 0 0 rgba(103,211,148,0);} }
 
   .connbar{ background:#0E1113; border-top:1px solid rgba(255,255,255,0.08); }
-  .connbar-inner{ max-width:1180px; margin:0 auto; padding:9px 22px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .connbar-inner{ max-width:1400px; margin:0 auto; padding:9px 24px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
   .conn-dot{ width:8px; height:8px; border-radius:50%; background:var(--rust); flex:0 0 auto; }
   .conn-dot.ok{ background:#67D394; }
   .conn-label{ font-family:var(--mono); font-size:10.5px; color:#9C988F; }
@@ -59,39 +63,46 @@
   .reset-btn{ font-family:var(--mono); font-size:10.5px; font-weight:700; color:#C9C6BF; border:1px solid rgba(255,255,255,0.2); padding:6px 12px; border-radius:9px; }
   .reset-btn:hover{ color:#fff; border-color:rgba(255,255,255,0.4); }
 
-  .stage{ max-width:1180px; margin:0 auto; padding:20px 22px 60px; display:flex; justify-content:center; }
+  /* ---- ops shell (list + persistent detail pane console) ---- */
+  .ops-shell{ max-width:1400px; margin:0 auto; padding:20px 24px 60px; }
+  .ops-tabs{ display:flex; gap:8px; margin-bottom:16px; }
+  .ops-tab{ padding:9px 16px; border-radius:10px; font-size:12.5px; font-weight:700; color:var(--ink-soft); background:var(--card); border:1.4px solid var(--line); display:flex; align-items:center; gap:7px; }
+  .ops-tab.active{ background:var(--ink); color:#fff; border-color:var(--ink); }
+  .ops-tab .count{ font-family:var(--mono); font-size:9px; background:var(--rust); color:#fff; padding:1px 6px; border-radius:20px; }
 
-  .device{ width:390px; height:800px; background:#000; border-radius:40px; padding:11px; box-shadow:0 30px 60px -18px rgba(20,24,27,0.4); margin:0 auto; }
-  .screen-frame{ position:relative; width:100%; height:100%; background:var(--paper); border-radius:30px; overflow:hidden; display:flex; flex-direction:column; }
-  .pstatusbar{ height:38px; flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; padding:0 22px; font-family:var(--mono); font-size:12px; font-weight:600; color:var(--text); }
-  .ptag{ font-family:var(--mono); font-size:9.5px; font-weight:700; background:var(--ink); color:#fff; padding:2px 7px; border-radius:20px; }
+  .ops-page{ display:none; }
+  .ops-page.active{ display:block; }
 
-  .pbody{ flex:1; position:relative; overflow:hidden; }
-  .pscreen{ position:absolute; inset:0; overflow-y:auto; scrollbar-width:none; display:none; flex-direction:column; padding-bottom:90px; }
-  .pscreen::-webkit-scrollbar{ display:none; }
-  .pscreen.active{ display:flex; }
+  .ops-split{ display:grid; grid-template-columns:340px 1fr; gap:16px; align-items:start; }
+  @media (max-width:860px){ .ops-split{ grid-template-columns:1fr; } }
 
-  .ptabbar{ position:absolute; left:0; right:0; bottom:0; height:70px; background:rgba(251,249,245,0.92); backdrop-filter:blur(8px); border-top:1px solid var(--line); display:flex; align-items:flex-start; padding-top:10px; z-index:20; }
-  :root[data-theme="dark"] .ptabbar{ background:rgba(13,16,19,0.92); }
-  .ptab{ flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; color:var(--ink-soft); font-size:9.5px; font-weight:700; }
-  .ptab svg{ width:18px; height:18px; }
-  .ptab.active{ color:var(--copper-deep); }
+  .ops-list-pane{ background:var(--card); border:1.4px solid var(--line); border-radius:16px; overflow:hidden; }
+  .ops-list-head{ padding:11px 16px; font-family:var(--mono); font-size:9.5px; text-transform:uppercase; letter-spacing:0.05em; color:var(--ink-soft); border-bottom:1px solid var(--line); background:var(--paper); }
+  .ops-list-body{ max-height:640px; overflow-y:auto; }
+  .ops-row{ display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid var(--line); width:100%; text-align:left; }
+  .ops-row:last-child{ border-bottom:none; }
+  .ops-row:hover{ background:var(--paper); }
+  .ops-row.sel{ background:var(--copper-tint); }
+  .ops-row .rtxt{ flex:1; min-width:0; }
+  .ops-row .rtxt b{ font-size:12px; font-weight:800; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ops-row .rtxt span{ font-size:10px; color:var(--ink-soft); font-family:var(--mono); }
+  .ops-row-empty{ padding:20px 16px; font-size:11.5px; color:var(--ink-soft); text-align:center; }
 
-  .ppx{ padding-left:20px; padding-right:20px; }
-  .psec{ display:flex; align-items:baseline; justify-content:space-between; padding:18px 20px 10px; }
-  .psec h3{ font-size:14.5px; font-weight:800; }
+  .ops-detail-pane{ background:var(--card); border:1.4px solid var(--line); border-radius:16px; padding:22px; min-height:500px; }
+  .ops-empty{ display:flex; flex-direction:column; align-items:center; justify-content:center; height:460px; color:var(--ink-soft); gap:10px; text-align:center; }
+  .ops-empty .ic{ font-size:32px; opacity:0.5; }
 
-  .back-row{ display:flex; align-items:center; gap:10px; padding:16px 20px 6px; }
-  .back-btn{ width:30px; height:30px; border-radius:9px; border:1.4px solid var(--line); display:flex; align-items:center; justify-content:center; background:var(--card); flex:0 0 auto; }
-  .back-row h3{ font-size:15px; font-weight:800; }
+  .ops-detail-head{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:18px; gap:12px; }
+  .ops-detail-head h2{ font-family:var(--display); font-size:22px; font-weight:400; }
+  .ops-detail-head .sub{ font-size:11px; color:var(--ink-soft); font-family:var(--mono); margin-top:2px; }
+  .ops-detail-grid{ display:grid; grid-template-columns:1fr 1fr; gap:22px; }
+  @media (max-width:640px){ .ops-detail-grid{ grid-template-columns:1fr; } }
+  .ops-col h3{ font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:0.04em; color:var(--ink-soft); margin:16px 0 8px; }
+  .ops-col h3:first-child{ margin-top:0; }
 
-  .greet-card{ margin:14px 20px 14px; padding:18px; border-radius:18px; background:linear-gradient(155deg,#1B2023,var(--ink)); color:#fff; }
-  .greet-card h2{ font-family:var(--display); font-size:20px; font-weight:400; margin-top:4px; }
-  .greet-card p{ font-size:12px; color:#C9C6BF; margin-top:2px; }
-  .avatar{ width:34px; height:34px; border-radius:50%; background:var(--copper); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12.5px; color:#fff; }
-
-  .btn{ display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13.5px; padding:13px 18px; border-radius:12px; width:100%; }
+  .btn{ display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13.5px; padding:12px 18px; border-radius:12px; width:100%; }
   .btn-primary{ background:var(--ink); color:#fff; }
+  .btn-primary:disabled{ opacity:0.45; }
   .btn-outline{ background:transparent; border:1.4px solid var(--text); color:var(--text); }
   .btn-sm{ padding:9px 14px; font-size:12px; border-radius:10px; width:auto; }
 
@@ -101,14 +112,27 @@
   .badge.rust{ background:var(--rust-tint); color:var(--rust); }
   .badge.copper{ background:var(--copper-tint); color:var(--copper-deep); }
 
-  .job-card{ margin:0 20px 10px; border-radius:14px; border:1.4px solid var(--line); background:var(--card); padding:13px 14px; text-align:left; width:calc(100% - 40px); }
-  .job-card.pending{ border-color:var(--copper); background:var(--copper-tint); }
-  .job-top{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:4px; gap:8px; }
-  .job-top b{ font-size:12.5px; font-weight:800; }
-  .job-card .meta{ font-size:10.5px; color:var(--ink-soft); }
-  .job-actions{ display:flex; gap:8px; margin-top:10px; }
+  .detail-row{ display:flex; gap:10px; font-size:11.5px; color:var(--ink-soft); padding:4px 0; }
+  .detail-row b{ color:var(--text); font-weight:700; min-width:64px; }
+  .map-ph{ height:110px; border-radius:14px; background:repeating-linear-gradient(135deg, var(--line), var(--line) 10px, var(--paper) 10px, var(--paper) 20px); border:1.4px solid var(--line); display:flex; align-items:center; justify-content:center; margin-bottom:10px; }
+  .map-ph .pin{ font-size:24px; }
+  .photo-row{ display:flex; gap:10px; }
+  .photo-slot{ flex:1; aspect-ratio:1; max-height:90px; border-radius:12px; border:1.6px dashed var(--line); background:var(--paper); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; font-size:10.5px; color:var(--ink-soft); overflow:hidden; position:relative; cursor:pointer; }
+  .photo-slot img{ width:100%; height:100%; object-fit:cover; position:absolute; inset:0; }
+  .photo-slot input{ display:none; }
+  .inv-line{ display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .inv-line input{ border:1.4px solid var(--line); background:var(--paper); color:var(--text); border-radius:9px; padding:8px 10px; font-size:11.5px; }
+  .inv-line input.desc{ flex:1; }
+  .inv-line input.amt{ width:72px; text-align:right; }
+  .inv-total{ display:flex; justify-content:space-between; font-weight:800; font-size:13.5px; border-top:1.4px dashed var(--line); padding-top:10px; margin-top:4px; }
+  .sig-pad{ border-radius:12px; border:1.4px solid var(--line); background:var(--paper); touch-action:none; width:100%; height:120px; display:block; }
+  .sig-row{ display:flex; gap:8px; margin-top:8px; }
+  .pay-toggle-row{ display:flex; gap:8px; margin-bottom:10px; }
+  .pay-toggle{ flex:1; padding:10px; text-align:center; border-radius:11px; border:1.4px solid var(--line); background:var(--paper); font-size:12px; font-weight:700; }
+  .pay-toggle.sel{ border-color:var(--copper); background:var(--copper-tint); color:var(--copper-deep); }
+  .health-input{ width:100%; margin-bottom:8px; padding:9px 11px; border-radius:9px; border:1.4px solid var(--line); background:var(--paper); color:var(--text); font-size:12px; }
 
-  .complaint-card{ margin:0 20px 10px; border-radius:14px; border:1.4px solid var(--line); background:var(--card); padding:13px 14px; }
+  .complaint-card{ margin-bottom:10px; border-radius:14px; border:1.4px solid var(--line); background:var(--card); padding:13px 14px; }
   .complaint-card .ctop{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:4px; }
   .complaint-card b{ font-size:12px; font-weight:800; }
   .complaint-card .excerpt{ font-size:11px; color:var(--ink-soft); margin-top:3px; line-height:1.4; }
@@ -117,43 +141,42 @@
   .mini-meter .dot.on{ background:var(--rust); }
   .response-box{ margin-top:10px; width:100%; border-radius:11px; border:1.4px solid var(--line); background:var(--paper); padding:10px 12px; font-size:12px; color:var(--text); resize:none; min-height:60px; }
   .cbtn-row{ display:flex; gap:8px; margin-top:8px; }
+  .complaints-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(280px,1fr)); gap:12px; }
 
-  /* ---- job detail ---- */
-  .detail-card{ margin:0 20px 14px; border-radius:16px; border:1.4px solid var(--line); background:var(--card); padding:15px 16px; }
-  .detail-card h4{ font-size:12px; font-weight:800; margin-bottom:8px; }
-  .detail-row{ display:flex; gap:10px; font-size:11.5px; color:var(--ink-soft); padding:3px 0; }
-  .detail-row b{ color:var(--text); font-weight:700; min-width:64px; }
-  .map-ph{ margin:0 20px 12px; height:120px; border-radius:16px; background:repeating-linear-gradient(135deg, var(--line), var(--line) 10px, var(--paper) 10px, var(--paper) 20px); border:1.4px solid var(--line); display:flex; align-items:center; justify-content:center; position:relative; }
-  .map-ph .pin{ font-size:26px; }
-  .photo-row{ display:flex; gap:10px; }
-  .photo-slot{ flex:1; aspect-ratio:1; border-radius:13px; border:1.6px dashed var(--line); background:var(--paper); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; font-size:10.5px; color:var(--ink-soft); overflow:hidden; position:relative; cursor:pointer; }
-  .photo-slot img{ width:100%; height:100%; object-fit:cover; position:absolute; inset:0; }
-  .photo-slot input{ display:none; }
-  .inv-line{ display:flex; align-items:center; gap:8px; margin-bottom:8px; }
-  .inv-line input{ border:1.4px solid var(--line); background:var(--paper); color:var(--text); border-radius:9px; padding:8px 10px; font-size:11.5px; }
-  .inv-line input.desc{ flex:1; }
-  .inv-line input.amt{ width:72px; text-align:right; }
-  .inv-total{ display:flex; justify-content:space-between; font-weight:800; font-size:13.5px; border-top:1.4px dashed var(--line); padding-top:10px; margin-top:4px; }
-  .sig-pad{ border-radius:13px; border:1.4px solid var(--line); background:var(--paper); touch-action:none; width:100%; height:140px; display:block; }
-  .sig-row{ display:flex; gap:8px; margin-top:8px; }
-  .pay-toggle-row{ display:flex; gap:8px; margin-bottom:10px; }
-  .pay-toggle{ flex:1; padding:11px; text-align:center; border-radius:11px; border:1.4px solid var(--line); background:var(--paper); font-size:12px; font-weight:700; }
-  .pay-toggle.sel{ border-color:var(--copper); background:var(--copper-tint); color:var(--copper-deep); }
-
-  .earn-hero{ margin:14px 20px; border-radius:18px; padding:20px; background:linear-gradient(155deg,#1B2023,var(--ink)); color:#fff; }
-  .earn-hero .lbl{ font-family:var(--mono); font-size:10px; color:#C9C6BF; text-transform:uppercase; }
-  .earn-hero .amt{ font-family:var(--display); font-size:32px; font-weight:400; margin-top:4px; }
-  .earn-stats{ display:flex; gap:10px; padding:0 20px 6px; }
-  .earn-stat{ flex:1; border-radius:14px; border:1.4px solid var(--line); background:var(--card); padding:12px; text-align:center; }
-  .earn-stat .n{ font-family:var(--display); font-size:20px; font-weight:400; }
+  .earn-hero-row{ display:grid; grid-template-columns:1.4fr 1fr 1fr 1fr; gap:12px; margin-bottom:18px; }
+  .earn-hero{ border-radius:16px; padding:18px; background:linear-gradient(155deg,#1B2023,var(--ink)); color:#fff; }
+  .earn-hero .lbl{ font-family:var(--mono); font-size:9.5px; color:#C9C6BF; text-transform:uppercase; }
+  .earn-hero .amt{ font-family:var(--display); font-size:26px; font-weight:400; margin-top:4px; }
+  .earn-stat{ border-radius:16px; border:1.4px solid var(--line); background:var(--card); padding:16px; text-align:center; display:flex; flex-direction:column; justify-content:center; }
+  .earn-stat .n{ font-family:var(--display); font-size:22px; font-weight:400; }
   .earn-stat .l{ font-size:9.5px; color:var(--ink-soft); font-weight:700; }
+  .earn-list-panel{ background:var(--card); border:1.4px solid var(--line); border-radius:16px; overflow:hidden; }
+  table{ width:100%; border-collapse:collapse; }
+  th{ text-align:left; font-family:var(--mono); font-size:9.5px; text-transform:uppercase; color:var(--ink-soft); font-weight:600; padding:9px 16px; border-bottom:1px solid var(--line); background:var(--paper); }
+  td{ padding:10px 16px; border-bottom:1px solid var(--line); font-size:12px; }
+  tr:last-child td{ border-bottom:none; }
+
+  /* ---- real phone viewport ---- */
+  @media (max-width:560px){
+    .ops-topbar-inner{ padding:12px 14px; gap:8px; }
+    .ops-chip{ padding:5px 10px; }
+    .ops-shell{ padding:14px 12px 40px; }
+    .ops-tab{ padding:9px 12px; font-size:12px; }
+    .earn-hero-row{ grid-template-columns:1fr 1fr; }
+    .ops-list-body{ max-height:280px; }
+    .ops-detail-pane{ padding:16px; }
+    .conn-url{ width:auto; flex:1; min-width:120px; }
+  }
 </style>
 </head>
 <body>
 
-<div class="topbar">
-  <div class="topbar-inner">
+<div class="ops-topbar">
+  <div class="ops-topbar-inner">
     <div class="brand"><span class="dot"></span>RasoiCare Partner</div>
+    <button class="ops-status-toggle" id="online-toggle" onclick="toggleOnline()"><span class="dot"></span><span id="online-label">Online</span></button>
+    <div class="ops-chip"><span class="v" id="chip-today">₹0</span><span class="l">Today</span></div>
+    <div class="ops-chip"><span class="v" id="chip-jobs">0</span><span class="l">Jobs done</span></div>
     <button class="icon-btn push" id="theme-btn" onclick="toggleTheme()" title="Toggle theme">🌙</button>
     <button class="icon-btn" onclick="toggleDevPanel()" title="Developer options">⚙</button>
   </div>
@@ -179,105 +202,43 @@
   </div>
 </div>
 
-<div class="stage">
-  <div class="device">
-    <div class="screen-frame">
-      <div class="pstatusbar"><span>9:41</span><span class="ptag">PARTNER · RAMESH</span></div>
-      <div class="pbody">
+<div class="ops-shell">
+  <div class="ops-tabs">
+    <button class="ops-tab active" data-tab="jobs" onclick="opsGo('jobs')">📋 Jobs</button>
+    <button class="ops-tab" data-tab="earnings" onclick="opsGo('earnings')">₹ Earnings</button>
+    <button class="ops-tab" data-tab="complaints" onclick="opsGo('complaints')">⚑ Complaints <span class="count" id="ops-complaint-count">0</span></button>
+  </div>
 
-        <div class="pscreen active" id="tech-jobs">
-          <div class="greet-card">
-            <div class="avatar">R</div>
-            <h2>Good morning, Ramesh.</h2>
-            <p>Jobs assigned to you appear here live.</p>
-          </div>
-          <div class="psec" style="padding-top:4px;"><h3>New requests</h3></div>
-          <div id="tech-new-content"></div>
-          <div class="psec"><h3>Active jobs</h3></div>
-          <div id="tech-active-content"></div>
-          <div class="psec"><h3>Completed</h3></div>
-          <div id="tech-completed-content"></div>
-        </div>
-
-        <div class="pscreen" id="tech-detail">
-          <div class="back-row"><button class="back-btn" onclick="techGo('jobs')">←</button><h3 id="detail-title">Job</h3></div>
-          <div class="detail-card" id="detail-summary"></div>
-
-          <div class="psec" style="padding-top:2px;"><h3>Customer</h3></div>
-          <div class="detail-card">
-            <div class="detail-row"><b>Name</b><span id="detail-cust-name">Amit Sharma</span></div>
-            <div class="detail-row"><b>Address</b><span>221B, MG Road, Baner, Pune 411045</span></div>
-            <div class="detail-row"><b>Phone</b><span>+91 98XXXXXX21</span></div>
-          </div>
-          <div class="map-ph"><span class="pin">📍</span></div>
-          <div class="ppx" style="margin-bottom:16px;"><button class="btn btn-outline btn-sm" onclick="log('🗺️ Opening navigation…')">Navigate to customer</button></div>
-
-          <div class="psec" style="padding-top:2px;"><h3>Job photos</h3></div>
-          <div class="ppx" style="margin-bottom:16px;">
-            <div class="photo-row">
-              <label class="photo-slot" id="photo-before"><span>📷 Before</span><input type="file" accept="image/*" onchange="handlePhoto(this,'before')"></label>
-              <label class="photo-slot" id="photo-after"><span>📷 After</span><input type="file" accept="image/*" onchange="handlePhoto(this,'after')"></label>
-            </div>
-          </div>
-
-          <div class="psec" style="padding-top:2px;"><h3>Invoice</h3></div>
-          <div class="detail-card" id="invoice-builder"></div>
-
-          <div class="psec" style="padding-top:2px;"><h3>Customer signature</h3></div>
-          <div class="ppx" style="margin-bottom:8px;">
-            <canvas class="sig-pad" id="sig-pad" width="320" height="140"></canvas>
-            <div class="sig-row">
-              <button class="btn btn-outline btn-sm" onclick="clearSignature()">Clear</button>
-              <button class="btn btn-primary btn-sm" onclick="saveSignature()" style="flex:1;">Save signature</button>
-            </div>
-            <p id="sig-status" style="font-size:10.5px;color:var(--ink-soft);margin-top:6px;"></p>
-          </div>
-
-          <div class="psec" style="padding-top:2px;"><h3>Collect payment</h3></div>
-          <div class="ppx" style="margin-bottom:16px;">
-            <div class="pay-toggle-row">
-              <button class="pay-toggle sel" id="paytog-cash" onclick="pickCollectMethod('cash')">Cash</button>
-              <button class="pay-toggle" id="paytog-upi" onclick="pickCollectMethod('upi')">UPI</button>
-            </div>
-            <button class="btn btn-primary" id="collect-btn" onclick="collectPayment()">Mark payment collected</button>
-          </div>
-
-          <div class="psec" style="padding-top:2px;"><h3>Log kitchen health</h3></div>
-          <div class="ppx" style="margin-bottom:16px;" id="health-log-wrap"></div>
-
-          <div class="ppx" id="detail-advance-wrap" style="margin-bottom:20px;"></div>
-        </div>
-
-        <div class="pscreen" id="tech-earnings">
-          <div class="psec" style="padding-top:16px;"><h3>Earnings</h3></div>
-          <div class="earn-hero"><div class="lbl">Total collected</div><div class="amt" id="earn-total">₹0</div></div>
-          <div class="earn-stats" style="margin-bottom:16px;">
-            <div class="earn-stat"><div class="n" id="earn-today">₹0</div><div class="l">TODAY</div></div>
-            <div class="earn-stat"><div class="n" id="earn-jobs">0</div><div class="l">JOBS DONE</div></div>
-            <div class="earn-stat"><div class="n" id="earn-rating">—</div><div class="l">RATING</div></div>
-          </div>
-          <div class="psec"><h3>Recent payouts</h3></div>
-          <div id="earn-list"></div>
-        </div>
-
-        <div class="pscreen" id="tech-complaints">
-          <div class="psec" style="padding-top:16px;"><h3>Complaints</h3></div>
-          <div id="tech-complaints-content"></div>
-        </div>
-
+  <div class="ops-page active" id="ops-jobs">
+    <div class="ops-split">
+      <div class="ops-list-pane">
+        <div class="ops-list-head">New requests</div>
+        <div class="ops-list-body" id="ops-new-list"></div>
+        <div class="ops-list-head">Active jobs</div>
+        <div class="ops-list-body" id="ops-active-list"></div>
+        <div class="ops-list-head">Completed</div>
+        <div class="ops-list-body" id="ops-completed-list"></div>
       </div>
-      <div class="ptabbar" id="ptabbar">
-        <button class="ptab active" data-tab="jobs" onclick="techGo('jobs')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>Jobs
-        </button>
-        <button class="ptab" data-tab="earnings" onclick="techGo('earnings')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v9M9.5 9.8c0-1.2 1.1-2 2.5-2s2.5.7 2.5 1.8c0 2.4-5 1.2-5 3.6 0 1.1 1.1 1.8 2.5 1.8s2.5-.8 2.5-2"/></svg>Earnings
-        </button>
-        <button class="ptab" data-tab="complaints" onclick="techGo('complaints')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4h16v12H8l-4 4V4z"/></svg>Complaints
-        </button>
+      <div class="ops-detail-pane" id="ops-detail-pane">
+        <div class="ops-empty"><span class="ic">🔧</span><span>Select a job from the list to view details.</span></div>
       </div>
     </div>
+  </div>
+
+  <div class="ops-page" id="ops-earnings">
+    <div class="earn-hero-row">
+      <div class="earn-hero"><div class="lbl">Total collected</div><div class="amt" id="earn-total">₹0</div></div>
+      <div class="earn-stat"><div class="n" id="earn-today">₹0</div><div class="l">TODAY</div></div>
+      <div class="earn-stat"><div class="n" id="earn-jobs">0</div><div class="l">JOBS DONE</div></div>
+      <div class="earn-stat"><div class="n" id="earn-rating">—</div><div class="l">RATING</div></div>
+    </div>
+    <div class="earn-list-panel">
+      <table><thead><tr><th>Order</th><th>Service</th><th>Amount</th><th>Date</th></tr></thead><tbody id="earn-list"></tbody></table>
+    </div>
+  </div>
+
+  <div class="ops-page" id="ops-complaints">
+    <div class="complaints-grid" id="tech-complaints-content"></div>
   </div>
 </div>
 
@@ -298,6 +259,14 @@
   }
   function toggleDevPanel(){ document.getElementById('dev-panel').classList.toggle('open'); }
   applyStoredTheme();
+
+  let isOnline = true;
+  function toggleOnline(){
+    isOnline = !isOnline;
+    document.getElementById('online-toggle').classList.toggle('off', !isOnline);
+    document.getElementById('online-label').textContent = isOnline ? 'Online' : 'Offline';
+    log(isOnline ? '🟢 You are online — new jobs will be assigned to you.' : '⚪ You are offline — no new jobs will arrive.');
+  }
 
   let API_BASE = document.getElementById('conn-url-input').value.trim();
   let STATE = { bookings:[], complaints:[], connected:false };
@@ -362,12 +331,10 @@
 
   function findBooking(id){ return STATE.bookings.find(b => b.id === id); }
 
-  function techGo(id){
-    document.querySelectorAll('.pscreen').forEach(s => s.classList.remove('active'));
-    document.getElementById('tech-' + id).classList.add('active');
-    const isTab = TABS.includes(id);
-    document.getElementById('ptabbar').style.display = isTab ? 'flex' : 'none';
-    if(isTab) document.querySelectorAll('.ptab').forEach(t => t.classList.toggle('active', t.dataset.tab === id));
+  function opsGo(id){
+    document.querySelectorAll('.ops-page').forEach(p => p.classList.remove('active'));
+    document.getElementById('ops-' + id).classList.add('active');
+    document.querySelectorAll('.ops-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === id));
     if(id === 'jobs') renderTechJobs();
     if(id === 'earnings') renderEarnings();
     if(id === 'complaints') renderTechComplaints();
@@ -390,7 +357,8 @@
     if(!STATE.connected){ log('⚠️ Not connected — hit Connect first.'); return; }
     await apiPost('/api/reset', {});
     log('↺ Server data reset to seed state.');
-    techGo('jobs');
+    currentDetailId = null;
+    opsGo('jobs');
     await refreshAll();
   }
 
@@ -401,10 +369,17 @@
   }
 
   function render(){
-    if(document.getElementById('tech-jobs').classList.contains('active')) renderTechJobs();
-    if(document.getElementById('tech-earnings').classList.contains('active')) renderEarnings();
-    if(document.getElementById('tech-complaints').classList.contains('active')) renderTechComplaints();
-    if(document.getElementById('tech-detail').classList.contains('active') && currentDetailId) refreshDetailSummary();
+    const done = STATE.bookings.filter(b => b.status === 'Completed');
+    const todayStr = new Date().toDateString();
+    const today = done.filter(b => new Date(b.createdAt).toDateString() === todayStr).reduce((s,b) => s + b.price, 0);
+    document.getElementById('chip-today').textContent = '₹' + today;
+    document.getElementById('chip-jobs').textContent = done.length;
+    document.getElementById('ops-complaint-count').textContent = STATE.complaints.filter(c => c.status !== 'Resolved').length;
+
+    if(document.getElementById('ops-jobs').classList.contains('active')) renderTechJobs();
+    if(document.getElementById('ops-earnings').classList.contains('active')) renderEarnings();
+    if(document.getElementById('ops-complaints').classList.contains('active')) renderTechComplaints();
+    if(currentDetailId) refreshDetailSummary();
   }
 
   function renderTechJobs(){
@@ -412,27 +387,28 @@
     const active = STATE.bookings.filter(b => !['Requested','Completed'].includes(b.status));
     const done = STATE.bookings.filter(b => b.status === 'Completed');
 
-    document.getElementById('tech-new-content').innerHTML = reqs.length ? reqs.map(b =>
-      '<button class="job-card pending" onclick="openJobDetail(\'' + b.id + '\')"><div class="job-top"><b>' + b.category + ' · ' + b.service + '</b><span class="badge copper">₹' + b.price + '</span></div>' +
-      '<div class="meta">Order #' + b.id + '</div>' +
-      '<div class="job-actions"><button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); techAdvance(\'' + b.id + '\')">Accept job</button></div></button>'
-    ).join('') : '<p class="ppx" style="font-size:11.5px; color:var(--ink-soft);">No new requests right now.</p>';
+    document.getElementById('ops-new-list').innerHTML = reqs.length ? reqs.map(b =>
+      '<button class="ops-row' + (b.id===currentDetailId?' sel':'') + '" onclick="openJobDetail(\'' + b.id + '\')">' +
+      '<span class="rtxt"><b>' + b.category + ' · ' + b.service + '</b><span>#' + b.id + '</span></span>' +
+      '<span class="badge copper">₹' + b.price + '</span></button>'
+    ).join('') : '<div class="ops-row-empty">No new requests right now.</div>';
 
-    document.getElementById('tech-active-content').innerHTML = active.length ? active.map(b =>
-      '<button class="job-card" onclick="openJobDetail(\'' + b.id + '\')"><div class="job-top"><b>' + b.category + ' · ' + b.service + '</b><span class="badge amber">' + b.status + '</span></div>' +
-      '<div class="meta">Order #' + b.id + ' · ₹' + b.price + '</div>' +
-      '<div class="job-actions"><button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); techAdvance(\'' + b.id + '\')">Move to \'' + STATUS_ORDER[STATUS_ORDER.indexOf(b.status)+1] + '\'</button></div></button>'
-    ).join('') : '<p class="ppx" style="font-size:11.5px; color:var(--ink-soft);">Nothing in progress.</p>';
+    document.getElementById('ops-active-list').innerHTML = active.length ? active.map(b =>
+      '<button class="ops-row' + (b.id===currentDetailId?' sel':'') + '" onclick="openJobDetail(\'' + b.id + '\')">' +
+      '<span class="rtxt"><b>' + b.category + ' · ' + b.service + '</b><span>#' + b.id + '</span></span>' +
+      '<span class="badge amber">' + b.status + '</span></button>'
+    ).join('') : '<div class="ops-row-empty">Nothing in progress.</div>';
 
-    document.getElementById('tech-completed-content').innerHTML = done.length ? done.map(b =>
-      '<button class="job-card" onclick="openJobDetail(\'' + b.id + '\')"><div class="job-top"><b>' + b.category + ' · ' + b.service + '</b><span class="badge emerald">Completed</span></div>' +
-      '<div class="meta">Order #' + b.id + ' · ' + (b.ratings ? ('Rated ' + b.ratings.tech + '/5') : 'Awaiting rating') + '</div></button>'
-    ).join('') : '<p class="ppx" style="font-size:11.5px; color:var(--ink-soft);">No completed jobs yet.</p>';
+    document.getElementById('ops-completed-list').innerHTML = done.length ? done.map(b =>
+      '<button class="ops-row' + (b.id===currentDetailId?' sel':'') + '" onclick="openJobDetail(\'' + b.id + '\')">' +
+      '<span class="rtxt"><b>' + b.category + ' · ' + b.service + '</b><span>#' + b.id + '</span></span>' +
+      '<span class="badge emerald">✓</span></button>'
+    ).join('') : '<div class="ops-row-empty">No completed jobs yet.</div>';
   }
 
   function renderTechComplaints(){
     const box = document.getElementById('tech-complaints-content');
-    if(!STATE.complaints.length){ box.innerHTML = '<p class="ppx" style="font-size:11.5px; color:var(--ink-soft);">No complaints. 🎉</p>'; return; }
+    if(!STATE.complaints.length){ box.innerHTML = '<div class="ops-row-empty">No complaints. 🎉</div>'; return; }
     box.innerHTML = STATE.complaints.map(c => {
       const b = findBooking(c.bookingId);
       return '<div class="complaint-card"><div class="ctop"><b>Order #' + c.bookingId + '</b><span class="badge ' + (c.status==='New'?'rust':c.status==='Resolved'?'emerald':'amber') + '">' + c.status + '</span></div>' +
@@ -446,7 +422,7 @@
     }).join('');
   }
 
-  /* ---------------- job detail ---------------- */
+  /* ---------------- job detail (renders into the persistent right pane) ---------------- */
   let currentDetailId = null;
   let invoiceLines = [];
   let signatureSaved = false;
@@ -457,30 +433,76 @@
     currentDetailId = id;
     jobPhotos = {}; signatureSaved = false; collectMethod = 'cash';
     const b = findBooking(id);
+    if(!b) return;
     invoiceLines = [
       { desc: b.service + ' (labor)', amt: Math.round(b.price * 0.7) },
       { desc: 'Parts & consumables', amt: b.price - Math.round(b.price * 0.7) }
     ];
-    document.getElementById('detail-title').textContent = 'Order #' + id;
+    renderDetailPane(b);
+    renderTechJobs();
+  }
+
+  function renderDetailPane(b){
+    const pane = document.getElementById('ops-detail-pane');
+    pane.innerHTML =
+      '<div class="ops-detail-head"><div><h2>Order #' + b.id + '</h2><div class="sub">' + b.category + ' · ' + b.service + '</div></div>' +
+      '<span class="badge ' + (b.status==='Completed'?'emerald':b.status==='Requested'?'copper':'amber') + '" id="detail-status-badge">' + b.status + '</span></div>' +
+      '<div class="ops-detail-grid">' +
+        '<div class="ops-col">' +
+          '<h3>Job</h3>' +
+          '<div class="detail-card">' +
+            '<div class="detail-row"><b>Amount</b><span id="detail-amount">₹' + b.price + '</span></div>' +
+            '<div class="detail-row"><b>Booked</b><span>' + new Date(b.createdAt).toLocaleString() + '</span></div>' +
+          '</div>' +
+          '<h3>Customer</h3>' +
+          '<div class="detail-card">' +
+            '<div class="detail-row"><b>Name</b><span>Amit Sharma</span></div>' +
+            '<div class="detail-row"><b>Address</b><span>221B, MG Road, Baner, Pune 411045</span></div>' +
+            '<div class="detail-row"><b>Phone</b><span>+91 98XXXXXX21</span></div>' +
+          '</div>' +
+          '<div class="map-ph"><span class="pin">📍</span></div>' +
+          '<button class="btn btn-outline btn-sm" onclick="log(\'🗺️ Opening navigation…\')">Navigate to customer</button>' +
+          '<h3>Job photos</h3>' +
+          '<div class="photo-row">' +
+            '<label class="photo-slot" id="photo-before"><span>📷 Before</span><input type="file" accept="image/*" onchange="handlePhoto(this,\'before\')"></label>' +
+            '<label class="photo-slot" id="photo-after"><span>📷 After</span><input type="file" accept="image/*" onchange="handlePhoto(this,\'after\')"></label>' +
+          '</div>' +
+        '</div>' +
+        '<div class="ops-col">' +
+          '<h3>Invoice</h3>' +
+          '<div class="detail-card" id="invoice-builder"></div>' +
+          '<h3>Customer signature</h3>' +
+          '<canvas class="sig-pad" id="sig-pad" width="320" height="120"></canvas>' +
+          '<div class="sig-row">' +
+            '<button class="btn btn-outline btn-sm" onclick="clearSignature()">Clear</button>' +
+            '<button class="btn btn-primary btn-sm" onclick="saveSignature()" style="flex:1;">Save signature</button>' +
+          '</div>' +
+          '<p id="sig-status" style="font-size:10.5px;color:var(--ink-soft);margin-top:6px;"></p>' +
+          '<h3>Collect payment</h3>' +
+          '<div class="pay-toggle-row">' +
+            '<button class="pay-toggle sel" id="paytog-cash" onclick="pickCollectMethod(\'cash\')">Cash</button>' +
+            '<button class="pay-toggle" id="paytog-upi" onclick="pickCollectMethod(\'upi\')">UPI</button>' +
+          '</div>' +
+          '<button class="btn btn-primary" id="collect-btn" onclick="collectPayment()" style="margin-bottom:16px;">Mark payment collected</button>' +
+          '<h3>Log kitchen health</h3>' +
+          '<div id="health-log-wrap" style="margin-bottom:16px;"></div>' +
+          '<div id="detail-advance-wrap"></div>' +
+        '</div>' +
+      '</div>';
     renderInvoiceBuilder();
-    techGo('detail');
-    refreshDetailSummary();
-    document.getElementById('photo-before').innerHTML = '<span>📷 Before</span><input type="file" accept="image/*" onchange="handlePhoto(this,\'before\')">';
-    document.getElementById('photo-after').innerHTML = '<span>📷 After</span><input type="file" accept="image/*" onchange="handlePhoto(this,\'after\')">';
-    document.getElementById('sig-status').textContent = '';
+    initSignaturePad();
     document.getElementById('paytog-cash').classList.add('sel');
     document.getElementById('paytog-upi').classList.remove('sel');
-    clearSignature();
+    refreshDetailSummary();
   }
 
   function refreshDetailSummary(){
     const b = findBooking(currentDetailId);
-    if(!b) return;
-    document.getElementById('detail-summary').innerHTML =
-      '<h4>' + b.category + ' · ' + b.service + '</h4>' +
-      '<div class="detail-row"><b>Status</b><span class="badge ' + (b.status==='Completed'?'emerald':b.status==='Requested'?'copper':'amber') + '">' + b.status + '</span></div>' +
-      '<div class="detail-row"><b>Amount</b><span>₹' + b.price + '</span></div>' +
-      '<div class="detail-row"><b>Booked</b><span>' + new Date(b.createdAt).toLocaleString() + '</span></div>';
+    if(!b || !document.getElementById('detail-status-badge')) return;
+    const badge = document.getElementById('detail-status-badge');
+    badge.className = 'badge ' + (b.status==='Completed'?'emerald':b.status==='Requested'?'copper':'amber');
+    badge.textContent = b.status;
+    document.getElementById('detail-amount').textContent = '₹' + b.price;
 
     const idx = STATUS_ORDER.indexOf(b.status);
     const wrap = document.getElementById('detail-advance-wrap');
@@ -508,10 +530,10 @@
     }
     const suggestion = HEALTH_METRIC_SUGGESTIONS[b.category] || 'Condition';
     wrap.innerHTML =
-      '<input id="health-metric" value="' + suggestion + '" placeholder="Metric name" style="width:100%;margin-bottom:8px;padding:9px 11px;border-radius:9px;border:1.4px solid var(--line);background:var(--paper);color:var(--text);font-size:12px;">' +
+      '<input id="health-metric" class="health-input" value="' + suggestion + '" placeholder="Metric name">' +
       '<input id="health-value" type="range" min="0" max="100" value="80" style="width:100%;" oninput="document.getElementById(\'health-value-lbl\').textContent = this.value + \'%\'">' +
       '<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--ink-soft);margin:2px 0 8px;"><span>0%</span><span id="health-value-lbl">80%</span><span>100%</span></div>' +
-      '<input id="health-status" value="Optimal" placeholder="Status label (e.g. Optimal, Needs attention)" style="width:100%;margin-bottom:10px;padding:9px 11px;border-radius:9px;border:1.4px solid var(--line);background:var(--paper);color:var(--text);font-size:12px;">' +
+      '<input id="health-status" class="health-input" value="Optimal" placeholder="Status label (e.g. Optimal, Needs attention)">' +
       '<button class="btn btn-primary btn-sm" style="width:100%;" onclick="saveHealthLog(\'' + b.id + '\')">Save health reading</button>' +
       '<p id="health-log-status" style="font-size:10.5px;color:var(--ink-soft);margin-top:6px;"></p>';
   }
@@ -556,8 +578,9 @@
   let sigCtx = null, sigDrawing = false;
   function initSignaturePad(){
     const canvas = document.getElementById('sig-pad');
+    if(!canvas) return;
     sigCtx = canvas.getContext('2d');
-    sigCtx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--text') || '#14181B';
+    sigCtx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--text') || '#12181C';
     sigCtx.lineWidth = 2;
     sigCtx.lineCap = 'round';
     const pos = e => {
@@ -577,7 +600,7 @@
   }
   function clearSignature(){
     if(!sigCtx) return;
-    sigCtx.clearRect(0,0,320,140);
+    sigCtx.clearRect(0,0,320,120);
     signatureSaved = false;
     document.getElementById('sig-status').textContent = '';
   }
@@ -612,12 +635,10 @@
     document.getElementById('earn-rating').textContent = avgRating === '—' ? '—' : avgRating + '★';
 
     document.getElementById('earn-list').innerHTML = done.length ? done.map(b =>
-      '<div class="job-card"><div class="job-top"><b>' + b.category + ' · ' + b.service + '</b><span class="badge emerald">₹' + b.price + '</span></div>' +
-      '<div class="meta">#' + b.id + ' · ' + new Date(b.createdAt).toLocaleDateString() + '</div></div>'
-    ).join('') : '<p class="ppx" style="font-size:11.5px;color:var(--ink-soft);">No completed jobs yet.</p>';
+      '<tr><td><b>#' + b.id + '</b></td><td>' + b.category + ' · ' + b.service + '</td><td>₹' + b.price + '</td><td style="font-family:var(--mono);font-size:10.5px;color:var(--ink-soft);">' + new Date(b.createdAt).toLocaleDateString() + '</td></tr>'
+    ).join('') : '<tr><td colspan="4" style="color:var(--ink-soft);">No completed jobs yet.</td></tr>';
   }
 
-  initSignaturePad();
   render();
   connectApi();
 </script>
