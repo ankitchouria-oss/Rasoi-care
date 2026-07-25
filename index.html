@@ -3,23 +3,463 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RasoiCare — Server</title>
+<title>RasoiCare — Kitchen Appliance Care, On Demand</title>
+<meta name="description" content="Chimney deep cleaning, hob &amp; cooktop repair, and built-in appliance service — booked in a minute, tracked live, billed transparently.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  body{ font-family:-apple-system,Segoe UI,Manrope,sans-serif; color:#4B4E4F; background:#FBF9F5; min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
-  .wrap{ max-width:420px; width:100%; font-size:13px; line-height:1.7; }
-  code{ font-family:ui-monospace,Consolas,monospace; background:#F3E4CF; color:#8C5A24; padding:2px 6px; border-radius:5px; }
-  ul{ margin-top:10px; padding-left:18px; }
-  a{ color:#8C5A24; }
+  :root{
+    --ink:#14181B; --ink-soft:#4B4E4F; --text:#14181B;
+    --paper:#FBF9F5; --card:#FFFFFF; --line:#E4DECF; --stage-bg:#F3EFE4;
+    --copper:#B4793A; --copper-deep:#8C5A24; --copper-tint:#F3E4CF;
+    --emerald:#3E7C59; --emerald-tint:#E4EFE7;
+    --amber:#B8912A; --amber-tint:#F5EAD1;
+    --rust:#B5453D; --rust-tint:#F5E1DE;
+    --display:'Instrument Serif', serif; --body:'Manrope', sans-serif; --mono:'JetBrains Mono', monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html{scroll-behavior:smooth;}
+  body{ font-family:var(--body); color:var(--text); background:var(--paper); line-height:1.5; }
+  img,svg{display:block;max-width:100%;}
+  a{color:inherit;text-decoration:none;}
+  ul{list-style:none;}
+  .wrap{ max-width:1180px; margin:0 auto; padding:0 24px; }
+  .eyebrow{ font-family:var(--mono); font-size:11.5px; font-weight:600; letter-spacing:0.14em; text-transform:uppercase; color:var(--copper-deep); }
+  h1,h2,h3{ font-family:var(--display); font-weight:400; line-height:1.08; }
+  .btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:14px 24px; border-radius:999px; font-weight:700; font-size:14.5px; font-family:var(--body); border:none; cursor:pointer; transition:transform .15s ease, box-shadow .15s ease; }
+  .btn:hover{ transform:translateY(-1px); }
+  .btn-primary{ background:linear-gradient(120deg,var(--copper),var(--copper-deep)); color:#fff; box-shadow:0 14px 30px -12px rgba(140,90,36,0.55); }
+  .btn-ghost{ background:transparent; color:var(--text); border:1.6px solid var(--line); }
+  .btn-ghost:hover{ border-color:var(--copper); }
+  .btn-light{ background:#fff; color:var(--copper-deep); }
+  .btn-sm{ padding:10px 18px; font-size:13px; }
+
+  /* ---------- nav ---------- */
+  header{ position:sticky; top:0; z-index:50; background:rgba(251,249,245,0.85); backdrop-filter:blur(10px); border-bottom:1px solid var(--line); }
+  nav{ display:flex; align-items:center; justify-content:space-between; padding:16px 24px; max-width:1180px; margin:0 auto; }
+  .logo{ font-family:var(--display); font-size:22px; display:flex; align-items:center; gap:8px; }
+  .logo .dot{ width:9px; height:9px; border-radius:50%; background:var(--copper); }
+  .logo b{ font-weight:400; color:var(--copper-deep); }
+  .nav-links{ display:flex; align-items:center; gap:30px; font-size:13.5px; font-weight:600; color:var(--ink-soft); }
+  .nav-links a:hover{ color:var(--text); }
+  .nav-cta{ display:flex; align-items:center; gap:12px; }
+  #menu-btn{ display:none; background:none; border:1.4px solid var(--line); border-radius:10px; width:38px; height:38px; font-size:16px; }
+  #mobile-links{ display:none; flex-direction:column; gap:2px; padding:8px 24px 18px; border-top:1px solid var(--line); }
+  #mobile-links a{ padding:10px 0; font-size:14px; font-weight:600; color:var(--ink-soft); border-bottom:1px solid var(--line); }
+  #mobile-links.open{ display:flex; }
+
+  /* ---------- hero ---------- */
+  .hero{ padding:64px 0 40px; position:relative; overflow:hidden; }
+  .hero-grid{ display:grid; grid-template-columns:1.05fr 0.95fr; gap:40px; align-items:center; }
+  .hero h1{ font-size:60px; margin:14px 0 18px; letter-spacing:-0.01em; }
+  .hero h1 em{ font-style:normal; color:var(--copper-deep); }
+  .hero p.lede{ font-size:16.5px; color:var(--ink-soft); max-width:480px; margin-bottom:28px; }
+  .hero-ctas{ display:flex; gap:14px; flex-wrap:wrap; margin-bottom:30px; }
+  .trust-row{ display:flex; align-items:center; gap:22px; flex-wrap:wrap; font-size:12.5px; font-weight:700; color:var(--ink-soft); }
+  .trust-row span{ display:flex; align-items:center; gap:6px; }
+  .trust-row .stars{ color:var(--amber); }
+
+  .hero-visual{ position:relative; height:420px; }
+  .float-card{ position:absolute; background:var(--card); border:1.4px solid var(--line); border-radius:18px; padding:16px 18px; box-shadow:0 24px 50px -22px rgba(20,24,27,0.25); }
+  .fc-air{ top:6px; left:10px; width:190px; }
+  .fc-spark{ top:150px; right:0; width:180px; }
+  .fc-built{ bottom:70px; left:40px; width:190px; }
+  .fc-health{ bottom:0; right:30px; width:170px; text-align:center; background:linear-gradient(155deg,#3A2A12,var(--copper-deep) 65%,var(--copper)); color:#fff; border:none; }
+  .float-card .ico{ font-size:20px; margin-bottom:8px; }
+  .float-card b{ font-family:var(--display); font-size:17px; font-weight:400; display:block; }
+  .float-card span{ font-size:11px; color:var(--ink-soft); }
+  .fc-health span{ color:#F3E4CF; }
+  .fc-health .score{ font-family:var(--mono); font-size:30px; font-weight:700; margin:4px 0; }
+
+  /* ---------- chips strip ---------- */
+  .chip-strip{ display:flex; flex-wrap:wrap; gap:12px; justify-content:center; padding:34px 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line); background:var(--stage-bg); }
+  .chip{ background:var(--card); border:1.4px solid var(--line); border-radius:999px; padding:9px 18px; font-size:12.5px; font-weight:700; color:var(--ink-soft); }
+
+  /* ---------- section shared ---------- */
+  section{ padding:88px 0; }
+  .sec-head{ max-width:600px; margin:0 auto 48px; text-align:center; }
+  .sec-head h2{ font-size:38px; margin-top:12px; }
+  .sec-head p{ color:var(--ink-soft); font-size:15px; margin-top:12px; }
+
+  /* ---------- apps section ---------- */
+  .apps-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:22px; }
+  .app-card{ background:var(--card); border:1.4px solid var(--line); border-radius:22px; padding:28px 24px; display:flex; flex-direction:column; gap:14px; }
+  .app-card .ico{ width:46px; height:46px; border-radius:13px; display:flex; align-items:center; justify-content:center; font-size:21px; background:var(--copper-tint); }
+  .app-card:nth-child(2) .ico{ background:var(--emerald-tint); }
+  .app-card:nth-child(3) .ico{ background:var(--amber-tint); }
+  .app-card h3{ font-size:21px; }
+  .app-card ul{ display:flex; flex-direction:column; gap:7px; margin:4px 0 10px; }
+  .app-card li{ font-size:13px; color:var(--ink-soft); display:flex; gap:7px; }
+  .app-card li::before{ content:'✓'; color:var(--emerald); font-weight:800; }
+  .app-card a.btn{ align-self:flex-start; margin-top:auto; }
+
+  /* ---------- how it works ---------- */
+  .steps{ display:grid; grid-template-columns:repeat(4,1fr); gap:20px; counter-reset:step; }
+  .step{ position:relative; padding:26px 20px 20px; background:var(--card); border:1.4px solid var(--line); border-radius:18px; }
+  .step .num{ font-family:var(--mono); font-size:12px; font-weight:700; color:var(--copper-deep); background:var(--copper-tint); width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-bottom:14px; }
+  .step h3{ font-size:17px; font-weight:800; font-family:var(--body); margin-bottom:6px; }
+  .step p{ font-size:12.5px; color:var(--ink-soft); }
+  .step:not(:last-child)::after{ content:'→'; position:absolute; top:24px; right:-24px; color:var(--line); font-size:18px; }
+
+  /* ---------- services ---------- */
+  .svc-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:22px; }
+  .svc-card{ background:var(--card); border:1.4px solid var(--line); border-radius:22px; overflow:hidden; }
+  .svc-head{ padding:24px 22px 16px; }
+  .svc-head .ico{ font-size:26px; margin-bottom:10px; }
+  .svc-head h3{ font-size:22px; }
+  .svc-head span{ font-size:12.5px; color:var(--ink-soft); }
+  .svc-issues{ padding:4px 22px 22px; display:flex; flex-direction:column; gap:8px; }
+  .issue-row{ display:flex; align-items:center; justify-content:space-between; padding:10px 13px; border-radius:12px; background:var(--stage-bg); font-size:12.5px; font-weight:700; }
+  .issue-row span.price{ font-family:var(--mono); color:var(--copper-deep); }
+  .svc-card .btn{ margin:0 22px 22px; width:calc(100% - 44px); }
+
+  /* ---------- health score band ---------- */
+  .health-band{ background:linear-gradient(155deg,#3A2A12,var(--copper-deep) 55%,var(--copper)); border-radius:28px; padding:52px; color:#fff; display:grid; grid-template-columns:1fr 260px; gap:30px; align-items:center; }
+  .health-band .eyebrow{ color:#F3E4CF; }
+  .health-band h2{ color:#fff; font-size:32px; margin:10px 0 12px; }
+  .health-band p{ color:#F3E4CF; font-size:14.5px; max-width:460px; }
+  .gauge-card{ background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.25); border-radius:20px; padding:26px; text-align:center; }
+  .gauge-card .big{ font-family:var(--mono); font-size:46px; font-weight:700; }
+  .gauge-card .lbl{ font-size:11.5px; color:#F3E4CF; text-transform:uppercase; letter-spacing:0.08em; margin-top:4px; }
+
+  /* ---------- AMC plans ---------- */
+  .plans-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:22px; align-items:stretch; }
+  .plan-card{ background:var(--card); border:1.4px solid var(--line); border-radius:22px; padding:28px 24px; display:flex; flex-direction:column; position:relative; }
+  .plan-card.popular{ border-color:var(--copper); box-shadow:0 20px 44px -22px rgba(140,90,36,0.4); }
+  .plan-badge{ position:absolute; top:-13px; right:24px; background:var(--copper-deep); color:#fff; font-size:10.5px; font-weight:800; padding:5px 12px; border-radius:999px; text-transform:uppercase; letter-spacing:0.06em; }
+  .plan-card h3{ font-size:22px; }
+  .plan-price{ font-family:var(--mono); font-size:28px; font-weight:700; color:var(--copper-deep); margin:8px 0 18px; }
+  .plan-price span{ font-size:12px; color:var(--ink-soft); font-weight:600; }
+  .plan-card ul{ display:flex; flex-direction:column; gap:9px; margin-bottom:22px; flex:1; }
+  .plan-card li{ font-size:13px; color:var(--ink-soft); display:flex; gap:7px; }
+  .plan-card li::before{ content:'✓'; color:var(--emerald); font-weight:800; }
+
+  /* ---------- reviews ---------- */
+  .rev-top{ display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:36px; }
+  .rev-score{ font-family:var(--display); font-size:44px; color:var(--copper-deep); }
+  .rev-meta .stars{ color:var(--amber); font-size:15px; }
+  .rev-meta span{ display:block; font-size:12px; color:var(--ink-soft); }
+  .rev-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:20px; }
+  .rev-card{ background:var(--card); border:1.4px solid var(--line); border-radius:18px; padding:22px; }
+  .rev-card .stars{ color:var(--amber); font-size:13px; margin-bottom:10px; }
+  .rev-card p{ font-size:13.5px; color:var(--ink-soft); line-height:1.6; margin-bottom:14px; }
+  .rev-card .who{ font-size:12px; font-weight:800; }
+
+  /* ---------- CTA band ---------- */
+  .cta-band{ background:var(--ink); color:#fff; border-radius:28px; padding:64px 48px; text-align:center; }
+  .cta-band h2{ color:#fff; font-size:36px; margin-bottom:14px; }
+  .cta-band p{ color:#C9C4B7; font-size:15px; margin-bottom:28px; }
+  .cta-row{ display:flex; gap:14px; justify-content:center; flex-wrap:wrap; }
+
+  /* ---------- footer ---------- */
+  footer{ padding:56px 0 30px; border-top:1px solid var(--line); }
+  .foot-grid{ display:flex; justify-content:space-between; flex-wrap:wrap; gap:32px; margin-bottom:36px; }
+  .foot-brand p{ font-size:13px; color:var(--ink-soft); max-width:280px; margin-top:10px; }
+  .foot-cols{ display:flex; gap:56px; flex-wrap:wrap; }
+  .foot-col h4{ font-size:12px; text-transform:uppercase; letter-spacing:0.06em; color:var(--ink-soft); margin-bottom:14px; }
+  .foot-col a{ display:block; font-size:13.5px; font-weight:600; margin-bottom:10px; color:var(--text); }
+  .foot-bottom{ display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px; font-size:12px; color:var(--ink-soft); padding-top:22px; border-top:1px solid var(--line); }
+
+  @media (max-width:900px){
+    .nav-links{ display:none; }
+    #menu-btn{ display:block; }
+    .hero h1{ font-size:42px; }
+    .hero-grid{ grid-template-columns:1fr; }
+    .hero-visual{ height:340px; margin-top:20px; }
+    .apps-grid, .svc-grid, .plans-grid, .rev-grid{ grid-template-columns:1fr; }
+    .steps{ grid-template-columns:1fr 1fr; }
+    .step:not(:last-child)::after{ display:none; }
+    .health-band{ grid-template-columns:1fr; padding:36px 26px; }
+    .cta-band{ padding:44px 24px; }
+    .foot-grid{ flex-direction:column; }
+    section{ padding:60px 0; }
+  }
+  @media (max-width:560px){
+    .steps{ grid-template-columns:1fr; }
+    .hero h1{ font-size:34px; }
+    .sec-head h2{ font-size:28px; }
+  }
 </style>
 </head>
 <body>
-<div class="wrap">
-  This host serves three independent RasoiCare apps. There is no shared entry point — each is reached directly:
-  <ul>
-    <li><a href="/customer">/customer</a></li>
-    <li><a href="/technician">/technician</a></li>
-    <li><a href="/admin">/admin</a></li>
-  </ul>
+
+<header>
+  <nav>
+    <div class="logo"><span class="dot"></span>Rasoi<b>Care</b></div>
+    <div class="nav-links">
+      <a href="#services">Services</a>
+      <a href="#how-it-works">How it works</a>
+      <a href="#kavach">RasoiKavach</a>
+      <a href="#reviews">Reviews</a>
+      <a href="/technician">Partner with us</a>
+    </div>
+    <div class="nav-cta">
+      <a href="/customer" class="btn btn-primary btn-sm">Book a Service</a>
+      <button id="menu-btn" onclick="document.getElementById('mobile-links').classList.toggle('open')">☰</button>
+    </div>
+  </nav>
+  <div id="mobile-links">
+    <a href="#services">Services</a>
+    <a href="#how-it-works">How it works</a>
+    <a href="#kavach">RasoiKavach</a>
+    <a href="#reviews">Reviews</a>
+    <a href="/technician">Partner with us</a>
+    <a href="/admin">Admin login</a>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <div class="eyebrow">Kitchen Appliance Care, On Demand</div>
+      <h1>Your kitchen's<br>appliances,<br><em>cared for.</em></h1>
+      <p class="lede">Chimney deep cleaning, hob &amp; cooktop repair, and built-in appliance service — booked in a minute, tracked live, and billed with a transparent GST invoice every time.</p>
+      <div class="hero-ctas">
+        <a href="/customer" class="btn btn-primary">Book a Service →</a>
+        <a href="/technician" class="btn btn-ghost">Become a Partner</a>
+      </div>
+      <div class="trust-row">
+        <span class="stars">★★★★★</span>
+        <span>4.8/5 rated</span>
+        <span>Verified Technicians</span>
+        <span>Live Order Tracking</span>
+        <span>GST Invoicing</span>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <div class="float-card fc-air"><div class="ico">♨</div><b>RasoiAir</b><span>Chimney deep clean &amp; repair</span></div>
+      <div class="float-card fc-spark"><div class="ico">🔥</div><b>RasoiSpark</b><span>Hob &amp; ignition fix</span></div>
+      <div class="float-card fc-built"><div class="ico">⬜</div><b>RasoiBuilt</b><span>Built-in appliance specialist</span></div>
+      <div class="float-card fc-health"><span>Kitchen Health Score</span><div class="score">82</div><span>Updated after every visit</span></div>
+    </div>
+  </div>
+</section>
+
+<div class="chip-strip">
+  <div class="chip">Chimney Deep Clean</div>
+  <div class="chip">Ignition Fix</div>
+  <div class="chip">Live Technician Tracking</div>
+  <div class="chip">RasoiKavach AMC Plans</div>
+  <div class="chip">Transparent GST Billing</div>
+  <div class="chip">Kitchen Health Score</div>
 </div>
+
+<section id="apps">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">One Platform, Three Experiences</div>
+      <h2>Built for everyone in the loop</h2>
+      <p>Customers, technicians and operations all run on the same real-time RasoiCare system.</p>
+    </div>
+    <div class="apps-grid">
+      <div class="app-card">
+        <div class="ico">📱</div>
+        <h3>Customer App</h3>
+        <ul>
+          <li>Book RasoiAir, RasoiSpark &amp; RasoiBuilt services</li>
+          <li>Track your technician live to your door</li>
+          <li>Kitchen Health Score for every appliance</li>
+          <li>RasoiKavach AMC plans &amp; wallet rewards</li>
+        </ul>
+        <a href="/customer" class="btn btn-ghost btn-sm">Open Customer App →</a>
+      </div>
+      <div class="app-card">
+        <div class="ico">🛠️</div>
+        <h3>Partner App</h3>
+        <ul>
+          <li>Accept jobs and navigate to the customer</li>
+          <li>Before/after photos &amp; signature capture</li>
+          <li>Build the invoice and collect cash or UPI</li>
+          <li>Track daily and weekly earnings</li>
+        </ul>
+        <a href="/technician" class="btn btn-ghost btn-sm">Open Partner App →</a>
+      </div>
+      <div class="app-card">
+        <div class="ico">📊</div>
+        <h3>Admin Console</h3>
+        <ul>
+          <li>Monitor every booking &amp; complaint live</li>
+          <li>Manage technicians and assignments</li>
+          <li>Revenue analytics &amp; payment ledger</li>
+          <li>Inventory and parts oversight</li>
+        </ul>
+        <a href="/admin" class="btn btn-ghost btn-sm">Open Admin Console →</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="how-it-works" style="background:var(--stage-bg);">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Seamless Workflow</div>
+      <h2>How booking works</h2>
+      <p>From tapping "book" to a completed, rated service — every step happens in real time.</p>
+    </div>
+    <div class="steps">
+      <div class="step"><div class="num">1</div><h3>Pick appliance &amp; issue</h3><p>Choose RasoiAir, RasoiSpark or RasoiBuilt and describe the exact problem.</p></div>
+      <div class="step"><div class="num">2</div><h3>Technician assigned</h3><p>A verified specialist is matched instantly — track them live on the way.</p></div>
+      <div class="step"><div class="num">3</div><h3>Transparent billing</h3><p>Pay by cash or UPI with an itemised, GST-compliant invoice every time.</p></div>
+      <div class="step"><div class="num">4</div><h3>Rate &amp; stay covered</h3><p>Rate your service and consider RasoiKavach for year-round protection.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="services">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Powerful Services</div>
+      <h2>Everything your kitchen needs</h2>
+      <p>Three specialist categories, one trusted booking experience.</p>
+    </div>
+    <div class="svc-grid">
+      <div class="svc-card">
+        <div class="svc-head"><div class="ico">♨</div><h3>RasoiAir</h3><span>Chimney deep clean &amp; repair</span></div>
+        <div class="svc-issues">
+          <div class="issue-row"><span>Deep Cleaning</span><span class="price">From ₹499</span></div>
+          <div class="issue-row"><span>Low Suction Fix</span><span class="price">From ₹399</span></div>
+          <div class="issue-row"><span>Motor Repair</span><span class="price">From ₹599</span></div>
+        </div>
+        <a href="/customer" class="btn btn-primary btn-sm">Book Now →</a>
+      </div>
+      <div class="svc-card">
+        <div class="svc-head"><div class="ico">🔥</div><h3>RasoiSpark</h3><span>Hob, cooktop &amp; gas stove</span></div>
+        <div class="svc-issues">
+          <div class="issue-row"><span>Ignition Fix</span><span class="price">₹399</span></div>
+          <div class="issue-row"><span>Burner Cleaning</span><span class="price">₹299</span></div>
+          <div class="issue-row"><span>Auto-shutoff Issue</span><span class="price">₹449</span></div>
+        </div>
+        <a href="/customer" class="btn btn-primary btn-sm">Book Now →</a>
+      </div>
+      <div class="svc-card">
+        <div class="svc-head"><div class="ico">⬜</div><h3>RasoiBuilt</h3><span>Built-in microwave, OTG &amp; more</span></div>
+        <div class="svc-issues">
+          <div class="issue-row"><span>Not Heating</span><span class="price">From ₹399</span></div>
+          <div class="issue-row"><span>Door / Hinge Repair</span><span class="price">₹399</span></div>
+          <div class="issue-row"><span>General Service</span><span class="price">From ₹299</span></div>
+        </div>
+        <a href="/customer" class="btn btn-primary btn-sm">Book Now →</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="health-band">
+      <div>
+        <div class="eyebrow">Only on RasoiCare</div>
+        <h2>Kitchen Health Score</h2>
+        <p>Every service visit updates a live health score for your chimney, hob and built-in appliances — so you always know exactly when the next check-up is due, before something breaks down.</p>
+      </div>
+      <div class="gauge-card">
+        <div class="big">82</div>
+        <div class="lbl">Overall kitchen health</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="kavach" style="background:var(--stage-bg);">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">RasoiKavach · Annual Maintenance</div>
+      <h2>Year-round protection plans</h2>
+      <p>Unlimited breakdown support and scheduled check-ups, so your kitchen never catches you off guard.</p>
+    </div>
+    <div class="plans-grid">
+      <div class="plan-card">
+        <h3>Basic Care</h3>
+        <div class="plan-price">₹999 <span>/ year</span></div>
+        <ul>
+          <li>1 free check-up per year</li>
+          <li>10% off repairs</li>
+          <li>Standard response time</li>
+        </ul>
+        <a href="/customer" class="btn btn-ghost btn-sm">Subscribe</a>
+      </div>
+      <div class="plan-card popular">
+        <div class="plan-badge">Most Popular</div>
+        <h3>Premium Care</h3>
+        <div class="plan-price">₹1,999 <span>/ year</span></div>
+        <ul>
+          <li>2 free check-ups per year</li>
+          <li>10% off every repair</li>
+          <li>Priority scheduling</li>
+        </ul>
+        <a href="/customer" class="btn btn-primary btn-sm">Subscribe</a>
+      </div>
+      <div class="plan-card">
+        <h3>Elite Care</h3>
+        <div class="plan-price">₹3,499 <span>/ year</span></div>
+        <ul>
+          <li>4 free check-ups per year</li>
+          <li>20% off every repair</li>
+          <li>Priority scheduling</li>
+          <li>24/7 dedicated support</li>
+        </ul>
+        <a href="/customer" class="btn btn-ghost btn-sm">Subscribe</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="reviews">
+  <div class="wrap">
+    <div class="rev-top">
+      <div class="rev-score">4.8</div>
+      <div class="rev-meta"><div class="stars">★★★★★</div><span>Rated by RasoiCare customers</span></div>
+    </div>
+    <div class="rev-grid">
+      <div class="rev-card"><div class="stars">★★★★★</div><p>"Technician arrived on time and fixed our chimney suction in 20 minutes."</p><div class="who">— Priya, Baner</div></div>
+      <div class="rev-card"><div class="stars">★★★★★</div><p>"Booking took less than a minute and the invoice was completely transparent."</p><div class="who">— Rohan, Kothrud</div></div>
+      <div class="rev-card"><div class="stars">★★★★☆</div><p>"Good service overall, would've liked an earlier slot."</p><div class="who">— Sana, Wakad</div></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="cta-band">
+      <h2>Ready to get your kitchen sorted?</h2>
+      <p>Book a verified technician in under a minute, or join RasoiCare as a service partner.</p>
+      <div class="cta-row">
+        <a href="/customer" class="btn btn-light">Book a Service →</a>
+        <a href="/technician" class="btn btn-ghost" style="border-color:rgba(255,255,255,0.3);color:#fff;">Become a Partner</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <div class="logo"><span class="dot"></span>Rasoi<b>Care</b></div>
+        <p>Kitchen appliance repair, deep cleaning and annual maintenance — booked on demand, tracked live.</p>
+      </div>
+      <div class="foot-cols">
+        <div class="foot-col">
+          <h4>Platform</h4>
+          <a href="/customer">Customer App</a>
+          <a href="/technician">Partner App</a>
+          <a href="/admin">Admin Console</a>
+        </div>
+        <div class="foot-col">
+          <h4>Services</h4>
+          <a href="#services">RasoiAir</a>
+          <a href="#services">RasoiSpark</a>
+          <a href="#services">RasoiBuilt</a>
+          <a href="#kavach">RasoiKavach AMC</a>
+        </div>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>© 2026 RasoiCare. All rights reserved.</span>
+      <span>Made for kitchens that keep running.</span>
+    </div>
+  </div>
+</footer>
+
 </body>
 </html>
