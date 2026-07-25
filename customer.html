@@ -371,6 +371,9 @@
     .device{ width:100%; max-width:none; height:100%; border-radius:0; padding:0; box-shadow:none; background:transparent; margin:0; }
     :root[data-theme="dark"] .device{ box-shadow:none; }
     .screen-frame{ border-radius:0; height:100%; }
+    /* the fake "9:41" clock + status bar is desktop-mockup chrome —
+       a real phone already has its own status bar above the WebView */
+    .pstatusbar{ display:none; }
   }
 </style>
 </head>
