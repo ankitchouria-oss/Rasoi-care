@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ankit - Home Services</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- native fallback so tab/modal visibility works even before the Tailwind CDN script finishes loading -->
+  <style>.hidden{display:none;}</style>
+</head>
+<body class="bg-gray-100 font-sans pb-20">
+
+  <div class="max-w-md mx-auto bg-white min-h-screen shadow-md relative">
+
+    <!-- Header -->
+    <header class="p-4 flex items-center justify-between border-b sticky top-0 bg-white z-20">
+      <div>
+        <h1 class="text-xl font-bold text-gray-800" id="greeting">Hi, Ankit 👋</h1>
+        <p class="text-xs text-gray-500">Need a repair or service today?</p>
+      </div>
+      <button onclick="showTab('wallet')" class="flex items-center space-x-1 bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-xs font-semibold">
+        <i class="fa-solid fa-coins text-yellow-600"></i>
+        <span id="pointsChip">100 pts</span>
+      </button>
+    </header>
+
+    <!-- Toast -->
+    <div id="toast" class="fixed top-3 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs font-semibold px-4 py-2 rounded-full opacity-0 pointer-events-none transition-all z-50 whitespace-nowrap"></div>
+
+    <!-- ================= HOME TAB ================= -->
+    <main id="tab-home" class="p-4 space-y-5">
+
+      <section class="grid grid-cols-2 gap-3">
+        <div class="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-3 rounded-xl shadow-sm flex flex-col justify-between">
+          <div>
+            <span class="bg-yellow-400 text-black text-[10px] font-bold px-1.5 py-0.5 rounded uppercase">Save 40%</span>
+            <h2 class="text-sm font-bold mt-1">Care+ AMC</h2>
+            <p class="text-[11px] opacity-90 leading-tight mt-0.5">Annual Appliance Maintenance Plan</p>
+          </div>
+          <button onclick="openAmcModal()" class="mt-3 bg-white text-blue-700 text-xs font-bold py-1 px-2 rounded-lg text-center shadow-sm hover:bg-gray-50">
+            Explore <i class="fa-solid fa-arrow-right text-[10px] ml-1"></i>
+          </button>
+        </div>
+
+        <div class="bg-gradient-to-r from-emerald-600 to-teal-700 text-white p-3 rounded-xl shadow-sm flex flex-col justify-between">
+          <div>
+            <span class="bg-white text-emerald-800 text-[10px] font-bold px-1.5 py-0.5 rounded uppercase">Earn ₹100</span>
+            <h2 class="text-sm font-bold mt-1">Refer & Earn</h2>
+            <p class="text-[11px] opacity-90 leading-tight mt-0.5">Invite friends & earn wallet cash</p>
+          </div>
+          <button onclick="openReferModal()" class="mt-3 bg-white text-emerald-700 text-xs font-bold py-1 px-2 rounded-lg text-center shadow-sm hover:bg-gray-50">
+            Invite <i class="fa-solid fa-share text-[10px] ml-1"></i>
+          </button>
+        </div>
+      </section>
+
+      <section>
+        <h2 class="text-base font-bold text-gray-800 mb-3">Appliance Repairs & Services</h2>
+        <div class="grid grid-cols-2 gap-3" id="servicesGrid"></div>
+      </section>
+
+      <section id="currentPlanBanner" class="hidden bg-indigo-50 border border-indigo-200 text-indigo-800 rounded-xl p-3 text-xs font-semibold flex items-center gap-2">
+        <i class="fa-solid fa-shield-heart"></i>
+        <span id="currentPlanText"></span>
+      </section>
+    </main>
+
+    <!-- ================= BOOKINGS TAB ================= -->
+    <main id="tab-bookings" class="p-4 space-y-3 hidden">
+      <h2 class="text-base font-bold text-gray-800 mb-1">Your Bookings</h2>
+      <div id="bookingsList" class="space-y-3"></div>
+      <div id="bookingsEmpty" class="hidden text-center text-gray-400 text-sm py-16">
+        <i class="fa-solid fa-calendar-xmark text-3xl mb-2"></i>
+        <p>No bookings yet. Book a service from Home.</p>
+      </div>
+    </main>
+
+    <!-- ================= WALLET TAB ================= -->
+    <main id="tab-wallet" class="p-4 space-y-4 hidden">
+      <div class="bg-gradient-to-r from-yellow-500 to-orange-600 text-white rounded-xl p-5 shadow-sm">
+        <p class="text-xs opacity-90 font-semibold uppercase tracking-wide">Wallet Balance</p>
+        <p class="text-3xl font-bold mt-1"><i class="fa-solid fa-coins text-yellow-200 text-xl align-middle mr-1"></i><span id="walletPoints">100</span> pts</p>
+        <button onclick="redeemPoints()" class="mt-4 bg-white text-orange-700 text-xs font-bold py-1.5 px-3 rounded-lg shadow-sm hover:bg-gray-50">
+          Redeem 50 pts for ₹5 off
+        </button>
+      </div>
+      <div>
+        <h2 class="text-base font-bold text-gray-800 mb-2">Transaction History</h2>
+        <div id="txList" class="space-y-2"></div>
+        <div id="txEmpty" class="hidden text-center text-gray-400 text-sm py-10">
+          <i class="fa-solid fa-receipt text-3xl mb-2"></i>
+          <p>No transactions yet.</p>
+        </div>
+      </div>
+    </main>
+
+    <!-- ================= PROFILE TAB ================= -->
+    <main id="tab-profile" class="p-4 space-y-5 hidden">
+      <div class="flex items-center gap-4">
+        <div class="w-16 h-16 rounded-full bg-blue-600 text-white flex items-center justify-center text-2xl font-bold" id="avatarInitial">A</div>
+        <div>
+          <h2 class="text-lg font-bold text-gray-800" id="profileName">Ankit</h2>
+          <p class="text-xs text-gray-500">Member since 2026</p>
+        </div>
+        <button onclick="editName()" class="ml-auto text-blue-600 text-xs font-semibold border border-blue-600 rounded-lg px-3 py-1.5 hover:bg-blue-50">Edit</button>
+      </div>
+
+      <div class="border rounded-xl divide-y">
+        <button onclick="showToast('Saved addresses (demo)')" class="w-full flex items-center justify-between p-3 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+          <span><i class="fa-solid fa-location-dot w-5 text-gray-400"></i> My Addresses</span>
+          <i class="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
+        </button>
+        <button onclick="showToast('Payment methods (demo)')" class="w-full flex items-center justify-between p-3 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+          <span><i class="fa-solid fa-credit-card w-5 text-gray-400"></i> Payment Methods</span>
+          <i class="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
+        </button>
+        <button onclick="showToast('Notification settings (demo)')" class="w-full flex items-center justify-between p-3 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+          <span><i class="fa-solid fa-bell w-5 text-gray-400"></i> Notifications</span>
+          <i class="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
+        </button>
+        <button onclick="showToast('Support: help@example.com (demo)')" class="w-full flex items-center justify-between p-3 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+          <span><i class="fa-solid fa-circle-question w-5 text-gray-400"></i> Help & Support</span>
+          <i class="fa-solid fa-chevron-right text-gray-300 text-xs"></i>
+        </button>
+        <button onclick="showToast('Logged out (demo)')" class="w-full flex items-center justify-between p-3 text-sm font-semibold text-red-600 hover:bg-red-50">
+          <span><i class="fa-solid fa-right-from-bracket w-5"></i> Logout</span>
+        </button>
+      </div>
+    </main>
+
+    <!-- Bottom Navigation -->
+    <nav class="fixed bottom-0 max-w-md w-full bg-white border-t flex justify-around py-2 text-xs z-20">
+      <button data-tab="home" onclick="showTab('home')" class="nav-btn flex flex-col items-center text-blue-600 font-semibold">
+        <i class="fa-solid fa-house text-base"></i>
+        <span class="mt-1">Home</span>
+      </button>
+      <button data-tab="bookings" onclick="showTab('bookings')" class="nav-btn flex flex-col items-center text-gray-400">
+        <i class="fa-solid fa-calendar-check text-base"></i>
+        <span class="mt-1">Bookings</span>
+      </button>
+      <button data-tab="wallet" onclick="showTab('wallet')" class="nav-btn flex flex-col items-center text-gray-400">
+        <i class="fa-solid fa-wallet text-base"></i>
+        <span class="mt-1">Wallet</span>
+      </button>
+      <button data-tab="profile" onclick="showTab('profile')" class="nav-btn flex flex-col items-center text-gray-400">
+        <i class="fa-solid fa-user text-base"></i>
+        <span class="mt-1">Profile</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- Booking modal -->
+  <div id="bookingModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-6 z-40">
+    <div class="bg-white rounded-2xl w-full max-w-sm p-5">
+      <h3 class="text-lg font-bold text-gray-800 mb-1" id="bmService"></h3>
+      <p class="text-sm text-gray-500 mb-4" id="bmPrice"></p>
+      <label class="text-xs font-semibold text-gray-600">Preferred date</label>
+      <input type="date" id="bmDate" class="w-full border rounded-lg p-2 mt-1 mb-4 text-sm">
+      <div class="flex gap-2">
+        <button onclick="closeModal('bookingModal')" class="flex-1 border border-gray-300 rounded-lg py-2 text-sm font-semibold text-gray-600">Cancel</button>
+        <button onclick="confirmBooking()" class="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-semibold hover:bg-blue-700">Confirm Booking</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- AMC modal -->
+  <div id="amcModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-6 z-40">
+    <div class="bg-white rounded-2xl w-full max-w-sm p-5">
+      <h3 class="text-lg font-bold text-gray-800 mb-3">Care+ AMC Plans</h3>
+      <div class="space-y-2" id="amcPlans"></div>
+      <button onclick="closeModal('amcModal')" class="w-full mt-3 border border-gray-300 rounded-lg py-2 text-sm font-semibold text-gray-600">Close</button>
+    </div>
+  </div>
+
+  <!-- Refer modal -->
+  <div id="referModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-6 z-40">
+    <div class="bg-white rounded-2xl w-full max-w-sm p-5 text-center">
+      <h3 class="text-lg font-bold text-gray-800 mb-1">Give ₹100, Get ₹100</h3>
+      <p class="text-xs text-gray-500 mb-4">Share your code — you both earn wallet cash when they book their first service.</p>
+      <div class="border-2 border-dashed rounded-lg py-3 font-mono font-bold text-blue-700 text-lg mb-4">ANKIT100</div>
+      <div class="flex gap-2">
+        <button onclick="closeModal('referModal')" class="flex-1 border border-gray-300 rounded-lg py-2 text-sm font-semibold text-gray-600">Close</button>
+        <button onclick="copyReferralCode()" class="flex-1 bg-emerald-600 text-white rounded-lg py-2 text-sm font-semibold hover:bg-emerald-700">Copy Code</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  "use strict";
+
+  const SERVICES = [
+    { id:"water-purifier", name:"Water Purifier", price:399, icon:"fa-glass-water", iconBg:"bg-blue-50 text-blue-600" },
+    { id:"otg", name:"OTG", price:449, icon:"fa-temperature-arrow-up", iconBg:"bg-orange-50 text-orange-600" },
+    { id:"hob", name:"Hob & Cooktop", price:499, icon:"fa-fire", iconBg:"bg-red-50 text-red-600" },
+    { id:"microwave", name:"Microwave", price:549, icon:"fa-box-open", iconBg:"bg-purple-50 text-purple-600" },
+    { id:"chimney", name:"Chimney", price:599, icon:"fa-fan", iconBg:"bg-gray-100 text-gray-600" },
+    { id:"fridge", name:"Refrigerator", price:649, icon:"fa-snowflake", iconBg:"bg-cyan-50 text-cyan-600" },
+    { id:"dishwasher", name:"Dishwasher", price:699, icon:"fa-sink", iconBg:"bg-teal-50 text-teal-600", wide:true }
+  ];
+
+  const AMC_PLANS = [
+    { name:"Basic Care", price:"₹999/yr", perk:"1 free check-up · 10% off repairs" },
+    { name:"Premium Care", price:"₹1,999/yr", perk:"2 free check-ups · 10% off every repair" },
+    { name:"Elite Care", price:"₹3,499/yr", perk:"4 free check-ups · 20% off · 24/7 support" }
+  ];
+
+  const STATUS_FLOW = ["Requested", "Accepted", "On the way", "In Progress", "Completed"];
+  const STATUS_STEP_MS = [4000, 4000, 5000, 6000];
+  const STATUS_BADGE = {
+    "Requested": "bg-gray-100 text-gray-600",
+    "Accepted": "bg-blue-50 text-blue-600",
+    "On the way": "bg-indigo-50 text-indigo-600",
+    "In Progress": "bg-amber-50 text-amber-600",
+    "Completed": "bg-emerald-50 text-emerald-600"
+  };
+
+  const STORAGE = {
+    bookings: "hs_bookings_v1",
+    wallet: "hs_wallet_v1",
+    profile: "hs_profile_v1"
+  };
+
+  let bookings = load(STORAGE.bookings, []);
+  let wallet = load(STORAGE.wallet, { points: 100, tx: [] });
+  let profile = load(STORAGE.profile, { name: "Ankit", plan: null });
+  let pendingBooking = null;
+
+  function load(key, fallback){
+    try{ const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
+    catch(e){ return fallback; }
+  }
+  function saveAll(){
+    localStorage.setItem(STORAGE.bookings, JSON.stringify(bookings));
+    localStorage.setItem(STORAGE.wallet, JSON.stringify(wallet));
+    localStorage.setItem(STORAGE.profile, JSON.stringify(profile));
+  }
+
+  function showToast(msg){
+    const t = document.getElementById("toast");
+    t.textContent = msg;
+    t.style.opacity = "1";
+    t.style.transform = "translate(-50%, 4px)";
+    clearTimeout(showToast._timer);
+    showToast._timer = setTimeout(() => { t.style.opacity = "0"; }, 2200);
+  }
+  window.showToast = showToast;
+
+  function openModal(id){ document.getElementById(id).classList.remove("hidden"); document.getElementById(id).classList.add("flex"); }
+  function closeModal(id){ document.getElementById(id).classList.add("hidden"); document.getElementById(id).classList.remove("flex"); }
+  window.closeModal = closeModal;
+
+  // ---------------- tabs ----------------
+  function showTab(name){
+    ["home","bookings","wallet","profile"].forEach(t => {
+      document.getElementById("tab-" + t).classList.toggle("hidden", t !== name);
+    });
+    document.querySelectorAll(".nav-btn").forEach(btn => {
+      const active = btn.dataset.tab === name;
+      btn.classList.toggle("text-blue-600", active);
+      btn.classList.toggle("font-semibold", active);
+      btn.classList.toggle("text-gray-400", !active);
+    });
+    if(name === "bookings") renderBookings();
+    if(name === "wallet") renderWallet();
+    if(name === "profile") renderProfile();
+  }
+  window.showTab = showTab;
+
+  // ---------------- home / services ----------------
+  function renderServices(){
+    const grid = document.getElementById("servicesGrid");
+    grid.innerHTML = SERVICES.map(s => `
+      <div class="border rounded-xl p-3 flex flex-col justify-between hover:shadow-md transition bg-white ${s.wide ? "col-span-2" : ""}">
+        <div class="flex justify-between items-start">
+          <div>
+            <h3 class="font-semibold text-sm text-gray-800">${s.name}</h3>
+            <p class="text-xs text-gray-500 mt-0.5">From ₹${s.price}</p>
+          </div>
+          <div class="w-8 h-8 ${s.iconBg} rounded-lg flex items-center justify-center">
+            <i class="fa-solid ${s.icon}"></i>
+          </div>
+        </div>
+        <button onclick="openBookingModal('${s.id}')" class="mt-3 w-full border border-blue-600 text-blue-600 text-xs font-semibold py-1 rounded-lg hover:bg-blue-50">Book Now</button>
+      </div>
+    `).join("");
+  }
+
+  function openBookingModal(serviceId){
+    const svc = SERVICES.find(s => s.id === serviceId);
+    if(!svc) return;
+    pendingBooking = svc;
+    document.getElementById("bmService").textContent = svc.name;
+    document.getElementById("bmPrice").textContent = "From ₹" + svc.price;
+    document.getElementById("bmDate").value = new Date().toISOString().slice(0, 10);
+    openModal("bookingModal");
+  }
+  window.openBookingModal = openBookingModal;
+
+  function confirmBooking(){
+    if(!pendingBooking) return;
+    const date = document.getElementById("bmDate").value;
+    const booking = {
+      id: Date.now() + "-" + Math.random().toString(36).slice(2, 6),
+      service: pendingBooking.name,
+      price: pendingBooking.price,
+      date: date,
+      status: STATUS_FLOW[0],
+      createdAt: Date.now()
+    };
+    bookings.unshift(booking);
+    saveAll();
+    closeModal("bookingModal");
+    showToast("Booked " + booking.service + "!");
+    simulateProgress(booking.id, 0);
+    showTab("bookings");
+  }
+  window.confirmBooking = confirmBooking;
+
+  function simulateProgress(bookingId, stepIndex){
+    if(stepIndex >= STATUS_STEP_MS.length) return;
+    setTimeout(() => {
+      const b = bookings.find(x => x.id === bookingId);
+      if(!b) return;
+      b.status = STATUS_FLOW[stepIndex + 1];
+      if(b.status === "Completed"){
+        const earned = Math.round(b.price * 0.05);
+        wallet.points += earned;
+        wallet.tx.unshift({ label: "Cashback: " + b.service, amount: earned, ts: Date.now() });
+        updatePointsChip();
+      }
+      saveAll();
+      if(!document.getElementById("tab-bookings").classList.contains("hidden")) renderBookings();
+      simulateProgress(bookingId, stepIndex + 1);
+    }, STATUS_STEP_MS[stepIndex]);
+  }
+
+  // ---------------- bookings ----------------
+  function renderBookings(){
+    const list = document.getElementById("bookingsList");
+    const empty = document.getElementById("bookingsEmpty");
+    empty.classList.toggle("hidden", bookings.length > 0);
+    list.innerHTML = bookings.map(b => {
+      const stepIdx = STATUS_FLOW.indexOf(b.status);
+      const steps = STATUS_FLOW.map((s, i) => `<span class="flex-1 h-1 rounded-full ${i <= stepIdx ? "bg-blue-600" : "bg-gray-200"}"></span>`).join("");
+      return `
+        <div class="border rounded-xl p-3">
+          <div class="flex justify-between items-start mb-2">
+            <div>
+              <h3 class="font-semibold text-sm text-gray-800">${b.service}</h3>
+              <p class="text-xs text-gray-500">${b.date} · ₹${b.price}</p>
+            </div>
+            <span class="text-[10px] font-bold px-2 py-1 rounded-full ${STATUS_BADGE[b.status]}">${b.status}</span>
+          </div>
+          <div class="flex gap-1">${steps}</div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  // ---------------- wallet ----------------
+  function updatePointsChip(){
+    document.getElementById("pointsChip").textContent = wallet.points + " pts";
+    document.getElementById("walletPoints").textContent = wallet.points;
+  }
+
+  function renderWallet(){
+    updatePointsChip();
+    const list = document.getElementById("txList");
+    const empty = document.getElementById("txEmpty");
+    empty.classList.toggle("hidden", wallet.tx.length > 0);
+    list.innerHTML = wallet.tx.map(t => `
+      <div class="flex justify-between items-center border rounded-lg p-3 text-sm">
+        <div>
+          <p class="font-semibold text-gray-700">${t.label}</p>
+          <p class="text-[11px] text-gray-400">${new Date(t.ts).toLocaleString()}</p>
+        </div>
+        <span class="font-bold ${t.amount >= 0 ? "text-emerald-600" : "text-red-500"}">${t.amount >= 0 ? "+" : ""}${t.amount} pts</span>
+      </div>
+    `).join("");
+  }
+
+  function redeemPoints(){
+    if(wallet.points < 50){ showToast("Not enough points yet"); return; }
+    wallet.points -= 50;
+    wallet.tx.unshift({ label: "Redeemed for ₹5 off", amount: -50, ts: Date.now() });
+    saveAll();
+    renderWallet();
+    showToast("Redeemed 50 pts for ₹5 off!");
+  }
+  window.redeemPoints = redeemPoints;
+
+  // ---------------- profile ----------------
+  function renderProfile(){
+    document.getElementById("profileName").textContent = profile.name;
+    document.getElementById("avatarInitial").textContent = profile.name.charAt(0).toUpperCase();
+    document.getElementById("greeting").textContent = "Hi, " + profile.name + " 👋";
+    const banner = document.getElementById("currentPlanBanner");
+    if(profile.plan){
+      banner.classList.remove("hidden");
+      document.getElementById("currentPlanText").textContent = "Active plan: " + profile.plan;
+    } else {
+      banner.classList.add("hidden");
+    }
+  }
+
+  function editName(){
+    const name = prompt("Your name", profile.name);
+    if(name && name.trim()){
+      profile.name = name.trim();
+      saveAll();
+      renderProfile();
+      showToast("Profile updated");
+    }
+  }
+  window.editName = editName;
+
+  // ---------------- AMC ----------------
+  function openAmcModal(){
+    document.getElementById("amcPlans").innerHTML = AMC_PLANS.map(p => `
+      <div class="border rounded-xl p-3 flex items-center justify-between">
+        <div>
+          <p class="font-semibold text-sm text-gray-800">${p.name}</p>
+          <p class="text-[11px] text-gray-500">${p.perk}</p>
+          <p class="text-xs font-bold text-blue-700 mt-1">${p.price}</p>
+        </div>
+        <button onclick="subscribePlan('${p.name}')" class="bg-blue-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-blue-700">Subscribe</button>
+      </div>
+    `).join("");
+    openModal("amcModal");
+  }
+  window.openAmcModal = openAmcModal;
+
+  function subscribePlan(name){
+    profile.plan = name;
+    saveAll();
+    closeModal("amcModal");
+    showToast("Subscribed to " + name + "!");
+    renderProfile();
+  }
+  window.subscribePlan = subscribePlan;
+
+  // ---------------- refer ----------------
+  function openReferModal(){ openModal("referModal"); }
+  window.openReferModal = openReferModal;
+
+  function copyReferralCode(){
+    const code = "ANKIT100";
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(code).then(() => showToast("Code copied!"));
+    } else {
+      showToast("Your code: " + code);
+    }
+  }
+  window.copyReferralCode = copyReferralCode;
+
+  // ---------------- init ----------------
+  renderServices();
+  updatePointsChip();
+  renderProfile();
+  bookings.filter(b => b.status !== "Completed").forEach(b => {
+    simulateProgress(b.id, STATUS_FLOW.indexOf(b.status));
+  });
+})();
+</script>
+</body>
+</html>

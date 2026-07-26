@@ -51,6 +51,11 @@ def admin_app():
 def smiler_app():
     return send_from_directory(FRONTEND_DIR, "smiler.html")
 
+
+@app.route("/homeservices")
+def homeservices_app():
+    return send_from_directory(FRONTEND_DIR, "homeservices.html")
+
 STATUS_ORDER = ["Requested", "Accepted", "On the way", "In Progress", "Completed"]
 
 
