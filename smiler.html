@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Smiler — Smile Detection Camera</title>
+<meta name="description" content="Point the camera at your face and Smiler snaps a photo every time it catches you smiling.">
+<style>
+  :root{
+    --ink:#241A00; --ink-soft:#6B5B2A; --paper:#FFF8E1; --card:#FFFFFF; --line:#F0E0A8;
+    --sun:#FFB020; --sun-deep:#E8930A; --sun-tint:#FFF1D2;
+    --leaf:#2F9E5B; --leaf-tint:#E3F7EC;
+    --rose:#E4574D; --rose-tint:#FDE7E5;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    background:radial-gradient(circle at 50% -10%, #FFE9B0, var(--paper) 55%);
+    color:var(--ink); min-height:100vh; padding:20px 14px 60px;
+  }
+  .wrap{ max-width:480px; margin:0 auto; }
+
+  header{ text-align:center; margin-bottom:18px; }
+  header .logo{ font-size:26px; font-weight:800; display:flex; align-items:center; justify-content:center; gap:8px; }
+  header .logo .dot{ font-size:22px; }
+  header p{ font-size:13px; color:var(--ink-soft); margin-top:4px; }
+
+  .stage{
+    position:relative; width:100%; aspect-ratio:3/4; border-radius:26px; overflow:hidden;
+    background:#1a1400; box-shadow:0 24px 50px -20px rgba(120,80,0,0.35); border:3px solid #fff;
+  }
+  video{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; transform:scaleX(-1); }
+  canvas.overlay{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+  .stage-msg{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center;
+    padding:24px; color:#fff; font-size:14px; font-weight:600; background:rgba(0,0,0,0.55); line-height:1.5;
+  }
+  .stage-msg.hidden{ display:none; }
+  .stage-msg button{ margin-top:12px; }
+
+  .flash{
+    position:absolute; inset:0; background:#fff; opacity:0; pointer-events:none;
+  }
+  .flash.on{ animation:flashpop .35s ease-out; }
+  @keyframes flashpop{ 0%{opacity:0.9;} 100%{opacity:0;} }
+
+  .toast{
+    position:absolute; top:14px; left:50%; transform:translateX(-50%) translateY(-10px);
+    background:rgba(20,20,20,0.85); color:#fff; padding:8px 16px; border-radius:999px;
+    font-size:12.5px; font-weight:700; opacity:0; transition:all .25s ease; white-space:nowrap;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  .readout{ display:flex; align-items:center; gap:12px; margin:16px 0 6px; }
+  .emoji{ font-size:38px; width:52px; text-align:center; transition:transform .15s ease; }
+  .meter{ flex:1; height:14px; border-radius:999px; background:var(--line); overflow:hidden; }
+  .meter-fill{ height:100%; width:0%; border-radius:999px; background:linear-gradient(90deg,var(--sun),var(--leaf)); transition:width .12s linear; }
+  .readout .pct{ font-size:12.5px; font-weight:800; color:var(--ink-soft); width:38px; text-align:right; }
+  .status-line{ font-size:12px; color:var(--ink-soft); text-align:center; margin-bottom:14px; min-height:16px; }
+
+  .controls{ display:flex; gap:10px; margin-bottom:8px; }
+  .btn{ flex:1; display:flex; align-items:center; justify-content:center; gap:6px; padding:14px 10px; border-radius:16px; font-weight:800; font-size:13.5px; border:none; cursor:pointer; transition:transform .1s ease; }
+  .btn:active{ transform:scale(0.97); }
+  .btn-primary{ background:linear-gradient(120deg,var(--sun),var(--sun-deep)); color:#fff; box-shadow:0 10px 22px -10px rgba(232,147,10,0.6); }
+  .btn-ghost{ background:#fff; color:var(--ink); border:1.6px solid var(--line); }
+  .btn:disabled{ opacity:0.5; cursor:not-allowed; }
+  .btn-icon{ flex:0 0 52px; font-size:18px; }
+
+  .toggle-row{ display:flex; align-items:center; justify-content:space-between; background:var(--card); border:1.4px solid var(--line); border-radius:16px; padding:12px 16px; margin:10px 0 20px; font-size:13px; font-weight:700; }
+  .switch{ position:relative; width:44px; height:26px; }
+  .switch input{ opacity:0; width:0; height:0; }
+  .slider{ position:absolute; inset:0; background:var(--line); border-radius:999px; transition:.2s; cursor:pointer; }
+  .slider::before{ content:''; position:absolute; height:20px; width:20px; left:3px; top:3px; background:#fff; border-radius:50%; transition:.2s; box-shadow:0 1px 3px rgba(0,0,0,0.3); }
+  input:checked + .slider{ background:var(--leaf); }
+  input:checked + .slider::before{ transform:translateX(18px); }
+
+  .gallery-head{ display:flex; align-items:center; justify-content:space-between; margin:6px 0 10px; }
+  .gallery-head h2{ font-size:16px; }
+  .gallery-head span{ font-size:12px; color:var(--ink-soft); font-weight:700; }
+  .gallery-head button{ background:none; border:none; color:var(--rose); font-size:12px; font-weight:800; cursor:pointer; }
+  .gallery{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .shot{ position:relative; border-radius:12px; overflow:hidden; aspect-ratio:1; background:var(--card); border:1.4px solid var(--line); cursor:pointer; }
+  .shot img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .shot .badge{ position:absolute; bottom:4px; left:4px; background:rgba(0,0,0,0.6); color:#fff; font-size:10px; font-weight:800; padding:2px 6px; border-radius:999px; }
+  .shot .del{ position:absolute; top:3px; right:3px; width:20px; height:20px; border-radius:50%; background:rgba(0,0,0,0.55); color:#fff; border:none; font-size:12px; line-height:20px; text-align:center; cursor:pointer; }
+  .empty-note{ font-size:12.5px; color:var(--ink-soft); text-align:center; padding:26px 10px; border:1.6px dashed var(--line); border-radius:16px; }
+
+  .modal-backdrop{ position:fixed; inset:0; background:rgba(20,14,0,0.75); display:none; align-items:center; justify-content:center; padding:24px; z-index:100; }
+  .modal-backdrop.open{ display:flex; }
+  .modal{ background:var(--card); border-radius:20px; overflow:hidden; max-width:360px; width:100%; }
+  .modal img{ width:100%; display:block; }
+  .modal-body{ padding:16px; }
+  .modal-body .row{ display:flex; justify-content:space-between; font-size:12.5px; color:var(--ink-soft); margin-bottom:12px; font-weight:700; }
+  .modal-actions{ display:flex; gap:10px; }
+  .modal-actions a, .modal-actions button{ flex:1; text-align:center; padding:11px; border-radius:12px; font-size:13px; font-weight:800; border:none; cursor:pointer; text-decoration:none; }
+  .modal-actions a{ background:var(--sun-tint); color:var(--sun-deep); }
+  .modal-actions .del-btn{ background:var(--rose-tint); color:var(--rose); }
+  .modal-actions .close-btn{ background:var(--line); color:var(--ink); }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="logo"><span class="dot">😄</span> Smiler</div>
+    <p>Smile at the camera — Smiler catches the moment automatically.</p>
+  </header>
+
+  <div class="stage" id="stage">
+    <video id="video" playsinline muted autoplay></video>
+    <canvas class="overlay" id="overlay"></canvas>
+    <div class="flash" id="flash"></div>
+    <div class="toast" id="toast"></div>
+    <div class="stage-msg" id="stageMsg">Loading smile-detection models…</div>
+  </div>
+
+  <div class="readout">
+    <div class="emoji" id="emoji">😐</div>
+    <div class="meter"><div class="meter-fill" id="meterFill"></div></div>
+    <div class="pct" id="pct">0%</div>
+  </div>
+  <div class="status-line" id="statusLine">Point the camera at a face to begin.</div>
+
+  <div class="controls">
+    <button class="btn btn-ghost btn-icon" id="switchCamBtn" title="Switch camera">🔄</button>
+    <button class="btn btn-primary" id="captureBtn" disabled>📸 Capture</button>
+  </div>
+
+  <div class="toggle-row">
+    <span>Auto-capture on smile</span>
+    <label class="switch">
+      <input type="checkbox" id="autoToggle" checked>
+      <span class="slider"></span>
+    </label>
+  </div>
+
+  <div class="gallery-head">
+    <h2>Your smiles</h2>
+    <span id="galleryCount">0 captured</span>
+    <button id="clearBtn">Clear all</button>
+  </div>
+  <div id="galleryEmpty" class="empty-note">No smiles captured yet — they'll show up here.</div>
+  <div class="gallery" id="gallery"></div>
+</div>
+
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <img id="modalImg" alt="Captured smile">
+    <div class="modal-body">
+      <div class="row"><span id="modalScore"></span><span id="modalTime"></span></div>
+      <div class="modal-actions">
+        <a id="modalDownload" download>Download</a>
+        <button class="del-btn" id="modalDelete">Delete</button>
+        <button class="close-btn" id="modalClose">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<script>
+(function(){
+  "use strict";
+  const MODEL_URL = "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights";
+  const STORAGE_KEY = "smiler_gallery_v1";
+  const SMILE_THRESHOLD = 0.75;
+  const CAPTURE_COOLDOWN_MS = 3500;
+  const MAX_SHOTS = 60;
+  const CAPTURE_MAX_W = 480;
+
+  const video = document.getElementById("video");
+  const overlay = document.getElementById("overlay");
+  const octx = overlay.getContext("2d");
+  const stageMsg = document.getElementById("stageMsg");
+  const flash = document.getElementById("flash");
+  const toast = document.getElementById("toast");
+  const emojiEl = document.getElementById("emoji");
+  const meterFill = document.getElementById("meterFill");
+  const pctEl = document.getElementById("pct");
+  const statusLine = document.getElementById("statusLine");
+  const captureBtn = document.getElementById("captureBtn");
+  const switchCamBtn = document.getElementById("switchCamBtn");
+  const autoToggle = document.getElementById("autoToggle");
+  const galleryEl = document.getElementById("gallery");
+  const galleryEmpty = document.getElementById("galleryEmpty");
+  const galleryCount = document.getElementById("galleryCount");
+  const clearBtn = document.getElementById("clearBtn");
+
+  const modalBackdrop = document.getElementById("modalBackdrop");
+  const modalImg = document.getElementById("modalImg");
+  const modalScore = document.getElementById("modalScore");
+  const modalTime = document.getElementById("modalTime");
+  const modalDownload = document.getElementById("modalDownload");
+  const modalDelete = document.getElementById("modalDelete");
+  const modalClose = document.getElementById("modalClose");
+
+  let stream = null;
+  let facingMode = "user";
+  let modelsReady = false;
+  let detecting = false;
+  let lastCaptureAt = 0;
+  let gallery = loadGallery();
+  let openShotId = null;
+
+  renderGallery();
+
+  function loadGallery(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    }catch(e){ return []; }
+  }
+
+  function saveGallery(){
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(gallery)); }
+    catch(e){ /* storage full — drop oldest and retry once */
+      gallery = gallery.slice(0, Math.max(0, gallery.length - 5));
+      try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(gallery)); }catch(e2){}
+    }
+  }
+
+  function showToast(msg){
+    toast.textContent = msg;
+    toast.classList.add("show");
+    setTimeout(() => toast.classList.remove("show"), 1600);
+  }
+
+  function setStageMessage(msg){
+    if(msg){ stageMsg.textContent = msg; stageMsg.classList.remove("hidden"); }
+    else { stageMsg.classList.add("hidden"); }
+  }
+
+  async function loadModels(){
+    await Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+      faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)
+    ]);
+    modelsReady = true;
+  }
+
+  async function startCamera(){
+    if(stream){ stream.getTracks().forEach(t => t.stop()); }
+    try{
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode }, audio: false
+      });
+    }catch(err){
+      setStageMessage("Couldn't access the camera. Check permissions and reload.\n(" + err.message + ")");
+      captureBtn.disabled = true;
+      return false;
+    }
+    video.srcObject = stream;
+    video.style.transform = facingMode === "user" ? "scaleX(-1)" : "none";
+    await new Promise(res => { video.onloadedmetadata = res; });
+    await video.play();
+    overlay.width = video.videoWidth;
+    overlay.height = video.videoHeight;
+    return true;
+  }
+
+  async function init(){
+    setStageMessage("Loading smile-detection models…");
+    try{
+      await loadModels();
+    }catch(err){
+      setStageMessage("Couldn't load the smile-detection model. Check your connection and reload.");
+      return;
+    }
+    setStageMessage("Starting camera…");
+    const ok = await startCamera();
+    if(!ok) return;
+    setStageMessage(null);
+    captureBtn.disabled = false;
+    statusLine.textContent = "Show me your best smile 🙂";
+    detectLoop();
+  }
+
+  function drawBox(box, happy){
+    octx.clearRect(0, 0, overlay.width, overlay.height);
+    if(!box) return;
+    octx.strokeStyle = happy >= SMILE_THRESHOLD ? "#2F9E5B" : "#FFB020";
+    octx.lineWidth = Math.max(3, overlay.width * 0.006);
+    octx.strokeRect(box.x, box.y, box.width, box.height);
+  }
+
+  async function detectLoop(){
+    if(detecting) return;
+    detecting = true;
+    const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 });
+
+    async function tick(){
+      if(document.hidden || !modelsReady){
+        setTimeout(tick, 400);
+        return;
+      }
+      let happy = 0;
+      let box = null;
+      try{
+        const result = await faceapi.detectSingleFace(video, options).withFaceExpressions();
+        if(result){
+          happy = result.expressions.happy || 0;
+          box = result.detection.box;
+        }
+      }catch(e){ /* transient detection error — skip this frame */ }
+
+      // mirror the box horizontally to match the mirrored video preview
+      if(box && facingMode === "user"){
+        box = { x: overlay.width - box.x - box.width, y: box.y, width: box.width, height: box.height };
+      }
+      drawBox(box, happy);
+      updateReadout(happy, !!box);
+      maybeAutoCapture(happy);
+
+      setTimeout(tick, 250);
+    }
+    tick();
+  }
+
+  function updateReadout(happy, faceFound){
+    const pct = Math.round(happy * 100);
+    meterFill.style.width = pct + "%";
+    pctEl.textContent = pct + "%";
+    if(!faceFound){
+      emojiEl.textContent = "🙈";
+      statusLine.textContent = "No face detected — center your face in frame.";
+    } else if(happy >= SMILE_THRESHOLD){
+      emojiEl.textContent = "😄";
+      statusLine.textContent = "Big smile detected!";
+    } else if(happy >= 0.35){
+      emojiEl.textContent = "🙂";
+      statusLine.textContent = "Almost there — a bit more smile!";
+    } else {
+      emojiEl.textContent = "😐";
+      statusLine.textContent = "Show me your best smile 🙂";
+    }
+  }
+
+  function maybeAutoCapture(happy){
+    if(!autoToggle.checked) return;
+    const now = Date.now();
+    if(happy >= SMILE_THRESHOLD && (now - lastCaptureAt) > CAPTURE_COOLDOWN_MS){
+      capture(happy);
+    }
+  }
+
+  function capture(happy){
+    lastCaptureAt = Date.now();
+    const vw = video.videoWidth, vh = video.videoHeight;
+    const scale = Math.min(1, CAPTURE_MAX_W / vw);
+    const cw = Math.round(vw * scale), ch = Math.round(vh * scale);
+    const c = document.createElement("canvas");
+    c.width = cw; c.height = ch;
+    const cctx = c.getContext("2d");
+    if(facingMode === "user"){
+      cctx.translate(cw, 0);
+      cctx.scale(-1, 1);
+    }
+    cctx.drawImage(video, 0, 0, cw, ch);
+    const dataUrl = c.toDataURL("image/jpeg", 0.82);
+
+    gallery.unshift({
+      id: Date.now() + "-" + Math.random().toString(36).slice(2, 7),
+      dataUrl,
+      score: Math.round((happy || 0) * 100),
+      ts: Date.now()
+    });
+    if(gallery.length > MAX_SHOTS) gallery = gallery.slice(0, MAX_SHOTS);
+    saveGallery();
+    renderGallery();
+
+    flash.classList.remove("on");
+    void flash.offsetWidth;
+    flash.classList.add("on");
+    showToast("😄 Captured!");
+  }
+
+  function fmtTime(ts){
+    const d = new Date(ts);
+    return d.toLocaleDateString(undefined, { month:"short", day:"numeric" }) + " · " +
+           d.toLocaleTimeString(undefined, { hour:"numeric", minute:"2-digit" });
+  }
+
+  function renderGallery(){
+    galleryCount.textContent = gallery.length + (gallery.length === 1 ? " captured" : " captured");
+    galleryEmpty.style.display = gallery.length ? "none" : "block";
+    galleryEl.innerHTML = "";
+    gallery.forEach(shot => {
+      const div = document.createElement("div");
+      div.className = "shot";
+      div.innerHTML =
+        '<img src="' + shot.dataUrl + '" alt="Captured smile, ' + shot.score + '% happy">' +
+        '<span class="badge">' + shot.score + '%</span>' +
+        '<button class="del" data-id="' + shot.id + '" title="Delete">✕</button>';
+      div.querySelector("img").addEventListener("click", () => openModal(shot.id));
+      div.querySelector(".del").addEventListener("click", (e) => {
+        e.stopPropagation();
+        deleteShot(shot.id);
+      });
+      galleryEl.appendChild(div);
+    });
+  }
+
+  function deleteShot(id){
+    gallery = gallery.filter(s => s.id !== id);
+    saveGallery();
+    renderGallery();
+    if(openShotId === id) closeModal();
+  }
+
+  function openModal(id){
+    const shot = gallery.find(s => s.id === id);
+    if(!shot) return;
+    openShotId = id;
+    modalImg.src = shot.dataUrl;
+    modalScore.textContent = shot.score + "% happy";
+    modalTime.textContent = fmtTime(shot.ts);
+    modalDownload.href = shot.dataUrl;
+    modalDownload.download = "smiler-" + shot.ts + ".jpg";
+    modalBackdrop.classList.add("open");
+  }
+
+  function closeModal(){
+    modalBackdrop.classList.remove("open");
+    openShotId = null;
+  }
+
+  captureBtn.addEventListener("click", async () => {
+    let happy = 0;
+    try{
+      const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 });
+      const result = await faceapi.detectSingleFace(video, options).withFaceExpressions();
+      if(result) happy = result.expressions.happy || 0;
+    }catch(e){}
+    capture(happy);
+  });
+
+  switchCamBtn.addEventListener("click", async () => {
+    facingMode = facingMode === "user" ? "environment" : "user";
+    setStageMessage("Switching camera…");
+    const ok = await startCamera();
+    setStageMessage(ok ? null : undefined);
+  });
+
+  clearBtn.addEventListener("click", () => {
+    if(!gallery.length) return;
+    if(confirm("Delete all " + gallery.length + " captured smiles? This can't be undone.")){
+      gallery = [];
+      saveGallery();
+      renderGallery();
+    }
+  });
+
+  modalClose.addEventListener("click", closeModal);
+  modalBackdrop.addEventListener("click", (e) => { if(e.target === modalBackdrop) closeModal(); });
+  modalDelete.addEventListener("click", () => { if(openShotId) deleteShot(openShotId); });
+
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    setStageMessage("This browser doesn't support camera access. Try Chrome, Safari or Edge.");
+  } else {
+    init();
+  }
+})();
+</script>
+</body>
+</html>

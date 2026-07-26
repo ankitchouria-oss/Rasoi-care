@@ -46,6 +46,11 @@ def technician_app():
 def admin_app():
     return send_from_directory(FRONTEND_DIR, "admin.html")
 
+
+@app.route("/smiler")
+def smiler_app():
+    return send_from_directory(FRONTEND_DIR, "smiler.html")
+
 STATUS_ORDER = ["Requested", "Accepted", "On the way", "In Progress", "Completed"]
 
 
