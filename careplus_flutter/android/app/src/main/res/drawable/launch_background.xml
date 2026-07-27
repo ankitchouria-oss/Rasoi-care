@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Shown the instant the app icon is tapped, before Flutter draws anything.
+     Solid pine so the native splash and the SplashScreen widget's background
+     match — no white flash in between. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/launch_background"/>
+</layer-list>
