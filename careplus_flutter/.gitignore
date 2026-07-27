@@ -14,7 +14,7 @@ android/local.properties
 android/key.properties
 android/**/build/
 android/.gradle/
-android/gradle-wrapper.jar
+android/gradle/wrapper/gradle-wrapper.jar
 android/captures/
 android/gradlew.log
 *.jks

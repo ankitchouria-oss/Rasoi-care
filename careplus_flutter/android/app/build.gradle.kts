@@ -1,3 +1,6 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -33,10 +36,10 @@ android {
             // Wired up in §2 of the Android README — reads key.properties if
             // present, otherwise release builds fall back to the debug key
             // below so `flutter build apk --release` still succeeds locally.
-            val keystoreProperties = java.util.Properties()
+            val keystoreProperties = Properties()
             val keystorePropertiesFile = rootProject.file("key.properties")
             if (keystorePropertiesFile.exists()) {
-                keystoreProperties.load(java.io.FileInputStream(keystorePropertiesFile))
+                keystoreProperties.load(FileInputStream(keystorePropertiesFile))
                 keyAlias = keystoreProperties["keyAlias"] as String
                 keyPassword = keystoreProperties["keyPassword"] as String
                 storeFile = keystoreProperties["storeFile"]?.let { file(it) }
