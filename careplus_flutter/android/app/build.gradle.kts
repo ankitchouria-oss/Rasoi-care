@@ -22,7 +22,7 @@ android {
     defaultConfig {
         // Bump this if you already published under a different id.
         applicationId = "com.careplus.care_plus"
-        minSdk = 23 // Android 6.0 — covers 99%+ of the Indian install base
+        minSdk = flutter.minSdkVersion // Flutter's managed floor; auto-migrated to this on every build
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
