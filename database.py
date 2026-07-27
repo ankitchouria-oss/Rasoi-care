@@ -114,6 +114,38 @@ CREATE TABLE IF NOT EXISTS appliance_health (
     updated_at      TEXT NOT NULL,
     UNIQUE(user_id, appliance_id)
 );
+
+-- Standalone Home Services app (separate from the RasoiCare tables
+-- above). Single-user prototype for now, so wallet/profile are one
+-- fixed row (id=1) rather than keyed by an authenticated user.
+CREATE TABLE IF NOT EXISTS hs_bookings (
+    id              TEXT PRIMARY KEY,
+    service_id      TEXT NOT NULL,
+    service_name    TEXT NOT NULL,
+    price           INTEGER NOT NULL,
+    date            TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'Requested',
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS hs_wallet (
+    id      INTEGER PRIMARY KEY CHECK (id = 1),
+    points  INTEGER NOT NULL DEFAULT 100
+);
+
+CREATE TABLE IF NOT EXISTS hs_wallet_tx (
+    id          TEXT PRIMARY KEY,
+    label       TEXT NOT NULL,
+    amount      INTEGER NOT NULL,
+    created_at  TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS hs_profile (
+    id      INTEGER PRIMARY KEY CHECK (id = 1),
+    name    TEXT NOT NULL DEFAULT 'Ankit',
+    plan    TEXT
+);
 """
 
 APPLIANCES_SEED = [
@@ -265,12 +297,24 @@ def seed_catalog(conn):
     conn.commit()
 
 
+def seed_home_services(conn):
+    """One-time defaults for the Home Services wallet/profile row. Left
+    alone on subsequent boots (and by the RasoiCare /api/reset, which
+    only touches the RasoiCare tables) so real usage isn't wiped."""
+    if conn.execute("SELECT 1 FROM hs_wallet WHERE id = 1").fetchone() is None:
+        conn.execute("INSERT INTO hs_wallet (id, points) VALUES (1, 100)")
+    if conn.execute("SELECT 1 FROM hs_profile WHERE id = 1").fetchone() is None:
+        conn.execute("INSERT INTO hs_profile (id, name, plan) VALUES (1, 'Ankit', NULL)")
+    conn.commit()
+
+
 def init_db(reset=False):
     conn = get_db()
     conn.executescript(SCHEMA)
     conn.commit()
     migrate_bookings_columns(conn)
     seed_catalog(conn)
+    seed_home_services(conn)
     row = conn.execute("SELECT COUNT(*) AS n FROM technicians").fetchone()
     if reset or row["n"] == 0:
         seed(conn)

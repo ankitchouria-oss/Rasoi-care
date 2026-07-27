@@ -216,25 +216,19 @@
     "Completed": "bg-emerald-50 text-emerald-600"
   };
 
-  const STORAGE = {
-    bookings: "hs_bookings_v1",
-    wallet: "hs_wallet_v1",
-    profile: "hs_profile_v1"
-  };
-
-  let bookings = load(STORAGE.bookings, []);
-  let wallet = load(STORAGE.wallet, { points: 100, tx: [] });
-  let profile = load(STORAGE.profile, { name: "Ankit", plan: null });
+  let bookings = [];
+  let wallet = { points: 100, tx: [] };
+  let profile = { name: "Ankit", plan: null };
   let pendingBooking = null;
 
-  function load(key, fallback){
-    try{ const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
-    catch(e){ return fallback; }
-  }
-  function saveAll(){
-    localStorage.setItem(STORAGE.bookings, JSON.stringify(bookings));
-    localStorage.setItem(STORAGE.wallet, JSON.stringify(wallet));
-    localStorage.setItem(STORAGE.profile, JSON.stringify(profile));
+  async function api(path, options){
+    const res = await fetch(path, {
+      headers: { "Content-Type": "application/json" },
+      ...options
+    });
+    const body = await res.json().catch(() => ({}));
+    if(!res.ok) throw new Error(body.error || "Request failed");
+    return body;
   }
 
   function showToast(msg){
@@ -298,40 +292,42 @@
   }
   window.openBookingModal = openBookingModal;
 
-  function confirmBooking(){
+  async function confirmBooking(){
     if(!pendingBooking) return;
     const date = document.getElementById("bmDate").value;
-    const booking = {
-      id: Date.now() + "-" + Math.random().toString(36).slice(2, 6),
-      service: pendingBooking.name,
-      price: pendingBooking.price,
-      date: date,
-      status: STATUS_FLOW[0],
-      createdAt: Date.now()
-    };
-    bookings.unshift(booking);
-    saveAll();
-    closeModal("bookingModal");
-    showToast("Booked " + booking.service + "!");
-    simulateProgress(booking.id, 0);
-    showTab("bookings");
+    try{
+      const booking = await api("/api/hs/bookings", {
+        method: "POST",
+        body: JSON.stringify({ serviceId: pendingBooking.id, serviceName: pendingBooking.name, price: pendingBooking.price, date })
+      });
+      bookings.unshift(toClientBooking(booking));
+      closeModal("bookingModal");
+      showToast("Booked " + booking.serviceName + "!");
+      simulateProgress(booking.id, 0);
+      showTab("bookings");
+    }catch(e){
+      showToast("Couldn't book — try again");
+    }
   }
   window.confirmBooking = confirmBooking;
 
+  function toClientBooking(b){
+    return { id: b.id, service: b.serviceName, price: b.price, date: b.date, status: b.status };
+  }
+
   function simulateProgress(bookingId, stepIndex){
     if(stepIndex >= STATUS_STEP_MS.length) return;
-    setTimeout(() => {
+    setTimeout(async () => {
       const b = bookings.find(x => x.id === bookingId);
-      if(!b) return;
-      b.status = STATUS_FLOW[stepIndex + 1];
-      if(b.status === "Completed"){
-        const earned = Math.round(b.price * 0.05);
-        wallet.points += earned;
-        wallet.tx.unshift({ label: "Cashback: " + b.service, amount: earned, ts: Date.now() });
+      if(!b || b.status === "Completed") return;
+      try{
+        const result = await api("/api/hs/bookings/" + bookingId + "/advance", { method: "PATCH" });
+        b.status = result.booking.status;
+        wallet = result.wallet;
         updatePointsChip();
-      }
-      saveAll();
-      if(!document.getElementById("tab-bookings").classList.contains("hidden")) renderBookings();
+        if(!document.getElementById("tab-bookings").classList.contains("hidden")) renderBookings();
+        if(!document.getElementById("tab-wallet").classList.contains("hidden")) renderWallet();
+      }catch(e){ /* transient network error — next tick or a reload will catch it back up */ }
       simulateProgress(bookingId, stepIndex + 1);
     }, STATUS_STEP_MS[stepIndex]);
   }
@@ -381,13 +377,15 @@
     `).join("");
   }
 
-  function redeemPoints(){
+  async function redeemPoints(){
     if(wallet.points < 50){ showToast("Not enough points yet"); return; }
-    wallet.points -= 50;
-    wallet.tx.unshift({ label: "Redeemed for ₹5 off", amount: -50, ts: Date.now() });
-    saveAll();
-    renderWallet();
-    showToast("Redeemed 50 pts for ₹5 off!");
+    try{
+      wallet = await api("/api/hs/wallet/redeem", { method: "POST" });
+      renderWallet();
+      showToast("Redeemed 50 pts for ₹5 off!");
+    }catch(e){
+      showToast(e.message || "Couldn't redeem — try again");
+    }
   }
   window.redeemPoints = redeemPoints;
 
@@ -405,13 +403,16 @@
     }
   }
 
-  function editName(){
+  async function editName(){
     const name = prompt("Your name", profile.name);
     if(name && name.trim()){
-      profile.name = name.trim();
-      saveAll();
-      renderProfile();
-      showToast("Profile updated");
+      try{
+        profile = await api("/api/hs/profile", { method: "PATCH", body: JSON.stringify({ name: name.trim() }) });
+        renderProfile();
+        showToast("Profile updated");
+      }catch(e){
+        showToast("Couldn't save — try again");
+      }
     }
   }
   window.editName = editName;
@@ -432,12 +433,15 @@
   }
   window.openAmcModal = openAmcModal;
 
-  function subscribePlan(name){
-    profile.plan = name;
-    saveAll();
-    closeModal("amcModal");
-    showToast("Subscribed to " + name + "!");
-    renderProfile();
+  async function subscribePlan(name){
+    try{
+      profile = await api("/api/hs/profile", { method: "PATCH", body: JSON.stringify({ plan: name }) });
+      closeModal("amcModal");
+      showToast("Subscribed to " + name + "!");
+      renderProfile();
+    }catch(e){
+      showToast("Couldn't subscribe — try again");
+    }
   }
   window.subscribePlan = subscribePlan;
 
@@ -456,12 +460,23 @@
   window.copyReferralCode = copyReferralCode;
 
   // ---------------- init ----------------
-  renderServices();
-  updatePointsChip();
-  renderProfile();
-  bookings.filter(b => b.status !== "Completed").forEach(b => {
-    simulateProgress(b.id, STATUS_FLOW.indexOf(b.status));
-  });
+  async function init(){
+    renderServices();
+    try{
+      const state = await api("/api/hs/state");
+      bookings = state.bookings.map(toClientBooking);
+      wallet = state.wallet;
+      profile = state.profile;
+    }catch(e){
+      showToast("Couldn't reach the server — showing defaults");
+    }
+    updatePointsChip();
+    renderProfile();
+    bookings.filter(b => b.status !== "Completed").forEach(b => {
+      simulateProgress(b.id, STATUS_FLOW.indexOf(b.status));
+    });
+  }
+  init();
 })();
 </script>
 </body>
