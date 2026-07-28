@@ -58,8 +58,14 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
-            isMinifyEnabled = true
-            isShrinkResources = true
+            // Minification/shrinking disabled for now — it's been crashing the
+            // release build on real devices (R8 strips something reflection-
+            // based, most likely still Firebase-related, even after adding
+            // -keep rules for com.google.firebase/gms). Re-enable once the
+            // exact missing keep rule is found; app size doesn't matter for
+            // sideloaded testing in the meantime.
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
