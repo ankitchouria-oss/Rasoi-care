@@ -13,6 +13,17 @@ android {
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
+    // Release builds default to extractNativeLibs=false (native libs load
+    // straight out of the compressed APK) — some real devices/OEM skins
+    // don't handle that reliably and crash on launch. Debug builds don't hit
+    // this because they extract to disk instead. Force the same legacy
+    // (extract-to-disk) packaging release uses in debug too.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
