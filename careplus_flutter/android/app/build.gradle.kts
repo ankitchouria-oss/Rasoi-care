@@ -13,6 +13,17 @@ android {
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
+    // Release builds default to extractNativeLibs=false (native libs load
+    // straight out of the compressed APK) — some real devices/OEM skins
+    // don't handle that reliably and crash on launch. Debug builds don't hit
+    // this because they extract to disk instead. Force the same legacy
+    // (extract-to-disk) packaging release uses in debug too.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -58,8 +69,14 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
-            isMinifyEnabled = true
-            isShrinkResources = true
+            // Minification/shrinking disabled for now — it's been crashing the
+            // release build on real devices (R8 strips something reflection-
+            // based, most likely still Firebase-related, even after adding
+            // -keep rules for com.google.firebase/gms). Re-enable once the
+            // exact missing keep rule is found; app size doesn't matter for
+            // sideloaded testing in the meantime.
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
