@@ -55,6 +55,42 @@ class Issue {
       Issue(label, hint, selected: selected ?? this.selected);
 }
 
+/// One customer review on an appliance's service detail screen.
+class Review {
+  const Review(this.initials, this.name, this.meta, this.quote);
+  final String initials;
+  final String name;
+  final String meta;
+  final String quote;
+}
+
+/// Everything the service detail screen needs beyond the bookable
+/// [ServiceItem]s themselves — rating, what's included, and reviews.
+/// [comingSoon] appliances (refrigerator, water purifier as of writing)
+/// have no services or issues yet — only [blurb] is shown.
+class ApplianceDetail {
+  const ApplianceDetail({
+    required this.heading,
+    required this.blurb,
+    this.rating = 0,
+    this.ratingCount = 0,
+    this.includedTitle = '',
+    this.included = const [],
+    this.notIncluded = '',
+    this.reviews = const [],
+    this.comingSoon = false,
+  });
+  final String heading;
+  final String blurb;
+  final double rating;
+  final int ratingCount;
+  final String includedTitle;
+  final List<String> included;
+  final String notIncluded;
+  final List<Review> reviews;
+  final bool comingSoon;
+}
+
 class SavedAddress {
   const SavedAddress(this.id, this.label, this.line, this.glyph);
   final String id;
