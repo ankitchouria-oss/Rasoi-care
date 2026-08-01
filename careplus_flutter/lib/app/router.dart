@@ -10,7 +10,6 @@ import '../features/booking/booking_screens.dart';
 import '../features/tracking/tracking_screen.dart';
 import '../features/invoice/invoice_rate_screens.dart';
 import '../features/account/account_screens.dart';
-import '../features/admin/admin_screen.dart';
 
 final _rootKey = GlobalKey<NavigatorState>();
 final _shellKey = GlobalKey<NavigatorState>();
@@ -96,11 +95,6 @@ final router = GoRouter(
         path: '/plans',
         parentNavigatorKey: _rootKey,
         builder: (_, __) => const PlansScreen()),
-
-    GoRoute(
-        path: '/admin',
-        parentNavigatorKey: _rootKey,
-        builder: (_, __) => const AdminScreen()),
 
     // The four-tab customer shell.
     StatefulShellRoute.indexedStack(

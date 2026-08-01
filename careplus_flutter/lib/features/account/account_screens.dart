@@ -216,30 +216,9 @@ class AccountScreen extends ConsumerWidget {
                     trailing: 'English ›', onTap: () {}, last: true),
               ]),
             ),
-            const SectionHeader('Switch app'),
-            CareCard(
-              onTap: () => context.push('/admin'),
-              child: Row(children: [
-                Blob('◈', glyph: true, bg: context.scheme.primaryContainer, fg: context.scheme.primary),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Admin console',
-                          style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 3),
-                      Text('Overview, bookings queue, team roster, stock',
-                          style: context.type.bodySmall),
-                    ],
-                  ),
-                ),
-                Icon(Icons.chevron_right, color: context.care.inkFaint),
-              ]),
-            ),
-            const SizedBox(height: 10),
+            const SectionHeader('Other Rasoi Care apps'),
             Text(
-                'Technicians use the separate Rasoi Care Partner app for jobs, checklists and payment collection.',
+                'Technicians use the separate Rasoi Care Partner app for jobs, checklists and payment collection. Owners and staff use Rasoi Care Admin for operations, analytics and reports.',
                 style: context.type.bodySmall),
             const SizedBox(height: 18),
             SizedBox(
