@@ -218,27 +218,6 @@ class AccountScreen extends ConsumerWidget {
             ),
             const SectionHeader('Switch app'),
             CareCard(
-              onTap: () => context.push('/tech/jobs'),
-              child: Row(children: [
-                Blob('◍', glyph: true, bg: context.scheme.secondaryContainer, fg: context.scheme.secondary),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Technician app',
-                          style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 3),
-                      Text('Job feed, checklist, invoice and payment collection',
-                          style: context.type.bodySmall),
-                    ],
-                  ),
-                ),
-                Icon(Icons.chevron_right, color: context.care.inkFaint),
-              ]),
-            ),
-            const SizedBox(height: 10),
-            CareCard(
               onTap: () => context.push('/admin'),
               child: Row(children: [
                 Blob('◈', glyph: true, bg: context.scheme.primaryContainer, fg: context.scheme.primary),
@@ -258,6 +237,10 @@ class AccountScreen extends ConsumerWidget {
                 Icon(Icons.chevron_right, color: context.care.inkFaint),
               ]),
             ),
+            const SizedBox(height: 10),
+            Text(
+                'Technicians use the separate Rasoi Care Partner app for jobs, checklists and payment collection.',
+                style: context.type.bodySmall),
             const SizedBox(height: 18),
             SizedBox(
               width: double.infinity,

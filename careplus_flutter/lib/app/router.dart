@@ -10,9 +10,6 @@ import '../features/booking/booking_screens.dart';
 import '../features/tracking/tracking_screen.dart';
 import '../features/invoice/invoice_rate_screens.dart';
 import '../features/account/account_screens.dart';
-import '../features/technician/tech_jobs_screen.dart';
-import '../features/technician/tech_job_screen.dart';
-import '../features/technician/tech_close_screen.dart';
 import '../features/admin/admin_screen.dart';
 
 final _rootKey = GlobalKey<NavigatorState>();
@@ -99,20 +96,6 @@ final router = GoRouter(
         path: '/plans',
         parentNavigatorKey: _rootKey,
         builder: (_, __) => const PlansScreen()),
-
-    // Technician app — a separate flow reached via "Switch app" in Account.
-    GoRoute(
-        path: '/tech/jobs',
-        parentNavigatorKey: _rootKey,
-        builder: (_, __) => const TechJobsScreen()),
-    GoRoute(
-        path: '/tech/job/:id',
-        parentNavigatorKey: _rootKey,
-        builder: (_, s) => TechJobScreen(jobId: s.pathParameters['id']!)),
-    GoRoute(
-        path: '/tech/job/:id/close',
-        parentNavigatorKey: _rootKey,
-        builder: (_, s) => TechCloseScreen(jobId: s.pathParameters['id']!)),
 
     GoRoute(
         path: '/admin',

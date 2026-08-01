@@ -7,6 +7,7 @@ import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
 import '../../data/models.dart';
 import '../../state/providers.dart';
+import '../../state/auth_providers.dart';
 
 class TechJobsScreen extends ConsumerStatefulWidget {
   const TechJobsScreen({super.key});
@@ -64,9 +65,12 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
                       tone: stats.onDuty ? ChipTone.success : ChipTone.neutral),
                   const SizedBox(width: 9),
                   _RoundIcon(
-                      icon: Icons.arrow_back,
-                      onTap: () =>
-                          context.canPop() ? context.pop() : context.go('/account')),
+                      icon: Icons.logout,
+                      onTap: () async {
+                        await ref.read(authServiceProvider).signOut();
+                        ref.read(authFlowProvider.notifier).reset();
+                        if (context.mounted) context.go('/login');
+                      }),
                 ],
               ),
             ),
