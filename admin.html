@@ -362,12 +362,24 @@ body{
         </div>
       </section>
 
+
+<div class="sheet" id="sheetBooking">
+  <div class="sheet-bg" onclick="closeSheet()"></div>
+  <div class="sheet-body"><div class="grabber"></div><div id="sheetBookingBody"></div></div>
+</div>
+<div class="sheet" id="sheetComplaint">
+  <div class="sheet-bg" onclick="closeSheet()"></div>
+  <div class="sheet-body"><div class="grabber"></div><div id="sheetComplaintBody"></div></div>
+</div>
+
 <div class="toast" id="toast"><span>✓</span><span id="toastMsg"></span></div>
 </div>
 <script>
 
 const API_BASE = window.location.origin;
+const STATE = { bookings: [], complaints: [], technicians: [] };
 async function apiGet(path){ const r = await fetch(API_BASE+path); if(!r.ok) throw new Error('GET '+path+' '+r.status); return r.json(); }
+async function apiPatch(path, body){ const r = await fetch(API_BASE+path, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{}) }); if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.error||('PATCH '+path+' '+r.status)); } return r.json(); }
 
 function toast(m){const t=document.getElementById('toast');document.getElementById('toastMsg').textContent=m;t.classList.add('show');clearTimeout(t._x);t._x=setTimeout(()=>t.classList.remove('show'),2400);}
 function chipPick(el){[...el.parentElement.children].forEach(c=>c.classList&&c.classList.remove('on'));el.classList.add('on');}
@@ -377,6 +389,8 @@ function tabSwap(btn,show){
   const ids=[...btn.parentElement.children].map(b=>b.getAttribute('onclick').match(/'([^']+)'\)$/)[1]);
   ids.forEach(i=>{const n=wrap.querySelector('#'+i);if(n)n.style.display=i===show?'':'none';});
 }
+function openSheet(id){document.getElementById(id).classList.add('open');}
+function closeSheet(){document.querySelectorAll('.sheet').forEach(s=>s.classList.remove('open'));}
 
 async function loadOverview(){
   try{
@@ -388,44 +402,122 @@ async function loadOverview(){
   }catch(e){ console.warn(e); }
 
   try{
-    const complaints = await apiGet('/api/complaints');
-    const open = complaints.filter(c=>c.status!=='Resolved');
+    STATE.complaints = await apiGet('/api/complaints');
+    const open = STATE.complaints.filter(c=>c.status!=='Resolved');
     document.getElementById('attnCount').textContent = open.length + ' open';
     document.getElementById('attnList').innerHTML = open.length ? open.slice(0,6).map(c=>`
-      <div class="card card-p tap" style="border-left:3px solid var(--signal)" onclick="toast('${c.status}')">
+      <div class="card card-p tap" style="border-left:3px solid var(--signal)" onclick="openComplaint('${c.id}')">
         <div class="between"><b style="font-size:13px">${c.bookingId}</b><span class="mono muted">${c.status}</span></div>
         <p class="tiny muted" style="margin:5px 0 0">${c.text}</p>
       </div>`).join('') : '<p class="sub" style="padding:14px 0">Nothing needs attention.</p>';
   }catch(e){ console.warn(e); }
 }
 
+function techOptionsHtml(selectedId){
+  return STATE.technicians.map(t=>
+    `<option value="${t.id}" ${t.id===selectedId?'selected':''}>${t.name} — ${t.category}${t.online?'':' (offline)'}</option>`
+  ).join('');
+}
+
 async function loadBookings(){
   try{
-    const bookings = await apiGet('/api/bookings');
-    document.getElementById('adBookCount').textContent = bookings.length;
-    document.getElementById('adBookList').innerHTML = bookings.map(b=>`
-      <div class="card card-p tap" onclick="toast('${b.id}')">
+    STATE.bookings = await apiGet('/api/bookings');
+    document.getElementById('adBookCount').textContent = STATE.bookings.length;
+    document.getElementById('adBookList').innerHTML = STATE.bookings.map(b=>{
+      const tech = STATE.technicians.find(t=>t.id===b.technicianId);
+      return `<div class="card card-p tap" onclick="openBooking('${b.id}')">
         <div class="between"><span class="chip ${b.status==='Completed'?'chip-grow':(b.status==='Requested'?'chip-signal':'chip-brass')}" style="height:24px;font-size:10.5px">${b.status}</span><span class="mono muted">${b.id}</span></div>
         <b style="display:block;margin-top:10px;font-size:13.5px">${b.service}</b>
-        <p class="tiny muted" style="margin:4px 0 0">${b.customerName} · ₹${b.total_amount||b.price}</p></div>`).join('');
+        <p class="tiny muted" style="margin:4px 0 0">${b.customerName} · ₹${b.total_amount||b.price} · ${tech?tech.name:'Unassigned'}</p></div>`;
+    }).join('');
   }catch(e){ console.warn(e); }
 }
 
 async function loadTeam(){
   try{
-    const techs = await apiGet('/api/technicians');
-    const onDuty = techs.filter(t=>t.online).length;
-    document.getElementById('teamOnDuty').textContent = onDuty + ' / ' + techs.length;
-    const avg = techs.length ? (techs.reduce((s,t)=>s+t.rating,0)/techs.length).toFixed(2) : '—';
+    STATE.technicians = await apiGet('/api/technicians');
+    const onDuty = STATE.technicians.filter(t=>t.online).length;
+    document.getElementById('teamOnDuty').textContent = onDuty + ' / ' + STATE.technicians.length;
+    const avg = STATE.technicians.length ? (STATE.technicians.reduce((s,t)=>s+t.rating,0)/STATE.technicians.length).toFixed(2) : '—';
     document.getElementById('teamAvgRating').textContent = avg;
-    document.getElementById('adTeamList').innerHTML = techs.map(t=>{
+    document.getElementById('adTeamList').innerHTML = STATE.technicians.map(t=>{
       const initials = t.name.split(' ').map(p=>p[0]).slice(0,2).join('').toUpperCase();
-      return `<div class="card card-p tap row" onclick="toast('${t.name}')">
+      return `<div class="card card-p tap row" onclick="toast('${t.name} · ${t.jobsCompleted} jobs completed')">
         <div class="avatar" style="width:40px;height:40px;flex:0 0 40px;font-size:12px">${initials}</div>
         <div style="flex:1"><b style="font-size:13.5px">${t.name}</b><p class="tiny muted" style="margin:2px 0 0">${t.category} · ${t.jobsCompleted} jobs</p></div>
         <div style="text-align:right"><b class="price tiny" style="color:var(--accent)">★ ${t.rating}</b><p class="tiny muted" style="margin:3px 0 0">${t.online?'On duty':'Offline'}</p></div></div>`;
     }).join('');
   }catch(e){ console.warn(e); }
+}
+
+/* ---------------- booking detail — assign technician / advance status ---------------- */
+const STATUS_ORDER=['Requested','Accepted','On the way','In Progress','Completed'];
+function openBooking(id){
+  const b = STATE.bookings.find(x=>x.id===id);
+  if(!b) return;
+  window._sheetBookingId = id;
+  const idx = STATUS_ORDER.indexOf(b.status);
+  const nextStatus = idx>=0 && idx<STATUS_ORDER.length-1 ? STATUS_ORDER[idx+1] : null;
+  document.getElementById('sheetBookingBody').innerHTML = `
+    <div class="between"><b class="mono">${b.id}</b><span class="chip ${b.status==='Completed'?'chip-grow':(b.status==='Requested'?'chip-signal':'chip-brass')}" style="height:24px;font-size:10.5px">${b.status}</span></div>
+    <b class="display" style="font-size:19px;display:block;margin-top:10px">${b.service}</b>
+    <p class="tiny muted" style="margin:5px 0 0">${b.customerName} · ₹${b.total_amount||b.price}</p>
+    <div class="divider"></div>
+    <p class="eyebrow">Assign technician</p>
+    <select id="assignSelect" style="width:100%;height:48px;margin-top:8px;border-radius:var(--r-md);border:1.5px solid var(--line);background:var(--surface);color:var(--ink);font-size:13.5px;font-weight:600;padding:0 12px">
+      ${techOptionsHtml(b.technicianId)}
+    </select>
+    <button class="btn btn-p btn-block" style="margin-top:12px" onclick="assignTechnician()">Assign</button>
+    <div class="divider"></div>
+    ${nextStatus ? `<p class="eyebrow">Move to next stage</p><button class="btn btn-o btn-block" style="margin-top:8px" onclick="advanceBooking()">Advance to ${nextStatus}</button>` : '<p class="tiny muted">This job is complete.</p>'}
+  `;
+  openSheet('sheetBooking');
+}
+async function assignTechnician(){
+  const id = window._sheetBookingId;
+  const techId = document.getElementById('assignSelect').value;
+  try{
+    await apiPatch('/api/bookings/'+id+'/assign', { technician_id: techId });
+    toast('Technician assigned');
+    closeSheet();
+    await loadBookings();
+  }catch(e){ toast('Could not assign technician'); }
+}
+async function advanceBooking(){
+  const id = window._sheetBookingId;
+  try{
+    await apiPatch('/api/bookings/'+id+'/advance', {});
+    toast('Status advanced');
+    closeSheet();
+    await loadBookings();
+    await loadOverview();
+  }catch(e){ toast('Could not advance status'); }
+}
+
+/* ---------------- complaint detail — respond / resolve ---------------- */
+function openComplaint(id){
+  const c = STATE.complaints.find(x=>x.id===id);
+  if(!c) return;
+  window._sheetComplaintId = id;
+  document.getElementById('sheetComplaintBody').innerHTML = `
+    <div class="between"><b class="mono">${c.bookingId}</b><span class="chip ${c.status==='Resolved'?'chip-grow':'chip-signal'}" style="height:24px;font-size:10.5px">${c.status}</span></div>
+    <p class="sub" style="margin-top:12px">${c.text}</p>
+    <div class="divider"></div>
+    <p class="eyebrow">Response to customer</p>
+    <label class="field" style="margin-top:8px"><textarea id="complaintResponse" placeholder=" ">${c.response||''}</textarea><span>Write a response</span></label>
+    <button class="btn btn-p btn-block" style="margin-top:12px" onclick="resolveComplaint()">${c.status==='Resolved'?'Update response':'Resolve complaint'}</button>
+  `;
+  openSheet('sheetComplaint');
+}
+async function resolveComplaint(){
+  const id = window._sheetComplaintId;
+  const response = document.getElementById('complaintResponse').value.trim();
+  try{
+    await apiPatch('/api/complaints/'+id, { response, status: 'Resolved' });
+    toast('Complaint resolved');
+    closeSheet();
+    await loadOverview();
+  }catch(e){ toast('Could not resolve complaint'); }
 }
 
 const ADS=[['Elica baffle filter 90cm','ELF-90B',8,40,'signal'],['RO membrane 80 GPD','ROM-80',14,40,'signal'],
@@ -440,10 +532,10 @@ document.getElementById('adStockList').innerHTML=ADS.map(s=>
 
 async function boot(){
   document.getElementById('admin').classList.add('active');
+  await loadTeam();
   await loadOverview();
   await loadBookings();
-  await loadTeam();
-  setInterval(async()=>{ await loadOverview(); await loadBookings(); await loadTeam(); }, 8000);
+  setInterval(async()=>{ await loadTeam(); await loadOverview(); await loadBookings(); }, 8000);
 }
 boot();
 

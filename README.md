@@ -105,6 +105,7 @@ show the operations-wide view, not a scoped one.
 | GET | `/api/bookings/<id>` | Get one booking |
 | POST | `/api/bookings` | Create a booking — `{service_id}` (catalog price looked up server-side) or the legacy `{category, service, price, bachatSlot?}` shape |
 | PATCH | `/api/bookings/<id>/advance` | Move a booking to its next status |
+| PATCH | `/api/bookings/<id>/assign` | Assign or reassign the technician on a booking `{technician_id}` — what admin.html's booking detail sheet calls |
 | POST | `/api/bookings/<id>/rating` | Submit ratings `{serviceRating, techRating, raiseComplaint?, complaintText?}` |
 | GET | `/api/complaints` | List all complaints |
 | PATCH | `/api/complaints/<id>` | Update `{response?, status?}` |

@@ -620,6 +620,37 @@ def advance_booking(booking_id):
     return jsonify(booking_row_to_dict(row))
 
 
+@app.route("/api/bookings/<booking_id>/assign", methods=["PATCH"])
+def assign_technician(booking_id):
+    """Called by the Admin app to assign or reassign which technician is on
+    a booking — e.g. routing a freshly requested job, or swapping in a
+    replacement if the original technician can't make it."""
+    data = request.get_json(force=True, silent=True) or {}
+    technician_id = data.get("technician_id")
+    if not technician_id:
+        return jsonify({"error": "technician_id is required"}), 400
+
+    conn = get_db()
+    booking = conn.execute("SELECT * FROM bookings WHERE id = ?", (booking_id,)).fetchone()
+    if not booking:
+        conn.close()
+        return jsonify({"error": "not found"}), 404
+    tech = conn.execute("SELECT * FROM technicians WHERE id = ?", (technician_id,)).fetchone()
+    if not tech:
+        conn.close()
+        return jsonify({"error": "Unknown technician_id"}), 400
+
+    new_status = "Accepted" if booking["status"] == "Requested" else booking["status"]
+    conn.execute(
+        "UPDATE bookings SET technician_id = ?, status = ?, updated_at = ? WHERE id = ?",
+        (technician_id, new_status, now(), booking_id),
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM bookings WHERE id = ?", (booking_id,)).fetchone()
+    conn.close()
+    return jsonify(booking_row_to_dict(row))
+
+
 @app.route("/api/bookings/<booking_id>/rating", methods=["POST"])
 def rate_booking(booking_id):
     """Called by the Customer app after a job completes. Updates the
