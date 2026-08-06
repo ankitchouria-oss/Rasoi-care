@@ -71,26 +71,39 @@ have two options:
   string); `app.py`'s routes stay identical since they only call the
   helper functions in `database.py`.
 
-## Point the frontend at your deployed backend
+## The three apps
 
-Open `rasoicare-networked.html` and change the `API_BASE` value at the
-top of the `<script>` block from `http://127.0.0.1:8420` to your real
-URL, e.g. `https://rasoicare-backend.onrender.com`. There's also an
-on-screen field to set this without editing the file, for quick testing.
+`customer.html`, `technician.html` and `admin.html` are each served
+directly by Flask at `/customer`, `/technician` and `/admin` (see the
+routes at the top of `app.py`). They call the API same-origin — no
+`API_BASE` to configure — so once you deploy this app to Render/Railway/
+Fly.io, all three URLs work immediately off that one deployed address,
+e.g. `https://rasoicare-backend.onrender.com/customer`.
 
-Once that's pointed at a real deployed URL, open the file on two
-different devices (or have a customer and a technician open it
-independently) — they're now both talking to the same server, so
-actions genuinely sync between them.
+Open `/customer` and `/technician` on two different devices (or have a
+customer and a technician open them independently) — they're both
+talking to the same server, so actions genuinely sync between them: a
+booking placed on `/customer` shows up in the `/technician` job feed
+within seconds, and advancing it there is reflected live on the
+customer's tracking screen and on `/admin`.
+
+Customer sign-in is phone-number first (OTP is simulated — the demo
+code `4402` auto-fills) but backed by real `/api/auth/*` JWT accounts
+under the hood. The technician and admin apps have no login screen by
+design (see `/api/bookings`'s auth-optional behavior in `app.py`) — they
+show the operations-wide view, not a scoped one.
 
 ## API reference
 
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/api/health` | Check the server is up |
-| GET | `/api/bookings` | List all bookings, most recent first |
+| POST | `/api/auth/register` / `/api/auth/login` | Real JWT accounts — the customer app derives email/password from the phone number |
+| GET | `/api/appliances`, `/api/services` | The real catalog customer.html browses and prices bookings from |
+| GET | `/api/amc/plans`, `/api/amc/my-subscription` · POST `/api/amc/subscribe` | AMC plan browsing and subscription |
+| GET | `/api/bookings` | List bookings — only the caller's own with a Bearer token, all of them without one (what technician.html/admin.html use) |
 | GET | `/api/bookings/<id>` | Get one booking |
-| POST | `/api/bookings` | Create a booking `{category, service, price, bachatSlot?}` |
+| POST | `/api/bookings` | Create a booking — `{service_id}` (catalog price looked up server-side) or the legacy `{category, service, price, bachatSlot?}` shape |
 | PATCH | `/api/bookings/<id>/advance` | Move a booking to its next status |
 | POST | `/api/bookings/<id>/rating` | Submit ratings `{serviceRating, techRating, raiseComplaint?, complaintText?}` |
 | GET | `/api/complaints` | List all complaints |
