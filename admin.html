@@ -347,6 +347,7 @@ body{
               <div class="stat"><p class="eyebrow">On duty</p><b id="teamOnDuty">0 / 0</b></div>
               <div class="stat"><p class="eyebrow">Avg rating</p><b id="teamAvgRating">—</b></div>
             </div>
+            <button class="btn btn-o btn-block" style="margin-bottom:12px" onclick="openAddTechnician()">+ Add technician</button>
             <div class="stack" id="adTeamList"></div>
           </div>
 
@@ -371,6 +372,10 @@ body{
   <div class="sheet-bg" onclick="closeSheet()"></div>
   <div class="sheet-body"><div class="grabber"></div><div id="sheetComplaintBody"></div></div>
 </div>
+<div class="sheet" id="sheetAddTech">
+  <div class="sheet-bg" onclick="closeSheet()"></div>
+  <div class="sheet-body"><div class="grabber"></div><div id="sheetAddTechBody"></div></div>
+</div>
 
 <div class="toast" id="toast"><span>✓</span><span id="toastMsg"></span></div>
 </div>
@@ -380,6 +385,7 @@ const API_BASE = window.location.origin;
 const STATE = { bookings: [], complaints: [], technicians: [] };
 async function apiGet(path){ const r = await fetch(API_BASE+path); if(!r.ok) throw new Error('GET '+path+' '+r.status); return r.json(); }
 async function apiPatch(path, body){ const r = await fetch(API_BASE+path, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{}) }); if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.error||('PATCH '+path+' '+r.status)); } return r.json(); }
+async function apiPost(path, body){ const r = await fetch(API_BASE+path, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{}) }); if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.error||('POST '+path+' '+r.status)); } return r.json(); }
 
 function toast(m){const t=document.getElementById('toast');document.getElementById('toastMsg').textContent=m;t.classList.add('show');clearTimeout(t._x);t._x=setTimeout(()=>t.classList.remove('show'),2400);}
 function chipPick(el){[...el.parentElement.children].forEach(c=>c.classList&&c.classList.remove('on'));el.classList.add('on');}
@@ -413,9 +419,15 @@ async function loadOverview(){
   }catch(e){ console.warn(e); }
 }
 
-function techOptionsHtml(selectedId){
-  return STATE.technicians.map(t=>
-    `<option value="${t.id}" ${t.id===selectedId?'selected':''}>${t.name} — ${t.category}${t.online?'':' (offline)'}</option>`
+function techOptionsHtml(selectedId, bookingArea){
+  const sorted = [...STATE.technicians].filter(t=>t.verified).sort((a,b)=>{
+    const aSame = bookingArea && a.area===bookingArea ? 0 : 1;
+    const bSame = bookingArea && b.area===bookingArea ? 0 : 1;
+    if(aSame!==bSame) return aSame-bSame;
+    return (a.online===b.online) ? 0 : (a.online ? -1 : 1);
+  });
+  return sorted.map(t=>
+    `<option value="${t.id}" ${t.id===selectedId?'selected':''}>${t.name} — ${t.area}${bookingArea && t.area===bookingArea?' · same area':''}${t.online?'':' (offline)'}</option>`
   ).join('');
 }
 
@@ -428,7 +440,7 @@ async function loadBookings(){
       return `<div class="card card-p tap" onclick="openBooking('${b.id}')">
         <div class="between"><span class="chip ${b.status==='Completed'?'chip-grow':(b.status==='Requested'?'chip-signal':'chip-brass')}" style="height:24px;font-size:10.5px">${b.status}</span><span class="mono muted">${b.id}</span></div>
         <b style="display:block;margin-top:10px;font-size:13.5px">${b.service}</b>
-        <p class="tiny muted" style="margin:4px 0 0">${b.customerName} · ₹${b.total_amount||b.price} · ${tech?tech.name:'Unassigned'}</p></div>`;
+        <p class="tiny muted" style="margin:4px 0 0">${b.customerName} · ₹${b.total_amount||b.price}${b.area?' · '+b.area:''} · ${tech?tech.name:'Unassigned'}</p></div>`;
     }).join('');
   }catch(e){ console.warn(e); }
 }
@@ -442,12 +454,56 @@ async function loadTeam(){
     document.getElementById('teamAvgRating').textContent = avg;
     document.getElementById('adTeamList').innerHTML = STATE.technicians.map(t=>{
       const initials = t.name.split(' ').map(p=>p[0]).slice(0,2).join('').toUpperCase();
+      if(!t.verified){
+        return `<div class="card card-p" style="border-color:var(--accent);border-width:1.5px">
+          <div class="row"><div class="avatar" style="width:40px;height:40px;flex:0 0 40px;font-size:12px">${initials}</div>
+          <div style="flex:1"><b style="font-size:13.5px">${t.name}</b><p class="tiny muted" style="margin:2px 0 0">${t.category} · ${t.area}</p></div>
+          <span class="chip chip-brass" style="height:24px;font-size:10.5px">Pending</span></div>
+          <button class="btn btn-p btn-sm btn-block" style="margin-top:11px" onclick="verifyTechnician('${t.id}')">Verify &amp; bring online</button>
+        </div>`;
+      }
       return `<div class="card card-p tap row" onclick="toast('${t.name} · ${t.jobsCompleted} jobs completed')">
         <div class="avatar" style="width:40px;height:40px;flex:0 0 40px;font-size:12px">${initials}</div>
-        <div style="flex:1"><b style="font-size:13.5px">${t.name}</b><p class="tiny muted" style="margin:2px 0 0">${t.category} · ${t.jobsCompleted} jobs</p></div>
+        <div style="flex:1"><b style="font-size:13.5px">${t.name}</b><p class="tiny muted" style="margin:2px 0 0">${t.category} · ${t.area}</p></div>
         <div style="text-align:right"><b class="price tiny" style="color:var(--accent)">★ ${t.rating}</b><p class="tiny muted" style="margin:3px 0 0">${t.online?'On duty':'Offline'}</p></div></div>`;
     }).join('');
   }catch(e){ console.warn(e); }
+}
+
+/* ---------------- add / verify technicians ---------------- */
+const TECH_CATEGORIES=['RasoiAir','RasoiSpark','RasoiBuilt','RasoiWash','RasoiChill','RasoiPure'];
+function openAddTechnician(){
+  document.getElementById('sheetAddTechBody').innerHTML = `
+    <p class="eyebrow">New technician</p>
+    <label class="field" style="margin-top:10px"><input id="newTechName" placeholder=" "><span>Full name</span></label>
+    <p class="eyebrow" style="margin-top:16px">Category</p>
+    <select id="newTechCategory" style="width:100%;height:48px;margin-top:8px;border-radius:var(--r-md);border:1.5px solid var(--line);background:var(--surface);color:var(--ink);font-size:13.5px;font-weight:600;padding:0 12px">
+      ${TECH_CATEGORIES.map(c=>`<option value="${c}">${c}</option>`).join('')}
+    </select>
+    <label class="field" style="margin-top:16px"><input id="newTechArea" placeholder=" "><span>Service area (e.g. Gangapur Road)</span></label>
+    <p class="tiny muted" style="margin-top:10px;line-height:1.55">New technicians start unverified and offline. Verify them from the Team tab once you've checked their documents — that also brings them online and into auto-routing.</p>
+    <button class="btn btn-p btn-block" style="margin-top:14px" onclick="submitAddTechnician()">Add technician</button>
+  `;
+  openSheet('sheetAddTech');
+}
+async function submitAddTechnician(){
+  const name = document.getElementById('newTechName').value.trim();
+  const category = document.getElementById('newTechCategory').value;
+  const area = document.getElementById('newTechArea').value.trim();
+  if(!name || !area){ toast('Name and area are required'); return; }
+  try{
+    await apiPost('/api/technicians', { name, category, area });
+    toast('Technician added — pending verification');
+    closeSheet();
+    await loadTeam();
+  }catch(e){ toast('Could not add technician'); }
+}
+async function verifyTechnician(id){
+  try{
+    await apiPatch('/api/technicians/'+id+'/verify', {});
+    toast('Technician verified and online');
+    await loadTeam();
+  }catch(e){ toast('Could not verify technician'); }
 }
 
 /* ---------------- booking detail — assign technician / advance status ---------------- */
@@ -461,11 +517,11 @@ function openBooking(id){
   document.getElementById('sheetBookingBody').innerHTML = `
     <div class="between"><b class="mono">${b.id}</b><span class="chip ${b.status==='Completed'?'chip-grow':(b.status==='Requested'?'chip-signal':'chip-brass')}" style="height:24px;font-size:10.5px">${b.status}</span></div>
     <b class="display" style="font-size:19px;display:block;margin-top:10px">${b.service}</b>
-    <p class="tiny muted" style="margin:5px 0 0">${b.customerName} · ₹${b.total_amount||b.price}</p>
+    <p class="tiny muted" style="margin:5px 0 0">${b.customerName} · ₹${b.total_amount||b.price}${b.area?' · '+b.area:''}</p>
     <div class="divider"></div>
-    <p class="eyebrow">Assign technician</p>
+    <p class="eyebrow">Assign technician${b.area?' — customer is in '+b.area:''}</p>
     <select id="assignSelect" style="width:100%;height:48px;margin-top:8px;border-radius:var(--r-md);border:1.5px solid var(--line);background:var(--surface);color:var(--ink);font-size:13.5px;font-weight:600;padding:0 12px">
-      ${techOptionsHtml(b.technicianId)}
+      ${techOptionsHtml(b.technicianId, b.area)}
     </select>
     <button class="btn btn-p btn-block" style="margin-top:12px" onclick="assignTechnician()">Assign</button>
     <div class="divider"></div>

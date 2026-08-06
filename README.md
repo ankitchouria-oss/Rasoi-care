@@ -93,6 +93,22 @@ under the hood. The technician and admin apps have no login screen by
 design (see `/api/bookings`'s auth-optional behavior in `app.py`) — they
 show the operations-wide view, not a scoped one.
 
+### Technicians: areas, verification and auto-routing
+
+Every technician has a service `area` (a locality string like "Gangapur
+Road") and a `verified` flag. Admin adds new hires from the Team tab —
+they start unverified and offline, invisible to auto-routing and the
+technician job feed, until admin reviews and verifies them (which also
+brings them online).
+
+When a customer books a service, `create_booking` in `app.py` auto-picks
+a technician: a verified, online technician in the same area and
+category first, then any verified/online technician in that category,
+then any technician in that category at all (never a mismatched
+specialty) as a last resort. Admin can always override the pick from a
+booking's detail sheet, where the technician list is sorted with
+same-area matches first.
+
 ## API reference
 
 | Method | Path | Purpose |
@@ -110,5 +126,7 @@ show the operations-wide view, not a scoped one.
 | GET | `/api/complaints` | List all complaints |
 | PATCH | `/api/complaints/<id>` | Update `{response?, status?}` |
 | GET | `/api/technicians` | List all technicians with live rating/job counts |
+| POST | `/api/technicians` | Admin adds a technician `{name, category, area}` — starts unverified and offline |
+| PATCH | `/api/technicians/<id>/verify` | Admin verifies a technician, bringing them online and into auto-routing |
 | GET | `/api/stats/overview` | KPIs for the admin dashboard |
 | POST | `/api/reset` | Reset all data back to seed state |

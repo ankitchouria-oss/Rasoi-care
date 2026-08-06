@@ -454,7 +454,7 @@ function renderJobFeed(){
       <div class="card card-p" style="border-color:var(--accent);border-width:1.5px">
         <div class="between"><span class="chip chip-brass" style="height:24px;font-size:10.5px">${b.category}</span><span class="mono muted">${b.id}</span></div>
         <b style="display:block;margin-top:11px;font-size:14.5px">${b.service} · ${b.customerName}</b>
-        <p class="tiny muted" style="margin:4px 0 0">₹${b.total_amount||b.price} payout</p>
+        <p class="tiny muted" style="margin:4px 0 0">${b.area?b.area+' · ':''}₹${b.total_amount||b.price} payout</p>
         <div class="grid2" style="margin-top:13px;gap:9px">
           <button class="btn btn-o btn-sm" style="height:42px" onclick="passJob('${b.id}')">Pass</button>
           <button class="btn btn-p btn-sm" style="height:42px" onclick="acceptJob('${b.id}')">Accept</button>
@@ -469,7 +469,7 @@ function renderJobFeed(){
     <div class="card card-p tap" onclick="openJob('${b.id}')">
       <div class="between"><span class="chip ${b.status==='Accepted'?'':'chip-grow'}" style="height:24px;font-size:10.5px">${b.status}</span><span class="mono muted">${b.id}</span></div>
       <b style="display:block;margin-top:10px;font-size:14px">${b.service} · ${b.customerName}</b>
-      <p class="tiny muted" style="margin:4px 0 0">${b.category}</p>
+      <p class="tiny muted" style="margin:4px 0 0">${b.category}${b.area?' · '+b.area:''}</p>
     </div>`).join('') : '<p class="sub" style="padding:14px 0">No active jobs right now.</p>';
 
   document.getElementById('earningsToday').textContent = '₹' + done.reduce((s,b)=>s+(b.total_amount||b.price),0);
@@ -488,7 +488,7 @@ function openJob(id){
   if(!b) return;
   document.getElementById('jobHeaderId').textContent = b.id;
   document.getElementById('jobCustomerName').textContent = b.customerName;
-  document.getElementById('jobServiceLine').textContent = b.service + ' · ' + b.category;
+  document.getElementById('jobServiceLine').textContent = b.service + (b.area?' · '+b.area:'');
   go('techJob');
 }
 

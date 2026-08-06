@@ -1033,12 +1033,12 @@ body{
             <button class="chip" style="position:absolute;right:10px;bottom:10px;height:30px" onclick="toast('Recentre on GPS')">◎ Locate me</button>
           </div>
           <div class="stack" style="margin-top:16px">
-            <label class="card card-p tap row" style="border-color:var(--primary);border-width:1.5px" onclick="pickAddr(this)">
+            <label class="card card-p tap row" style="border-color:var(--primary);border-width:1.5px" onclick="pickAddr(this,'Gangapur Road')">
               <span style="font-size:17px">🏠</span>
               <div style="flex:1"><b style="font-size:13.5px">Home</b><p class="tiny muted" style="margin:3px 0 0;line-height:1.5">B-704, Ashwin Residency, Gangapur Rd, Nashik 422013</p></div>
               <span style="color:var(--primary);font-size:17px">◉</span>
             </label>
-            <label class="card card-p tap row" onclick="pickAddr(this)">
+            <label class="card card-p tap row" onclick="pickAddr(this,'College Road')">
               <span style="font-size:17px">🏢</span>
               <div style="flex:1"><b style="font-size:13.5px">Parents</b><p class="tiny muted" style="margin:3px 0 0;line-height:1.5">12, Shivneri Colony, College Rd, Nashik 422005</p></div>
               <span style="color:var(--line);font-size:17px">○</span>
@@ -1778,8 +1778,10 @@ function pickSlot(el,label){
   window._slot=label;updateSlot();
 }
 function updateSlot(){document.getElementById('slotLabel').textContent=window._day+' · '+window._slot;}
-function pickAddr(el){[...el.parentElement.querySelectorAll('.card')].forEach(c=>{c.style.borderColor='var(--line)';c.style.borderWidth='1px';const s=c.lastElementChild;s.textContent='○';s.style.color='var(--line)';});
-  el.style.borderColor='var(--primary)';el.style.borderWidth='1.5px';el.lastElementChild.textContent='◉';el.lastElementChild.style.color='var(--primary)';}
+window._selectedArea='Gangapur Road';
+function pickAddr(el,area){[...el.parentElement.querySelectorAll('.card')].forEach(c=>{c.style.borderColor='var(--line)';c.style.borderWidth='1px';const s=c.lastElementChild;s.textContent='○';s.style.color='var(--line)';});
+  el.style.borderColor='var(--primary)';el.style.borderWidth='1.5px';el.lastElementChild.textContent='◉';el.lastElementChild.style.color='var(--primary)';
+  if(area) window._selectedArea=area;}
 
 /* ---------------- payment — REAL booking creation ---------------- */
 const PAYS=[['UPI — GPay, PhonePe, Paytm','Instant · no fee','▲',1],['Card on file','Visa credit','▭',0],['Pay after the visit','Cash or UPI to the technician','₹',0]];
@@ -1794,7 +1796,7 @@ async function pay(){
   if(!STATE.token){ toast('Sign in first'); go('login'); return; }
   if(!window._selectedService){ toast('Pick a service first'); go('explore'); return; }
   try{
-    const booking = await apiPost('/api/bookings', { service_id: window._selectedService });
+    const booking = await apiPost('/api/bookings', { service_id: window._selectedService, area: window._selectedArea });
     STATE.currentBooking = booking;
     toast('Payment authorised — booking confirmed');
     go('confirmed');
