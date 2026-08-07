@@ -109,6 +109,29 @@ specialty) as a last resort. Admin can always override the pick from a
 booking's detail sheet, where the technician list is sorted with
 same-area matches first.
 
+## WebView Android apps (`rasoi_web_customer`, `rasoi_web_partner`, `rasoi_web_admin`)
+
+Three thin Flutter/WebView wrapper apps, one per role, each one loading the
+real web app above (`/customer`, `/technician`, `/admin`) inside a native
+Android shell instead of a browser tab. This is separate from the fuller
+native Flutter apps in `careplus_flutter`/`careplus_partner`/`careplus_admin`
+— these wrappers exist so the exact same server-rendered pages (and every
+future change to `customer.html`/`technician.html`/`admin.html`) show up in
+an installable APK with no rebuild required on the web side.
+
+Each app has one thing to configure before it's useful: `kBackendBaseUrl` at
+the top of `lib/main.dart`, currently a placeholder. Once this Flask app is
+deployed (see "Deploy it for real" above), set it to that public URL and
+rebuild:
+
+```bash
+cd rasoi_web_customer   # or rasoi_web_partner / rasoi_web_admin
+flutter build apk --release
+```
+
+Until `kBackendBaseUrl` is set, the app shows an in-app notice instead of a
+blank/broken WebView, explaining what to configure.
+
 ## API reference
 
 | Method | Path | Purpose |
