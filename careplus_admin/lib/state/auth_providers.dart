@@ -1,12 +1,20 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/auth/auth_service.dart';
+import '../data/auth/firebase_auth_service.dart';
 import '../data/auth/mock_auth_service.dart';
+import '../data/firestore/staff_profile_service.dart';
 import '../data/models.dart';
 
-/// Swap this for a real AuthService once this app is wired to a real staff
-/// directory — see lib/data/auth/auth_service.dart.
-final authServiceProvider = Provider<AuthService>((ref) => MockAuthService());
+/// Picks the real service if `Firebase.initializeApp()` succeeded in
+/// main.dart, otherwise the mock.
+final authServiceProvider = Provider<AuthService>(
+  (ref) => Firebase.apps.isEmpty ? MockAuthService() : FirebaseAuthService(),
+);
+
+final staffProfileServiceProvider =
+    Provider<StaffProfileService>((ref) => StaffProfileService());
 
 class AuthFlowState {
   const AuthFlowState({
@@ -15,6 +23,7 @@ class AuthFlowState {
     this.verificationId,
     this.sending = false,
     this.verifying = false,
+    this.submitting = false,
     this.error,
   });
   final String phone;
@@ -22,6 +31,9 @@ class AuthFlowState {
   final String? verificationId;
   final bool sending;
   final bool verifying;
+  /// Covers email/password and Google sign-in — separate from [sending]/
+  /// [verifying], which are phone-OTP-specific.
+  final bool submitting;
   final String? error;
 
   AuthFlowState copyWith({
@@ -30,6 +42,7 @@ class AuthFlowState {
     String? verificationId,
     bool? sending,
     bool? verifying,
+    bool? submitting,
     String? error,
     bool clearError = false,
   }) =>
@@ -39,6 +52,7 @@ class AuthFlowState {
         verificationId: verificationId ?? this.verificationId,
         sending: sending ?? this.sending,
         verifying: verifying ?? this.verifying,
+        submitting: submitting ?? this.submitting,
         error: clearError ? null : (error ?? this.error),
       );
 }
@@ -49,6 +63,10 @@ final authFlowProvider =
 class AuthFlowVM extends Notifier<AuthFlowState> {
   @override
   AuthFlowState build() => const AuthFlowState();
+
+  /// True when running against the mock — the OTP screen uses this to decide
+  /// whether to show the simulated SMS auto-fill (mock only).
+  bool get isMock => !ref.read(authServiceProvider).isLive;
 
   void setRole(AdminRole role) => state = state.copyWith(role: role);
 
@@ -78,12 +96,38 @@ class AuthFlowVM extends Notifier<AuthFlowState> {
     try {
       await ref.read(authServiceProvider).verifyOtp(verificationId: vid, smsCode: code);
       state = state.copyWith(verifying: false);
+      await ref.read(staffProfileServiceProvider).touchProfile(role: state.role);
       return true;
     } on AuthException catch (e) {
       state = state.copyWith(verifying: false, error: e.message);
       return false;
     } catch (_) {
       state = state.copyWith(verifying: false, error: 'Verification failed. Try again.');
+      return false;
+    }
+  }
+
+  Future<bool> registerWithEmail(String email, String password) => _submit(
+      () => ref.read(authServiceProvider).registerWithEmail(email: email, password: password));
+
+  Future<bool> signInWithEmail(String email, String password) => _submit(
+      () => ref.read(authServiceProvider).signInWithEmail(email: email, password: password));
+
+  Future<bool> signInWithGoogle() =>
+      _submit(() => ref.read(authServiceProvider).signInWithGoogle());
+
+  Future<bool> _submit(Future<void> Function() action) async {
+    state = state.copyWith(submitting: true, clearError: true);
+    try {
+      await action();
+      state = state.copyWith(submitting: false);
+      await ref.read(staffProfileServiceProvider).touchProfile(role: state.role);
+      return true;
+    } on AuthException catch (e) {
+      state = state.copyWith(submitting: false, error: e.message);
+      return false;
+    } catch (_) {
+      state = state.copyWith(submitting: false, error: 'Something went wrong. Try again.');
       return false;
     }
   }

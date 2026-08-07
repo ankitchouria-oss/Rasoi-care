@@ -8,6 +8,9 @@ class MockAuthService implements AuthService {
   bool _signedIn = false;
 
   @override
+  bool get isLive => false;
+
+  @override
   bool get isSignedIn => _signedIn;
 
   @override
@@ -22,6 +25,24 @@ class MockAuthService implements AuthService {
     if (smsCode != demoCode) {
       throw const AuthException('That code doesn\'t match. Check and try again.');
     }
+    _signedIn = true;
+  }
+
+  @override
+  Future<void> registerWithEmail({required String email, required String password}) async {
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    _signedIn = true;
+  }
+
+  @override
+  Future<void> signInWithEmail({required String email, required String password}) async {
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    _signedIn = true;
+  }
+
+  @override
+  Future<void> signInWithGoogle() async {
+    await Future<void>.delayed(const Duration(milliseconds: 300));
     _signedIn = true;
   }
 

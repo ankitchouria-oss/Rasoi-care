@@ -36,6 +36,11 @@ dependencies:
   google_fonts: ^6.2.1         # Fraunces · Plus Jakarta Sans · IBM Plex Mono
   intl: ^0.19.0                # ₹ formatting via en_IN
 
+  firebase_core: ^3.8.0        # wired in — see lib/data/auth/README or app §Firebase Auth
+  firebase_auth: ^5.3.4        # phone/email/Google sign-in, guarded fallback to mock if unconfigured
+  google_sign_in: ^6.2.2       # Google auth provider — see lib/data/auth/firebase_auth_service.dart
+  cloud_firestore: ^5.6.0      # staff profile write-through on sign-in
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

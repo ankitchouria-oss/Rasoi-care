@@ -66,11 +66,27 @@ class PhoneScreen extends ConsumerStatefulWidget {
 
 class _PhoneScreenState extends ConsumerState<PhoneScreen> {
   final _phoneCtrl = TextEditingController(text: '9822041537');
+  bool _googleBusy = false;
 
   @override
   void dispose() {
     _phoneCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _continueWithGoogle() async {
+    setState(() => _googleBusy = true);
+    final ok = await ref.read(authFlowProvider.notifier).signInWithGoogle();
+    if (!mounted) return;
+    setState(() => _googleBusy = false);
+    if (ok) {
+      context.go('/dashboard');
+    } else {
+      final err = ref.read(authFlowProvider).error;
+      if (err != null && err != 'Sign-in cancelled.') {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+      }
+    }
   }
 
   Future<void> _send() async {
@@ -150,6 +166,34 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                 ),
               ),
               const SizedBox(height: 22),
+              Row(children: [
+                const Expanded(child: Divider()),
+                Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Mono('OR', color: context.care.inkMuted)),
+                const Expanded(child: Divider()),
+              ]),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: _googleBusy ? null : _continueWithGoogle,
+                  child: _googleBusy
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Continue with Google'),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                    onPressed: () => context.push('/login/email'),
+                    child: const Text('Continue with email')),
+              ),
+              const SizedBox(height: 22),
               CareCard(
                 color: context.scheme.surfaceContainerHigh,
                 borderColor: Colors.transparent,
@@ -213,6 +257,127 @@ class _RoleToggle extends StatelessWidget {
       );
 }
 
+// ============================================================ EMAIL
+class EmailAuthScreen extends ConsumerStatefulWidget {
+  const EmailAuthScreen({super.key});
+  @override
+  ConsumerState<EmailAuthScreen> createState() => _EmailAuthScreenState();
+}
+
+class _EmailAuthScreenState extends ConsumerState<EmailAuthScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _emailCtrl = TextEditingController();
+  final _passwordCtrl = TextEditingController();
+  bool _creatingAccount = false;
+  bool _obscure = true;
+
+  @override
+  void dispose() {
+    _emailCtrl.dispose();
+    _passwordCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    final email = _emailCtrl.text.trim();
+    final password = _passwordCtrl.text;
+    final vm = ref.read(authFlowProvider.notifier);
+    final ok = _creatingAccount
+        ? await vm.registerWithEmail(email, password)
+        : await vm.signInWithEmail(email, password);
+    if (!mounted) return;
+    if (ok) {
+      context.go('/dashboard');
+    } else {
+      final err = ref.read(authFlowProvider).error ?? 'Something went wrong.';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final submitting = ref.watch(authFlowProvider.select((s) => s.submitting));
+    final role = ref.watch(authFlowProvider.select((s) => s.role));
+    return Scaffold(
+      appBar: AppBar(leading: BackButton(onPressed: context.pop)),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 30),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(_creatingAccount ? 'Create an account' : 'Sign in with email',
+                    style: context.type.headlineLarge),
+                const SizedBox(height: 10),
+                Text(
+                    _creatingAccount
+                        ? 'Set an email and password — signing in as ${role.label}.'
+                        : 'Enter the email and password you signed up with — signing in as ${role.label}.',
+                    style: context.type.bodyMedium),
+                const SizedBox(height: 24),
+                Eyebrow('Signing in as'),
+                const SizedBox(height: 10),
+                _RoleToggle(
+                  role: role,
+                  onChanged: (r) => ref.read(authFlowProvider.notifier).setRole(r),
+                ),
+                const SizedBox(height: 24),
+                CareField('Email',
+                    controller: _emailCtrl,
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (v) => (v == null || !v.contains('@'))
+                        ? 'Enter a valid email address'
+                        : null),
+                const SizedBox(height: 13),
+                CareField('Password',
+                    controller: _passwordCtrl,
+                    obscureText: _obscure,
+                    suffix: IconButton(
+                      icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                      onPressed: () => setState(() => _obscure = !_obscure),
+                    ),
+                    validator: (v) => (v == null || v.length < 6)
+                        ? 'Password must be at least 6 characters'
+                        : null),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: submitting ? null : _submit,
+                    child: submitting
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : Text(_creatingAccount ? 'Create account' : 'Sign in'),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Center(
+                  child: GestureDetector(
+                    onTap: () => setState(() => _creatingAccount = !_creatingAccount),
+                    child: Text(
+                        _creatingAccount
+                            ? 'Already have an account? Sign in'
+                            : "New here? Create an account",
+                        style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: context.scheme.primary)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ============================================================ OTP
 class OtpScreen extends ConsumerStatefulWidget {
   const OtpScreen({super.key});
@@ -233,12 +398,15 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       if (_secs == 0) return;
       setState(() => _secs--);
     });
-    const code = MockAuthService.demoCode;
-    for (var i = 0; i < 4; i++) {
-      Timer(Duration(milliseconds: 420 + i * 230), () {
-        if (mounted) setState(() => _shown[i] = code[i]);
-        if (i == 3) _submit();
-      });
+    // Only simulate SMS auto-read when there's no real backend to wait for.
+    if (ref.read(authFlowProvider.notifier).isMock) {
+      const code = MockAuthService.demoCode;
+      for (var i = 0; i < 4; i++) {
+        Timer(Duration(milliseconds: 420 + i * 230), () {
+          if (mounted) setState(() => _shown[i] = code[i]);
+          if (i == 3) _submit();
+        });
+      }
     }
   }
 
@@ -274,8 +442,14 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     await ref.read(authFlowProvider.notifier).sendOtp(phone);
   }
 
+  void _onDigit(int i, String v) {
+    setState(() => _shown[i] = v);
+    if (_shown.every((d) => d.isNotEmpty)) _submit();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isMock = ref.watch(authFlowProvider.notifier).isMock;
     final phone = ref.watch(authFlowProvider.select((s) => s.phone));
     final role = ref.watch(authFlowProvider.select((s) => s.role));
     return Scaffold(
@@ -314,9 +488,21 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                                         : context.scheme.primary,
                                     width: 1.5),
                               ),
-                              child: Text(_shown[i],
-                                  style: CareType.mono(context.scheme.onSurface,
-                                      size: 24, w: FontWeight.w600)),
+                              child: isMock
+                                  ? Text(_shown[i],
+                                      style: CareType.mono(context.scheme.onSurface,
+                                          size: 24, w: FontWeight.w600))
+                                  : TextField(
+                                      textAlign: TextAlign.center,
+                                      keyboardType: TextInputType.number,
+                                      maxLength: 1,
+                                      showCursor: false,
+                                      decoration: const InputDecoration(
+                                          counterText: '', border: InputBorder.none),
+                                      style: CareType.mono(context.scheme.onSurface,
+                                          size: 24, w: FontWeight.w600),
+                                      onChanged: (v) => _onDigit(i, v),
+                                    ),
                             ),
                           ),
                           if (i != 3) const SizedBox(width: 11),
@@ -327,9 +513,9 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                     Text(
                         _verifying
                             ? 'Verifying…'
-                            : (_shown.last.isEmpty
-                                ? 'Auto-reading SMS…'
-                                : 'Code read from SMS.'),
+                            : isMock
+                                ? (_shown.last.isEmpty ? 'Auto-reading SMS…' : 'Code read from SMS.')
+                                : 'Enter the code from the SMS you received.',
                         style: context.type.bodySmall),
                     const SizedBox(height: 26),
                     Row(
