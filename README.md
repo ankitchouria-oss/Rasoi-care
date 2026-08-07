@@ -71,30 +71,85 @@ have two options:
   string); `app.py`'s routes stay identical since they only call the
   helper functions in `database.py`.
 
-## Point the frontend at your deployed backend
+## The three apps
 
-Open `rasoicare-networked.html` and change the `API_BASE` value at the
-top of the `<script>` block from `http://127.0.0.1:8420` to your real
-URL, e.g. `https://rasoicare-backend.onrender.com`. There's also an
-on-screen field to set this without editing the file, for quick testing.
+`customer.html`, `technician.html` and `admin.html` are each served
+directly by Flask at `/customer`, `/technician` and `/admin` (see the
+routes at the top of `app.py`). They call the API same-origin — no
+`API_BASE` to configure — so once you deploy this app to Render/Railway/
+Fly.io, all three URLs work immediately off that one deployed address,
+e.g. `https://rasoicare-backend.onrender.com/customer`.
 
-Once that's pointed at a real deployed URL, open the file on two
-different devices (or have a customer and a technician open it
-independently) — they're now both talking to the same server, so
-actions genuinely sync between them.
+Open `/customer` and `/technician` on two different devices (or have a
+customer and a technician open them independently) — they're both
+talking to the same server, so actions genuinely sync between them: a
+booking placed on `/customer` shows up in the `/technician` job feed
+within seconds, and advancing it there is reflected live on the
+customer's tracking screen and on `/admin`.
+
+Customer sign-in is phone-number first (OTP is simulated — the demo
+code `4402` auto-fills) but backed by real `/api/auth/*` JWT accounts
+under the hood. The technician and admin apps have no login screen by
+design (see `/api/bookings`'s auth-optional behavior in `app.py`) — they
+show the operations-wide view, not a scoped one.
+
+### Technicians: areas, verification and auto-routing
+
+Every technician has a service `area` (a locality string like "Gangapur
+Road") and a `verified` flag. Admin adds new hires from the Team tab —
+they start unverified and offline, invisible to auto-routing and the
+technician job feed, until admin reviews and verifies them (which also
+brings them online).
+
+When a customer books a service, `create_booking` in `app.py` auto-picks
+a technician: a verified, online technician in the same area and
+category first, then any verified/online technician in that category,
+then any technician in that category at all (never a mismatched
+specialty) as a last resort. Admin can always override the pick from a
+booking's detail sheet, where the technician list is sorted with
+same-area matches first.
+
+## WebView Android apps (`rasoi_web_customer`, `rasoi_web_partner`, `rasoi_web_admin`)
+
+Three thin Flutter/WebView wrapper apps, one per role, each one loading the
+real web app above (`/customer`, `/technician`, `/admin`) inside a native
+Android shell instead of a browser tab. This is separate from the fuller
+native Flutter apps in `careplus_flutter`/`careplus_partner`/`careplus_admin`
+— these wrappers exist so the exact same server-rendered pages (and every
+future change to `customer.html`/`technician.html`/`admin.html`) show up in
+an installable APK with no rebuild required on the web side.
+
+Each app has one thing to configure before it's useful: `kBackendBaseUrl` at
+the top of `lib/main.dart`, currently a placeholder. Once this Flask app is
+deployed (see "Deploy it for real" above), set it to that public URL and
+rebuild:
+
+```bash
+cd rasoi_web_customer   # or rasoi_web_partner / rasoi_web_admin
+flutter build apk --release
+```
+
+Until `kBackendBaseUrl` is set, the app shows an in-app notice instead of a
+blank/broken WebView, explaining what to configure.
 
 ## API reference
 
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/api/health` | Check the server is up |
-| GET | `/api/bookings` | List all bookings, most recent first |
+| POST | `/api/auth/register` / `/api/auth/login` | Real JWT accounts — the customer app derives email/password from the phone number |
+| GET | `/api/appliances`, `/api/services` | The real catalog customer.html browses and prices bookings from |
+| GET | `/api/amc/plans`, `/api/amc/my-subscription` · POST `/api/amc/subscribe` | AMC plan browsing and subscription |
+| GET | `/api/bookings` | List bookings — only the caller's own with a Bearer token, all of them without one (what technician.html/admin.html use) |
 | GET | `/api/bookings/<id>` | Get one booking |
-| POST | `/api/bookings` | Create a booking `{category, service, price, bachatSlot?}` |
+| POST | `/api/bookings` | Create a booking — `{service_id}` (catalog price looked up server-side) or the legacy `{category, service, price, bachatSlot?}` shape |
 | PATCH | `/api/bookings/<id>/advance` | Move a booking to its next status |
+| PATCH | `/api/bookings/<id>/assign` | Assign or reassign the technician on a booking `{technician_id}` — what admin.html's booking detail sheet calls |
 | POST | `/api/bookings/<id>/rating` | Submit ratings `{serviceRating, techRating, raiseComplaint?, complaintText?}` |
 | GET | `/api/complaints` | List all complaints |
 | PATCH | `/api/complaints/<id>` | Update `{response?, status?}` |
 | GET | `/api/technicians` | List all technicians with live rating/job counts |
+| POST | `/api/technicians` | Admin adds a technician `{name, category, area}` — starts unverified and offline |
+| PATCH | `/api/technicians/<id>/verify` | Admin verifies a technician, bringing them online and into auto-routing |
 | GET | `/api/stats/overview` | KPIs for the admin dashboard |
 | POST | `/api/reset` | Reset all data back to seed state |

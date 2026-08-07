@@ -99,6 +99,7 @@ def booking_row_to_dict(row):
         "user_id": row["user_id"] if "user_id" in keys else None,
         "service_id": row["service_id"] if "service_id" in keys else None,
         "total_amount": row["total_amount"] if "total_amount" in keys else row["price"],
+        "area": row["area"] if "area" in keys else None,
     }
 
 
@@ -114,10 +115,13 @@ def complaint_row_to_dict(row):
 
 
 def technician_row_to_dict(row):
+    keys = row.keys()
     return {
         "id": row["id"],
         "name": row["name"],
         "category": row["category"],
+        "area": row["area"] if "area" in keys else "",
+        "verified": bool(row["verified"]) if "verified" in keys else True,
         "online": bool(row["online"]),
         "rating": round(row["rating"], 1),
         "ratingCount": row["rating_count"],
@@ -551,7 +555,8 @@ def create_booking():
     data = request.get_json(force=True, silent=True) or {}
     service_id = data.get("service_id")
     bachat_slot = data.get("bachatSlot")
-    technician_id = data.get("technicianId", "ramesh")
+    area = (data.get("area") or "").strip() or None
+    technician_id = data.get("technicianId")
 
     if service_id:
         conn = get_db()
@@ -573,15 +578,42 @@ def create_booking():
     total_amount = price
 
     conn = get_db()
+    if not technician_id:
+        # Auto-route to a verified, on-duty technician in the customer's own
+        # area first (fastest to reach them), falling back to any verified
+        # on-duty technician for the category, then to anyone at all so the
+        # NOT NULL technician_id column is always satisfiable.
+        match = None
+        if area:
+            match = conn.execute(
+                "SELECT id FROM technicians WHERE category = ? AND area = ? AND verified = 1 AND online = 1 LIMIT 1",
+                (category, area),
+            ).fetchone()
+        if not match:
+            match = conn.execute(
+                "SELECT id FROM technicians WHERE category = ? AND verified = 1 AND online = 1 LIMIT 1",
+                (category,),
+            ).fetchone()
+        if not match:
+            # No one for this category is online right now — still prefer a
+            # same-specialty technician (even offline/unverified) over an
+            # unrelated one; a mismatched specialty is worse than a wait.
+            match = conn.execute(
+                "SELECT id FROM technicians WHERE category = ? LIMIT 1", (category,)
+            ).fetchone()
+        if not match:
+            match = conn.execute("SELECT id FROM technicians LIMIT 1").fetchone()
+        technician_id = match["id"] if match else "ramesh"
+
     booking_id = next_id(conn, "order", "RC")
     ts = now()
     conn.execute(
         "INSERT INTO bookings (id, category, service, price, technician_id, customer_name, "
-        "status, bachat_slot, service_rating, tech_rating, created_at, updated_at, "
+        "status, bachat_slot, service_rating, tech_rating, area, created_at, updated_at, "
         "user_id, service_id, total_amount) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (booking_id, category, service, price, technician_id, request.user["name"],
-         "Requested", bachat_slot, None, None, ts, ts,
+         "Requested", bachat_slot, None, None, area, ts, ts,
          request.user["id"], service_id, total_amount),
     )
     conn.commit()
@@ -614,6 +646,37 @@ def advance_booking(booking_id):
             "UPDATE technicians SET jobs_completed = jobs_completed + 1 WHERE id = ?",
             (row["technician_id"],),
         )
+    conn.commit()
+    row = conn.execute("SELECT * FROM bookings WHERE id = ?", (booking_id,)).fetchone()
+    conn.close()
+    return jsonify(booking_row_to_dict(row))
+
+
+@app.route("/api/bookings/<booking_id>/assign", methods=["PATCH"])
+def assign_technician(booking_id):
+    """Called by the Admin app to assign or reassign which technician is on
+    a booking — e.g. routing a freshly requested job, or swapping in a
+    replacement if the original technician can't make it."""
+    data = request.get_json(force=True, silent=True) or {}
+    technician_id = data.get("technician_id")
+    if not technician_id:
+        return jsonify({"error": "technician_id is required"}), 400
+
+    conn = get_db()
+    booking = conn.execute("SELECT * FROM bookings WHERE id = ?", (booking_id,)).fetchone()
+    if not booking:
+        conn.close()
+        return jsonify({"error": "not found"}), 404
+    tech = conn.execute("SELECT * FROM technicians WHERE id = ?", (technician_id,)).fetchone()
+    if not tech:
+        conn.close()
+        return jsonify({"error": "Unknown technician_id"}), 400
+
+    new_status = "Accepted" if booking["status"] == "Requested" else booking["status"]
+    conn.execute(
+        "UPDATE bookings SET technician_id = ?, status = ?, updated_at = ? WHERE id = ?",
+        (technician_id, new_status, now(), booking_id),
+    )
     conn.commit()
     row = conn.execute("SELECT * FROM bookings WHERE id = ?", (booking_id,)).fetchone()
     conn.close()
@@ -709,6 +772,48 @@ def list_technicians():
     rows = conn.execute("SELECT * FROM technicians ORDER BY name").fetchall()
     conn.close()
     return jsonify([technician_row_to_dict(r) for r in rows])
+
+
+@app.route("/api/technicians", methods=["POST"])
+def create_technician():
+    """Called by the Admin app to add a new technician. New hires start
+    unverified and offline — they're excluded from auto-routing and from
+    the technician app's job feed until an admin verifies them."""
+    data = request.get_json(force=True, silent=True) or {}
+    name = (data.get("name") or "").strip()
+    category = (data.get("category") or "").strip()
+    area = (data.get("area") or "").strip()
+    if not name or not category or not area:
+        return jsonify({"error": "name, category and area are required"}), 400
+
+    conn = get_db()
+    tech_id = new_uuid_id("TECH")
+    conn.execute(
+        "INSERT INTO technicians (id, name, category, area, verified, online, rating, rating_count, jobs_completed) "
+        "VALUES (?,?,?,?,0,0,5.0,0,0)",
+        (tech_id, name, category, area),
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM technicians WHERE id = ?", (tech_id,)).fetchone()
+    conn.close()
+    return jsonify(technician_row_to_dict(row)), 201
+
+
+@app.route("/api/technicians/<technician_id>/verify", methods=["PATCH"])
+def verify_technician(technician_id):
+    """Called by the Admin app once it has checked a new technician's
+    documents/background — flips them verified and brings them online so
+    they start appearing in auto-routing and the job feed."""
+    conn = get_db()
+    row = conn.execute("SELECT * FROM technicians WHERE id = ?", (technician_id,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": "not found"}), 404
+    conn.execute("UPDATE technicians SET verified = 1, online = 1 WHERE id = ?", (technician_id,))
+    conn.commit()
+    row = conn.execute("SELECT * FROM technicians WHERE id = ?", (technician_id,)).fetchone()
+    conn.close()
+    return jsonify(technician_row_to_dict(row))
 
 
 # ---------------------------------------------------------------- stats

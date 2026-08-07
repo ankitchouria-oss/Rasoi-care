@@ -58,16 +58,7 @@ class CatalogScreen extends ConsumerWidget {
                           ],
                         ),
                       ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Eyebrow('from'),
-                          const SizedBox(height: 2),
-                          Text(Money.rupees(ref.read(repositoryProvider).servicesFor(a)[1].pricePaise),
-                              style: CareType.mono(context.scheme.onSurface,
-                                  size: 14, w: FontWeight.w600)),
-                        ],
-                      ),
+                      _fromPrice(context, ref, a),
                     ]),
                   ),
               ],
@@ -78,15 +69,31 @@ class CatalogScreen extends ConsumerWidget {
     );
   }
 
+  Widget _fromPrice(BuildContext context, WidgetRef ref, Appliance a) {
+    final services = ref.read(repositoryProvider).servicesFor(a);
+    if (services.isEmpty) {
+      return const StatusChip('Coming soon', height: 26);
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Eyebrow('from'),
+        const SizedBox(height: 2),
+        Text(Money.rupees(services[1].pricePaise),
+            style: CareType.mono(context.scheme.onSurface, size: 14, w: FontWeight.w600)),
+      ],
+    );
+  }
+
   String _blurb(Appliance a) => switch (a) {
         Appliance.chimney => 'Deep clean, suction loss, oil leak, auto-clean',
         Appliance.hob => 'Igniter, low flame, burner and knob replacement',
         Appliance.cooktop => 'Induction and glass-top faults, coil and sensor',
         Appliance.dishwasher => 'Not draining, not cleaning, error codes, install',
         Appliance.microwave => 'Magnetron, turntable, door switch, panel',
-        Appliance.refrigerator => 'Not cooling, gas refill, compressor, noise',
+        Appliance.refrigerator => 'Booking opens shortly — tap to get notified',
         Appliance.otg => 'Heating element, thermostat, timer',
-        Appliance.purifier => 'Filter change, RO membrane, leakage, AMC',
+        Appliance.purifier => 'Booking opens shortly — tap to get notified',
       };
 }
 
@@ -104,8 +111,17 @@ class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final services = ref.watch(repositoryProvider).servicesFor(widget.appliance);
+    final repo = ref.watch(repositoryProvider);
+    final detail = repo.applianceDetail(widget.appliance);
+
+    if (detail.comingSoon) {
+      return _ComingSoonScreen(appliance: widget.appliance, detail: detail);
+    }
+
+    final services = repo.servicesFor(widget.appliance);
     _selected ??= services.first;
+    final avgDurationMin =
+        services.firstWhere((s) => s.mostBooked, orElse: () => services.first).durationMin;
 
     return Scaffold(
       appBar: AppBar(
@@ -132,17 +148,18 @@ class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
                             fontSize: 64, color: context.scheme.primary)),
                   ),
                   const SizedBox(height: 16),
-                  Wrap(spacing: 8, children: const [
-                    StatusChip('★ 4.89 (3,102)', tone: ChipTone.success, height: 28),
-                    StatusChip('90 min avg', height: 28),
-                    StatusChip('All brands', height: 28),
+                  Wrap(spacing: 8, children: [
+                    StatusChip(
+                        '★ ${detail.rating} (${_thousands(detail.ratingCount)})',
+                        tone: ChipTone.success,
+                        height: 28),
+                    StatusChip('$avgDurationMin min avg', height: 28),
+                    const StatusChip('All brands', height: 28),
                   ]),
                   const SizedBox(height: 16),
-                  Text('${_short()} care', style: context.type.headlineMedium),
+                  Text(detail.heading, style: context.type.headlineMedium),
                   const SizedBox(height: 8),
-                  Text(
-                      'Suction loss, oil dripping, loud motor, auto-clean failure — diagnosed and fixed by technicians trained on all major brands.',
-                      style: context.type.bodyMedium),
+                  Text(detail.blurb, style: context.type.bodyMedium),
                   const SizedBox(height: 22),
                   _Segmented(
                     tabs: const ['Services', "What's included", 'Reviews'],
@@ -151,8 +168,8 @@ class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
                   ),
                   const SizedBox(height: 16),
                   if (_tab == 0) ..._servicesTab(services),
-                  if (_tab == 1) ..._includedTab(),
-                  if (_tab == 2) ..._reviewsTab(),
+                  if (_tab == 1) ..._includedTab(detail),
+                  if (_tab == 2) ..._reviewsTab(detail),
                 ],
               ),
             ),
@@ -184,7 +201,9 @@ class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
     );
   }
 
-  String _short() => widget.appliance.label.split(' ').last;
+  String _thousands(int n) => n
+      .toString()
+      .replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => ',');
 
   List<Widget> _servicesTab(List<ServiceItem> services) => [
         for (final s in services) ...[
@@ -232,22 +251,15 @@ class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
         ],
       ];
 
-  List<Widget> _includedTab() => [
+  List<Widget> _includedTab(ApplianceDetail detail) => [
         CareCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('In every deep clean',
-                  style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+              Text(detail.includedTitle,
+                  style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
               const SizedBox(height: 12),
-              for (final t in const [
-                'Baffle or mesh filters soaked and scrubbed',
-                'Blower wheel and motor housing degreased',
-                'Oil collector emptied and washed',
-                'Duct checked for blockage and leak',
-                'Suction reading before and after, logged in app',
-                'Floor sheeting and full cleanup',
-              ])
+              for (final t in detail.included)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 9),
                   child: Row(children: [
@@ -272,27 +284,25 @@ class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
                       fontWeight: FontWeight.w700,
                       color: context.scheme.error)),
               const SizedBox(height: 8),
-              Text(
-                  'Replacement filters, motor rewinding, control boards and duct extensions. These are quoted in the app before work starts.',
-                  style: context.type.bodySmall),
+              Text(detail.notIncluded, style: context.type.bodySmall),
             ],
           ),
         ),
       ];
 
-  List<Widget> _reviewsTab() => [
+  List<Widget> _reviewsTab(ApplianceDetail detail) => [
         CareCard(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Column(children: [
-                Text('4.89',
+                Text('${detail.rating}',
                     style: CareType.mono(context.scheme.onSurface,
                         size: 32, w: FontWeight.w600)),
                 Text('★★★★★',
                     style: TextStyle(color: context.scheme.secondary, fontSize: 12)),
                 const SizedBox(height: 5),
-                Text('3,102 ratings', style: context.type.bodySmall),
+                Text('${_thousands(detail.ratingCount)} ratings', style: context.type.bodySmall),
               ]),
               const SizedBox(width: 16),
               Expanded(
@@ -310,37 +320,78 @@ class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
           ),
         ),
         const SizedBox(height: 10),
-        for (final r in const [
-          ('PJ', 'Priya Joshi', 'Elica 90cm · 20 Jul',
-              'Suction went from 480 to 1,180 m³/hr on the app reading. Worth every rupee.'),
-          ('VN', 'Vikram Nair', 'Faber auto-clean · 09 Jul',
-              'Turned out to be a jammed heating coil, not a motor issue. He explained it instead of upselling.'),
-        ]) ...[
+        for (final r in detail.reviews) ...[
           CareCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(children: [
-                  Blob(r.$1, size: 34),
+                  Blob(r.initials, size: 34),
                   const SizedBox(width: 10),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(r.$2,
+                      Text(r.name,
                           style: const TextStyle(
                               fontSize: 12.5, fontWeight: FontWeight.w700)),
-                      Text(r.$3, style: context.type.bodySmall),
+                      Text(r.meta, style: context.type.bodySmall),
                     ],
                   ),
                 ]),
                 const SizedBox(height: 11),
-                Text(r.$4, style: context.type.bodySmall),
+                Text(r.quote, style: context.type.bodySmall),
               ],
             ),
           ),
           const SizedBox(height: 10),
         ],
       ];
+}
+
+// ============================================================ COMING SOON
+class _ComingSoonScreen extends StatelessWidget {
+  const _ComingSoonScreen({required this.appliance, required this.detail});
+  final Appliance appliance;
+  final ApplianceDetail detail;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(leading: BackButton(onPressed: context.pop), title: Text(appliance.label)),
+        body: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+            child: Column(
+              children: [
+                Container(
+                  height: 150,
+                  decoration: BoxDecoration(
+                      color: context.scheme.surfaceContainerHigh, borderRadius: Radii.rLg),
+                  alignment: Alignment.center,
+                  child: Text(appliance.glyph,
+                      style: TextStyle(fontSize: 64, color: context.scheme.primary)),
+                ),
+                const SizedBox(height: 16),
+                const StatusChip('Coming soon', height: 28),
+                const SizedBox(height: 16),
+                Text(detail.heading, style: context.type.headlineMedium),
+                const SizedBox(height: 8),
+                Text(detail.blurb, textAlign: TextAlign.center, style: context.type.bodyMedium),
+                const Spacer(),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("We'll notify you when this opens up"))),
+                    child: const Text('Notify me'),
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
+        ),
+      );
 }
 
 class _Segmented extends StatelessWidget {

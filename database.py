@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS technicians (
     id              TEXT PRIMARY KEY,
     name            TEXT NOT NULL,
     category        TEXT NOT NULL,
+    area            TEXT NOT NULL DEFAULT '',
+    verified        INTEGER NOT NULL DEFAULT 0,
     online          INTEGER NOT NULL DEFAULT 1,
     rating          REAL NOT NULL DEFAULT 5.0,
     rating_count    INTEGER NOT NULL DEFAULT 0,
@@ -40,6 +42,7 @@ CREATE TABLE IF NOT EXISTS bookings (
     bachat_slot     INTEGER,
     service_rating  INTEGER,
     tech_rating     INTEGER,
+    area            TEXT,
     created_at      TEXT NOT NULL,
     updated_at      TEXT NOT NULL
 );
@@ -214,33 +217,33 @@ def seed(conn):
         "DELETE FROM technicians; DELETE FROM counters;"
     )
     conn.execute(
-        "INSERT INTO technicians (id, name, category, online, rating, rating_count, jobs_completed) "
-        "VALUES (?,?,?,?,?,?,?)",
-        ("ramesh", "Ramesh Kumar", "RasoiSpark", 1, 4.8, 312, 312),
+        "INSERT INTO technicians (id, name, category, area, verified, online, rating, rating_count, jobs_completed) "
+        "VALUES (?,?,?,?,?,?,?,?,?)",
+        ("ramesh", "Ramesh Kumar", "RasoiSpark", "College Road", 1, 1, 4.8, 312, 312),
     )
-    for tid, name, category, online, rating, jobs in [
-        ("suresh", "Suresh Patil", "RasoiAir", 0, 4.6, 240),
-        ("deepak", "Deepak Verma", "RasoiBuilt", 1, 4.9, 150),
-        ("anjali", "Anjali Kulkarni", "RasoiSpark", 1, 4.7, 190),
+    for tid, name, category, area, online, rating, jobs in [
+        ("suresh", "Suresh Patil", "RasoiAir", "Gangapur Road", 0, 4.6, 240),
+        ("deepak", "Deepak Verma", "RasoiBuilt", "Indira Nagar", 1, 4.9, 150),
+        ("anjali", "Anjali Kulkarni", "RasoiSpark", "Panchavati", 1, 4.7, 190),
     ]:
         conn.execute(
-            "INSERT INTO technicians (id, name, category, online, rating, rating_count, jobs_completed) "
-            "VALUES (?,?,?,?,?,?,?)",
-            (tid, name, category, online, rating, jobs, jobs),
+            "INSERT INTO technicians (id, name, category, area, verified, online, rating, rating_count, jobs_completed) "
+            "VALUES (?,?,?,?,?,?,?,?,?)",
+            (tid, name, category, area, 1, online, rating, jobs, jobs),
         )
 
     ts = now()
     conn.execute(
         "INSERT INTO bookings (id, category, service, price, technician_id, customer_name, status, "
-        "bachat_slot, service_rating, tech_rating, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        "bachat_slot, service_rating, tech_rating, area, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
         ("RC-2291", "RasoiSpark", "Ignition Fix", 399, "ramesh", "Amit Sharma", "Completed",
-         None, 2, 2, ts, ts),
+         None, 2, 2, "College Road", ts, ts),
     )
     conn.execute(
         "INSERT INTO bookings (id, category, service, price, technician_id, customer_name, status, "
-        "bachat_slot, service_rating, tech_rating, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        "bachat_slot, service_rating, tech_rating, area, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
         ("RC-1987", "RasoiAir", "Deep Cleaning", 1600, "ramesh", "Amit Sharma", "Completed",
-         1, 5, 5, ts, ts),
+         1, 5, 5, "Gangapur Road", ts, ts),
     )
     conn.execute(
         "INSERT INTO complaints (id, booking_id, text, status, response, created_at) VALUES (?,?,?,?,?,?)",
@@ -267,6 +270,22 @@ def migrate_bookings_columns(conn):
     if "total_amount" not in cols:
         conn.execute("ALTER TABLE bookings ADD COLUMN total_amount INTEGER")
         conn.execute("UPDATE bookings SET total_amount = price WHERE total_amount IS NULL")
+    if "area" not in cols:
+        conn.execute("ALTER TABLE bookings ADD COLUMN area TEXT")
+    conn.commit()
+
+
+def migrate_technicians_columns(conn):
+    """Older rasoicare.db files predate the area/verification work."""
+    cols = {row["name"] for row in conn.execute("PRAGMA table_info(technicians)").fetchall()}
+    if "area" not in cols:
+        conn.execute("ALTER TABLE technicians ADD COLUMN area TEXT NOT NULL DEFAULT ''")
+    if "verified" not in cols:
+        conn.execute("ALTER TABLE technicians ADD COLUMN verified INTEGER NOT NULL DEFAULT 0")
+        # Technicians that already existed before this column shipped were
+        # already live and taking real jobs — treat them as verified rather
+        # than silently pulling them out of rotation.
+        conn.execute("UPDATE technicians SET verified = 1")
     conn.commit()
 
 
@@ -313,6 +332,7 @@ def init_db(reset=False):
     conn.executescript(SCHEMA)
     conn.commit()
     migrate_bookings_columns(conn)
+    migrate_technicians_columns(conn)
     seed_catalog(conn)
     seed_home_services(conn)
     row = conn.execute("SELECT COUNT(*) AS n FROM technicians").fetchone()
