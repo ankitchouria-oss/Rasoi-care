@@ -43,6 +43,7 @@ final router = GoRouter(
       builder: (_, __) => const PhoneScreen(),
       routes: [
         GoRoute(path: 'otp', builder: (_, __) => const OtpScreen()),
+        GoRoute(path: 'email', builder: (_, __) => const EmailAuthScreen()),
       ],
     ),
     GoRoute(path: '/register', builder: (_, __) => const RegisterScreen()),

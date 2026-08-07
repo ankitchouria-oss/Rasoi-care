@@ -30,5 +30,23 @@ class MockAuthService implements AuthService {
   }
 
   @override
+  Future<void> registerWithEmail({required String email, required String password}) async {
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    _signedIn = true;
+  }
+
+  @override
+  Future<void> signInWithEmail({required String email, required String password}) async {
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    _signedIn = true;
+  }
+
+  @override
+  Future<void> signInWithGoogle() async {
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    _signedIn = true;
+  }
+
+  @override
   Future<void> signOut() async => _signedIn = false;
 }

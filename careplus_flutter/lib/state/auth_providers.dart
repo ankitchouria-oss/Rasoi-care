@@ -19,12 +19,17 @@ class AuthFlowState {
     this.verificationId,
     this.sending = false,
     this.verifying = false,
+    this.submitting = false,
     this.error,
   });
   final String phone;
   final String? verificationId;
   final bool sending;
   final bool verifying;
+  /// Covers email/password and Google sign-in — separate from [sending]/
+  /// [verifying], which are phone-OTP-specific, so the two flows' spinners
+  /// never fight over the same flag.
+  final bool submitting;
   final String? error;
 
   AuthFlowState copyWith({
@@ -32,6 +37,7 @@ class AuthFlowState {
     String? verificationId,
     bool? sending,
     bool? verifying,
+    bool? submitting,
     String? error,
     bool clearError = false,
   }) =>
@@ -40,6 +46,7 @@ class AuthFlowState {
         verificationId: verificationId ?? this.verificationId,
         sending: sending ?? this.sending,
         verifying: verifying ?? this.verifying,
+        submitting: submitting ?? this.submitting,
         error: clearError ? null : (error ?? this.error),
       );
 }
@@ -88,6 +95,30 @@ class AuthFlowVM extends Notifier<AuthFlowState> {
       return false;
     } catch (_) {
       state = state.copyWith(verifying: false, error: 'Verification failed. Try again.');
+      return false;
+    }
+  }
+
+  Future<bool> registerWithEmail(String email, String password) =>
+      _submit(() => ref.read(authServiceProvider).registerWithEmail(email: email, password: password));
+
+  Future<bool> signInWithEmail(String email, String password) =>
+      _submit(() => ref.read(authServiceProvider).signInWithEmail(email: email, password: password));
+
+  Future<bool> signInWithGoogle() =>
+      _submit(() => ref.read(authServiceProvider).signInWithGoogle());
+
+  Future<bool> _submit(Future<void> Function() action) async {
+    state = state.copyWith(submitting: true, clearError: true);
+    try {
+      await action();
+      state = state.copyWith(submitting: false);
+      return true;
+    } on AuthException catch (e) {
+      state = state.copyWith(submitting: false, error: e.message);
+      return false;
+    } catch (_) {
+      state = state.copyWith(submitting: false, error: 'Something went wrong. Try again.');
       return false;
     }
   }

@@ -6,15 +6,24 @@
 // to MockAuthService so the app still works without any setup.
 //
 // To go live:
-//   1. Create a Firebase project at https://console.firebase.google.com
-//   2. Enable Authentication → Sign-in method → Phone
+//   1. Create (or open) a Firebase project at https://console.firebase.google.com
+//   2. Enable Authentication → Sign-in method → Email/Password, Google, and Phone
 //   3. From the project root: `dart pub global activate flutterfire_cli`
 //      then `flutterfire configure` — this OVERWRITES this file with your
 //      real projectId/apiKey/appId per platform, and (for Android) drops in
-//      google-services.json and wires the Gradle plugin automatically.
+//      google-services.json. This project doesn't need the google-services
+//      Gradle plugin — Firebase.initializeApp(options: ...) in main.dart
+//      configures everything programmatically, so you can also just copy
+//      the values by hand from Project settings → your Android app if you
+//      don't have the Firebase CLI available.
 //   4. For phone auth specifically, also add your app's SHA-1/SHA-256
 //      fingerprints in the Firebase console (Project settings → your Android
-//      app) or verification will fail even with a correct config.
+//      app) or verification will fail even with a correct config. The same
+//      fingerprint is used by Google Sign-in.
+//   5. For Google Sign-in, also set FirebaseConfig.googleServerClientId in
+//      lib/data/firebase/firebase_config.dart to the Web client ID shown
+//      under Authentication → Sign-in method → Google → Web SDK configuration
+//      if you hit a DEVELOPER_ERROR/sign_in_failed on Android.
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform, kIsWeb;
 

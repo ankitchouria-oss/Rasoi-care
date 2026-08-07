@@ -141,22 +141,36 @@ class ChoiceTag extends StatelessWidget {
 /// Floating-label text field, matching the prototype's fields.
 class CareField extends StatelessWidget {
   const CareField(this.label,
-      {super.key, this.initial, this.controller, this.keyboardType, this.maxLines = 1, this.prefix});
+      {super.key,
+      this.initial,
+      this.controller,
+      this.keyboardType,
+      this.maxLines = 1,
+      this.prefix,
+      this.obscureText = false,
+      this.suffix,
+      this.validator});
   final String label;
   final String? initial;
   final TextEditingController? controller;
   final TextInputType? keyboardType;
   final int maxLines;
   final Widget? prefix;
+  final bool obscureText;
+  final Widget? suffix;
+  final String? Function(String?)? validator;
 
   @override
   Widget build(BuildContext context) => TextFormField(
         controller: controller,
         initialValue: controller == null ? initial : null,
         keyboardType: keyboardType,
-        maxLines: maxLines,
+        maxLines: obscureText ? 1 : maxLines,
+        obscureText: obscureText,
+        validator: validator,
+        autovalidateMode: validator == null ? null : AutovalidateMode.onUserInteraction,
         style: context.type.bodyLarge!.copyWith(fontWeight: FontWeight.w600),
-        decoration: InputDecoration(labelText: label, prefixIcon: prefix),
+        decoration: InputDecoration(labelText: label, prefixIcon: prefix, suffixIcon: suffix),
       );
 }
 

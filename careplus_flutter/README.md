@@ -189,19 +189,25 @@ Everything the app needs from the outside world goes through
 `CareRepository` (`lib/data/mock_repository.dart`). To go live you write one
 class and change one line.
 
-**a. Auth — already wired, needs your project.** Phone-OTP sign-in is built
-in (`lib/data/firebase/`), chosen automatically:
+**a. Auth — already wired, needs your project.** Phone-OTP, email/password,
+and Google sign-in are all built in (`lib/data/firebase/`), chosen
+automatically:
 
 - `main.dart` calls `Firebase.initializeApp()` at startup inside a try/catch.
   If it fails — which it will, until you configure a real project — the app
   falls back to `MockAuthService` and everything works exactly as before
-  (auto-fills `4402`).
+  (phone auto-fills `4402`; email/Google "succeed" instantly without hitting
+  a network).
 - If it succeeds, `authServiceProvider` switches to `FirebaseAuthService`
   automatically (`lib/state/auth_providers.dart`) — no other code changes.
-  The Phone screen sends a real OTP via `verifyPhoneNumber`; the OTP screen
-  drops the simulated auto-fill and takes a real typed code; errors (wrong
-  code, invalid number, too many attempts) surface as a snackbar with a
-  human-readable message instead of a Firebase error code.
+  The Phone screen sends a real OTP via `verifyPhoneNumber`; "Continue with
+  Google" opens the real account picker; "Continue with email" (a new screen,
+  `EmailAuthScreen`) signs in or creates a real account via
+  `createUserWithEmailAndPassword`/`signInWithEmailAndPassword`. Errors
+  (wrong code, wrong password, email already in use, cancelled Google
+  picker, too many attempts, etc.) all surface as a snackbar with a
+  human-readable message instead of a raw Firebase error code — see
+  `FirebaseAuthService._friendly()`.
 
 **To activate it**, since I have no network access to reach Firebase's
 servers from here, you'll need to do this part yourself:
@@ -212,18 +218,35 @@ flutterfire configure       # run from the careplus_flutter/ root
 ```
 
 This overwrites the placeholder `lib/firebase_options.dart` with your real
-project's keys and (for Android) drops in `google-services.json`. Then, in the
-Firebase console: **Authentication → Sign-in method → Phone → enable**, and
-add your app's SHA-1/SHA-256 fingerprint under **Project settings → your
-Android app** — phone auth silently fails without this even with a correct
-config. `keytool -list -v -keystore ~/.android/debug.keystore -alias
-androiddebugkey -storepass android -keypass android` gets you the debug SHA-1
-for local testing.
+project's keys (for Android, `google-services.json` isn't required — this
+project deliberately configures Firebase programmatically via
+`FirebaseOptions` instead of the Gradle plugin, so no Gradle changes are
+needed either; running `flutterfire configure` or copying the four values
+by hand from **Project settings → your Android app** both work). Then, in
+the Firebase console:
 
-**b. Firestore / everything else.** Same seam as before —
-`CareRepository` in `lib/data/mock_repository.dart`. Write a
+- **Authentication → Sign-in method** → enable **Phone**, **Email/Password**,
+  and **Google**.
+- **Project settings → your Android app** → add your app's SHA-1/SHA-256
+  fingerprint. Both Phone auth and Google sign-in silently fail without this
+  even with a correct config. `keytool -list -v -keystore
+  ~/.android/debug.keystore -alias androiddebugkey -storepass android
+  -keypass android` gets you the debug SHA-1 for local testing.
+- If Google sign-in throws `DEVELOPER_ERROR` / `sign_in_failed` on Android,
+  set `FirebaseConfig.googleServerClientId` in
+  `lib/data/firebase/firebase_config.dart` to the **Web client ID** shown
+  under Authentication → Sign-in method → Google → Web SDK configuration.
+
+**b. Firestore.** `UserProfileService`
+(`lib/data/firebase/firestore_user_profile_service.dart`) writes a
+best-effort `users/{uid}` document — name, email, phone, owned appliances —
+the moment someone finishes the "about you" step in `RegisterScreen`, for
+every sign-in method. It's a no-op in mock mode and never blocks getting
+into the app if the write fails. Everything else the app reads (bookings,
+catalog, technicians, AMC) is still `CareRepository` in
+`lib/data/mock_repository.dart` — same seam as before: write a
 `FirestoreRepository implements CareRepository` and swap the one line in
-`lib/state/providers.dart`.
+`lib/state/providers.dart` when you're ready to move the rest off mock data.
 
 **c. Payments (Razorpay).** The seam is `PaymentScreen`'s "Pay" button
 (`lib/features/booking/booking_screens.dart`). Today it jumps straight to the
@@ -266,10 +289,11 @@ me the exact error — file, line, and message — rather than the whole log.
 - Prices, SLA windows, warranty length and cancellation terms in the mock data
   are **plausible placeholders**. Replace them with your real commercial terms
   before anyone sees a rupee figure.
-- Auth is now real (once you run `flutterfire configure`); every other
+- Auth (phone, email/password, Google) and the `users/{uid}` profile
+  document are real once you run `flutterfire configure`; every other
   surface — bookings, tracking, technician jobs, admin console — still reads
-  from `MockRepository`. Nothing persists across app restarts yet outside of
-  whatever Firebase Auth itself keeps signed-in.
+  from `MockRepository`. Nothing else persists across app restarts yet
+  outside of whatever Firebase Auth/Firestore itself keeps.
 - A production rollout — Firestore behind the rest of `CareRepository`, live
   payments, offline sync for technicians in the field, and role-based access
   for admin — is still real engineering. This is a strong, on-brand
