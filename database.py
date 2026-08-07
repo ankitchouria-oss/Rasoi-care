@@ -61,6 +61,26 @@ CREATE TABLE IF NOT EXISTS counters (
     value   INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS staff (
+    id              TEXT PRIMARY KEY,
+    name            TEXT NOT NULL,
+    phone           TEXT UNIQUE NOT NULL,
+    pin_hash        TEXT NOT NULL,
+    role            TEXT NOT NULL DEFAULT 'staff',
+    active          INTEGER NOT NULL DEFAULT 1,
+    created_at      TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS inventory (
+    id              TEXT PRIMARY KEY,
+    name            TEXT NOT NULL,
+    sku             TEXT NOT NULL,
+    category        TEXT NOT NULL,
+    quantity        INTEGER NOT NULL DEFAULT 0,
+    reorder_level   INTEGER NOT NULL DEFAULT 10,
+    updated_at      TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS users (
     id              TEXT PRIMARY KEY,
     email           TEXT UNIQUE NOT NULL,
@@ -197,6 +217,24 @@ AMC_PLANS_SEED = [
 ]
 
 
+from werkzeug.security import generate_password_hash
+
+STAFF_SEED = [
+    # (id, name, phone, pin, role)
+    ("staff_owner", "Priya Deshmukh", "9822000001", "1234", "owner"),
+    ("staff_ops", "Rahul Jadhav", "9822000002", "1234", "staff"),
+]
+
+INVENTORY_SEED = [
+    # (id, name, sku, category, quantity, reorder_level)
+    ("inv_baffle_filter", "Elica baffle filter 90cm", "ELF-90B", "RasoiAir", 8, 40),
+    ("inv_ro_membrane", "RO membrane 80 GPD", "ROM-80", "RasoiPure", 14, 40),
+    ("inv_hob_igniter", "Hob igniter — universal", "HBI-U", "RasoiSpark", 9, 30),
+    ("inv_dw_pump", "Dishwasher drain pump", "DWP-BSH", "RasoiWash", 26, 30),
+    ("inv_fridge_gas", "Fridge gas R600a (can)", "GAS-600", "RasoiChill", 48, 30),
+]
+
+
 def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -316,6 +354,38 @@ def seed_catalog(conn):
     conn.commit()
 
 
+def seed_staff(conn):
+    """Owner/staff demo logins for the admin web app, seeded once and left
+    alone afterwards (real invites shouldn't be wiped by a demo reset)."""
+    row = conn.execute("SELECT COUNT(*) AS n FROM staff").fetchone()
+    if row["n"] > 0:
+        return
+    ts = now()
+    for sid, name, phone, pin, role in STAFF_SEED:
+        conn.execute(
+            "INSERT INTO staff (id, name, phone, pin_hash, role, active, created_at) VALUES (?,?,?,?,?,1,?)",
+            (sid, name, phone, generate_password_hash(pin), role, ts),
+        )
+    conn.commit()
+
+
+def seed_inventory(conn):
+    """Spare-parts stock, seeded once. Left alone by /api/reset (which
+    only resets bookings/technicians/complaints) since real stock counts
+    shouldn't reset with the demo data."""
+    row = conn.execute("SELECT COUNT(*) AS n FROM inventory").fetchone()
+    if row["n"] > 0:
+        return
+    ts = now()
+    for iid, name, sku, category, quantity, reorder_level in INVENTORY_SEED:
+        conn.execute(
+            "INSERT INTO inventory (id, name, sku, category, quantity, reorder_level, updated_at) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (iid, name, sku, category, quantity, reorder_level, ts),
+        )
+    conn.commit()
+
+
 def seed_home_services(conn):
     """One-time defaults for the Home Services wallet/profile row. Left
     alone on subsequent boots (and by the RasoiCare /api/reset, which
@@ -334,6 +404,8 @@ def init_db(reset=False):
     migrate_bookings_columns(conn)
     migrate_technicians_columns(conn)
     seed_catalog(conn)
+    seed_staff(conn)
+    seed_inventory(conn)
     seed_home_services(conn)
     row = conn.execute("SELECT COUNT(*) AS n FROM technicians").fetchone()
     if reset or row["n"] == 0:

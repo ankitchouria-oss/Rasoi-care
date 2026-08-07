@@ -109,6 +109,36 @@ specialty) as a last resort. Admin can always override the pick from a
 booking's detail sheet, where the technician list is sorted with
 same-area matches first.
 
+### Admin: staff accounts, reports and stock
+
+`/admin` is now gated by a real sign-in screen — phone + PIN, backed by a
+`staff` table (separate from the customer `users` table). Two roles:
+
+- **Owner** — sees everything, including the Reports tab's Financial P&amp;L
+  card, and can invite/suspend/reinstate staff and promote/demote roles
+  from the Settings tab.
+- **Staff** — sees Overview, Bookings, Team, Reports (minus P&amp;L), and
+  Stock, but the Settings tab is read-only (no invite button, no role
+  controls).
+
+Demo logins (seeded once, left alone by `/api/reset`): **Owner** —
+`9822000001` / PIN `1234`. **Staff** — `9822000002` / PIN `1234`.
+
+The **Reports** tab is built entirely from real data — no mock numbers —
+switchable between week/month/quarter: a revenue trend bar chart, revenue
+by appliance category, a technician leaderboard (jobs + revenue in the
+period), and a complaint status breakdown. The owner-only P&amp;L
+(gross revenue, technician payout, net margin) uses one clearly-labeled
+assumption — a 65% payout rate (`TECH_PAYOUT_RATE` in `app.py`) — since
+there's no real payroll ledger to draw from; everything else on the tab
+is a direct aggregation of the same `bookings`/`complaints`/`technicians`
+tables the rest of the app uses.
+
+The **Stock** tab now tracks a real `inventory` table (spare parts by
+SKU, quantity, reorder level) instead of a hardcoded illustrative list —
+admin/staff can add items and restock them, and a banner surfaces
+anything below its reorder level.
+
 ## WebView Android apps (`rasoi_web_customer`, `rasoi_web_partner`, `rasoi_web_admin`)
 
 Three thin Flutter/WebView wrapper apps, one per role, each one loading the
@@ -151,5 +181,14 @@ blank/broken WebView, explaining what to configure.
 | GET | `/api/technicians` | List all technicians with live rating/job counts |
 | POST | `/api/technicians` | Admin adds a technician `{name, category, area}` — starts unverified and offline |
 | PATCH | `/api/technicians/<id>/verify` | Admin verifies a technician, bringing them online and into auto-routing |
+| POST | `/api/staff/login` | Owner/staff sign-in `{phone, pin}` — returns a staff JWT (separate from customer auth) |
+| GET | `/api/staff/me` | Current staff account (requires staff Bearer token) |
+| GET | `/api/staff` | List owner/staff accounts (requires staff Bearer token) |
+| POST | `/api/staff` | Owner-only: invite a staff member `{name, phone, pin, role}` |
+| PATCH | `/api/staff/<id>` | Owner-only: change `{role, active}` |
+| GET | `/api/inventory` | List spare-parts stock |
+| POST | `/api/inventory` | Add a stock item `{name, sku, category, quantity, reorderLevel}` (requires staff Bearer token) |
+| PATCH | `/api/inventory/<id>` | Update `{quantity, reorderLevel}` (requires staff Bearer token) |
 | GET | `/api/stats/overview` | KPIs for the admin dashboard |
+| GET | `/api/stats/reports?period=week\|month\|quarter` | Revenue/rating trends, technician leaderboard, complaint breakdown, owner-only P&L (requires staff Bearer token) |
 | POST | `/api/reset` | Reset all data back to seed state |
