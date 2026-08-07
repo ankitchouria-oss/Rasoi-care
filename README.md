@@ -40,18 +40,25 @@ with the same starting data used across the prototype apps.
 
 ## Deploy it for real (so separate phones can reach it)
 
-Any host that runs Python works. **Render** has the simplest free path:
+Any host that runs Python works. **Render** has the simplest free path,
+and this repo ships a `render.yaml` blueprint so it's a one-click deploy
+— no manual build/start command entry needed:
 
-1. Put this folder in a GitHub repo (or use Render's "deploy from a
-   zip"/manual upload if you don't want to use git).
-2. On [render.com](https://render.com) → **New → Web Service** → connect
-   the repo.
-3. Render auto-detects `requirements.txt` and `Procfile` — leave build
-   command as `pip install -r requirements.txt` and start command as
-   `gunicorn app:app --bind 0.0.0.0:$PORT` (already set in `Procfile`).
-4. Deploy. Render gives you a public URL like
+1. Click **[Deploy to Render](https://render.com/deploy?repo=https://github.com/ankitchouria-oss/Rasoi-care)**
+   (sign in with GitHub if prompted — this step has to happen in your
+   own Render account, nobody else can do it for you).
+2. Render reads `render.yaml`, provisions a free web service named
+   `rasoicare-backend`, and generates a random `JWT_SECRET` for you.
+3. Click **Apply** / **Create Web Service**. First deploy takes a
+   couple of minutes.
+4. Render gives you a public URL like
    `https://rasoicare-backend.onrender.com`.
 5. Test it from anywhere: `curl https://rasoicare-backend.onrender.com/api/health`
+
+Prefer doing it by hand instead of the blueprint? Same result:
+**New → Web Service** → connect this repo → Render auto-detects
+`requirements.txt` and `Procfile`, so the build/start commands are
+already right — just click Deploy.
 
 **Railway** and **Fly.io** work the same way (both read `Procfile` /
 auto-detect Flask). Pick whichever you already have an account with.
