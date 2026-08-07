@@ -31,8 +31,12 @@ class HomeScreen extends ConsumerWidget {
                           Eyebrow('Serving'),
                           const SizedBox(height: 3),
                           Row(children: [
-                            Text('Gangapur Road, Nashik',
-                                style: context.type.titleMedium),
+                            Flexible(
+                              child: Text('Gangapur Road, Nashik',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: context.type.titleMedium),
+                            ),
                             const SizedBox(width: 5),
                             const Icon(Icons.expand_more, size: 16),
                           ]),
@@ -332,10 +336,17 @@ class _CategoryTile extends StatelessWidget {
               Text(appliance.glyph,
                   style: TextStyle(fontSize: 20, color: context.scheme.primary)),
               const SizedBox(height: 7),
-              Text(_short(appliance),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                      fontSize: 11, fontWeight: FontWeight.w600, height: 1.2)),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(_short(appliance),
+                      maxLines: 1,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                          fontSize: 11, fontWeight: FontWeight.w600, height: 1.2)),
+                ),
+              ),
             ],
           ),
         ),
