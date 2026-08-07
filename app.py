@@ -160,6 +160,30 @@ def service_row_to_dict(row):
     }
 
 
+def staff_row_to_dict(row):
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "phone": row["phone"],
+        "role": row["role"],
+        "active": bool(row["active"]),
+        "createdAt": row["created_at"],
+    }
+
+
+def inventory_row_to_dict(row):
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "sku": row["sku"],
+        "category": row["category"],
+        "quantity": row["quantity"],
+        "reorderLevel": row["reorder_level"],
+        "lowStock": row["quantity"] < row["reorder_level"],
+        "updatedAt": row["updated_at"],
+    }
+
+
 def amc_plan_row_to_dict(row):
     return {
         "id": row["id"],
@@ -229,6 +253,133 @@ def require_auth(fn):
         request.user = row
         return fn(*args, **kwargs)
     return wrapper
+
+
+def generate_staff_token(staff_id):
+    payload = {
+        "sub": staff_id,
+        "typ": "staff",
+        "exp": datetime.now(timezone.utc) + timedelta(days=JWT_EXPIRY_DAYS),
+        "iat": datetime.now(timezone.utc),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def decode_staff_token(token):
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        if payload.get("typ") != "staff":
+            return None
+        return payload.get("sub")
+    except jwt.PyJWTError:
+        return None
+
+
+def require_staff_auth(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        token = get_bearer_token()
+        if not token:
+            return jsonify({"error": "Unauthorized", "message": "Missing bearer token"}), 401
+        staff_id = decode_staff_token(token)
+        if not staff_id:
+            return jsonify({"error": "Unauthorized", "message": "Invalid or expired token"}), 401
+        conn = get_db()
+        row = conn.execute("SELECT * FROM staff WHERE id = ?", (staff_id,)).fetchone()
+        conn.close()
+        if not row or not row["active"]:
+            return jsonify({"error": "Unauthorized", "message": "Staff account not found or inactive"}), 401
+        request.staff = row
+        return fn(*args, **kwargs)
+    return wrapper
+
+
+def require_owner(fn):
+    @wraps(fn)
+    @require_staff_auth
+    def wrapper(*args, **kwargs):
+        if request.staff["role"] != "owner":
+            return jsonify({"error": "Forbidden", "message": "Owner role required"}), 403
+        return fn(*args, **kwargs)
+    return wrapper
+
+
+@app.route("/api/staff/login", methods=["POST"])
+def staff_login():
+    data = request.get_json(force=True, silent=True) or {}
+    phone = (data.get("phone") or "").strip()
+    pin = data.get("pin") or ""
+    conn = get_db()
+    row = conn.execute("SELECT * FROM staff WHERE phone = ?", (phone,)).fetchone()
+    conn.close()
+    if not row or not row["active"] or not check_password_hash(row["pin_hash"], pin):
+        return jsonify({"error": "Invalid phone or PIN"}), 401
+    return jsonify({"token": generate_staff_token(row["id"]), "staff": staff_row_to_dict(row)})
+
+
+@app.route("/api/staff/me", methods=["GET"])
+@require_staff_auth
+def staff_me():
+    return jsonify(staff_row_to_dict(request.staff))
+
+
+@app.route("/api/staff", methods=["GET"])
+@require_staff_auth
+def list_staff():
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM staff ORDER BY name").fetchall()
+    conn.close()
+    return jsonify([staff_row_to_dict(r) for r in rows])
+
+
+@app.route("/api/staff", methods=["POST"])
+@require_owner
+def invite_staff():
+    data = request.get_json(force=True, silent=True) or {}
+    name = (data.get("name") or "").strip()
+    phone = (data.get("phone") or "").strip()
+    pin = data.get("pin") or ""
+    role = data.get("role") or "staff"
+    if not name or not phone or len(pin) < 4:
+        return jsonify({"error": "name, phone, and a pin of at least 4 digits are required"}), 400
+    if role not in ("owner", "staff"):
+        return jsonify({"error": "role must be 'owner' or 'staff'"}), 400
+
+    conn = get_db()
+    existing = conn.execute("SELECT id FROM staff WHERE phone = ?", (phone,)).fetchone()
+    if existing:
+        conn.close()
+        return jsonify({"error": "A staff account with this phone already exists"}), 409
+    staff_id = new_uuid_id("STF")
+    conn.execute(
+        "INSERT INTO staff (id, name, phone, pin_hash, role, active, created_at) VALUES (?,?,?,?,?,1,?)",
+        (staff_id, name, phone, generate_password_hash(pin), role, now()),
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM staff WHERE id = ?", (staff_id,)).fetchone()
+    conn.close()
+    return jsonify(staff_row_to_dict(row)), 201
+
+
+@app.route("/api/staff/<staff_id>", methods=["PATCH"])
+@require_owner
+def update_staff(staff_id):
+    data = request.get_json(force=True, silent=True) or {}
+    conn = get_db()
+    row = conn.execute("SELECT * FROM staff WHERE id = ?", (staff_id,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": "not found"}), 404
+    role = data.get("role", row["role"])
+    active = int(data["active"]) if "active" in data else row["active"]
+    if role not in ("owner", "staff"):
+        conn.close()
+        return jsonify({"error": "role must be 'owner' or 'staff'"}), 400
+    conn.execute("UPDATE staff SET role = ?, active = ? WHERE id = ?", (role, active, staff_id))
+    conn.commit()
+    row = conn.execute("SELECT * FROM staff WHERE id = ?", (staff_id,)).fetchone()
+    conn.close()
+    return jsonify(staff_row_to_dict(row))
 
 
 @app.route("/api/auth/register", methods=["POST"])
@@ -816,6 +967,68 @@ def verify_technician(technician_id):
     return jsonify(technician_row_to_dict(row))
 
 
+# ---------------------------------------------------------------- inventory
+@app.route("/api/inventory", methods=["GET"])
+def list_inventory():
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM inventory ORDER BY name").fetchall()
+    conn.close()
+    return jsonify([inventory_row_to_dict(r) for r in rows])
+
+
+@app.route("/api/inventory", methods=["POST"])
+@require_staff_auth
+def create_inventory_item():
+    data = request.get_json(force=True, silent=True) or {}
+    name = (data.get("name") or "").strip()
+    sku = (data.get("sku") or "").strip()
+    category = (data.get("category") or "").strip()
+    try:
+        quantity = int(data.get("quantity", 0))
+        reorder_level = int(data.get("reorderLevel", 10))
+    except (TypeError, ValueError):
+        return jsonify({"error": "quantity and reorderLevel must be numbers"}), 400
+    if not name or not sku or not category:
+        return jsonify({"error": "name, sku and category are required"}), 400
+
+    conn = get_db()
+    item_id = new_uuid_id("INV")
+    conn.execute(
+        "INSERT INTO inventory (id, name, sku, category, quantity, reorder_level, updated_at) "
+        "VALUES (?,?,?,?,?,?,?)",
+        (item_id, name, sku, category, quantity, reorder_level, now()),
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM inventory WHERE id = ?", (item_id,)).fetchone()
+    conn.close()
+    return jsonify(inventory_row_to_dict(row)), 201
+
+
+@app.route("/api/inventory/<item_id>", methods=["PATCH"])
+@require_staff_auth
+def update_inventory_item(item_id):
+    data = request.get_json(force=True, silent=True) or {}
+    conn = get_db()
+    row = conn.execute("SELECT * FROM inventory WHERE id = ?", (item_id,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": "not found"}), 404
+    try:
+        quantity = int(data["quantity"]) if "quantity" in data else row["quantity"]
+        reorder_level = int(data["reorderLevel"]) if "reorderLevel" in data else row["reorder_level"]
+    except (TypeError, ValueError):
+        conn.close()
+        return jsonify({"error": "quantity and reorderLevel must be numbers"}), 400
+    conn.execute(
+        "UPDATE inventory SET quantity = ?, reorder_level = ?, updated_at = ? WHERE id = ?",
+        (quantity, reorder_level, now(), item_id),
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM inventory WHERE id = ?", (item_id,)).fetchone()
+    conn.close()
+    return jsonify(inventory_row_to_dict(row))
+
+
 # ---------------------------------------------------------------- stats
 @app.route("/api/stats/overview", methods=["GET"])
 def stats_overview():
@@ -839,6 +1052,104 @@ def stats_overview():
         "onlineTechnicians": online_techs,
         "totalTechnicians": total_techs,
     })
+
+
+# ---------------------------------------------------------------- reports
+PERIOD_DAYS = {"week": 7, "month": 30, "quarter": 90}
+TECH_PAYOUT_RATE = 0.65  # assumed share of revenue paid out to technicians — not a real ledger figure
+
+
+@app.route("/api/stats/reports", methods=["GET"])
+@require_staff_auth
+def stats_reports():
+    period = request.args.get("period", "week")
+    days = PERIOD_DAYS.get(period, 7)
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat(timespec="seconds") + "Z"
+
+    conn = get_db()
+    bookings = conn.execute(
+        "SELECT * FROM bookings WHERE created_at >= ? ORDER BY created_at", (cutoff,)
+    ).fetchall()
+    complaints = conn.execute(
+        "SELECT * FROM complaints WHERE created_at >= ?", (cutoff,)
+    ).fetchall()
+    technicians = conn.execute("SELECT * FROM technicians").fetchall()
+    conn.close()
+
+    completed = [b for b in bookings if b["status"] == "Completed"]
+
+    revenue_by_day = {}
+    rating_sum_by_day = {}
+    rating_count_by_day = {}
+    for b in completed:
+        day = b["updated_at"][:10]
+        amount = b["total_amount"] if "total_amount" in b.keys() and b["total_amount"] is not None else b["price"]
+        revenue_by_day[day] = revenue_by_day.get(day, 0) + amount
+        if b["service_rating"] is not None:
+            rating_sum_by_day[day] = rating_sum_by_day.get(day, 0) + b["service_rating"]
+            rating_count_by_day[day] = rating_count_by_day.get(day, 0) + 1
+    revenue_trend = [{"date": d, "revenue": v} for d, v in sorted(revenue_by_day.items())]
+    rating_trend = [
+        {"date": d, "avgRating": round(rating_sum_by_day[d] / rating_count_by_day[d], 2)}
+        for d in sorted(rating_count_by_day)
+    ]
+
+    revenue_by_category = {}
+    for b in completed:
+        amount = b["total_amount"] if "total_amount" in b.keys() and b["total_amount"] is not None else b["price"]
+        revenue_by_category[b["category"]] = revenue_by_category.get(b["category"], 0) + amount
+    revenue_by_category = [
+        {"category": c, "revenue": v} for c, v in sorted(revenue_by_category.items(), key=lambda kv: -kv[1])
+    ]
+
+    jobs_by_tech = {}
+    revenue_by_tech = {}
+    for b in completed:
+        amount = b["total_amount"] if "total_amount" in b.keys() and b["total_amount"] is not None else b["price"]
+        jobs_by_tech[b["technician_id"]] = jobs_by_tech.get(b["technician_id"], 0) + 1
+        revenue_by_tech[b["technician_id"]] = revenue_by_tech.get(b["technician_id"], 0) + amount
+    leaderboard = sorted(
+        [
+            {
+                "id": t["id"],
+                "name": t["name"],
+                "jobsInPeriod": jobs_by_tech.get(t["id"], 0),
+                "revenueInPeriod": revenue_by_tech.get(t["id"], 0),
+                "rating": round(t["rating"], 1),
+            }
+            for t in technicians
+        ],
+        key=lambda x: -x["revenueInPeriod"],
+    )
+
+    complaint_status_breakdown = {}
+    for c in complaints:
+        complaint_status_breakdown[c["status"]] = complaint_status_breakdown.get(c["status"], 0) + 1
+
+    gross_revenue = sum(revenue_by_day.values())
+    result = {
+        "period": period,
+        "revenueTrend": revenue_trend,
+        "ratingTrend": rating_trend,
+        "revenueByCategory": revenue_by_category,
+        "technicianLeaderboard": leaderboard,
+        "complaintStatusBreakdown": [
+            {"status": s, "count": n} for s, n in complaint_status_breakdown.items()
+        ],
+        "grossRevenue": gross_revenue,
+        "completedJobs": len(completed),
+        "isOwner": request.staff["role"] == "owner",
+        "pnl": None,
+    }
+    if request.staff["role"] == "owner":
+        payout = round(gross_revenue * TECH_PAYOUT_RATE)
+        result["pnl"] = {
+            "grossRevenue": gross_revenue,
+            "technicianPayout": payout,
+            "netMargin": gross_revenue - payout,
+            "payoutRateAssumed": TECH_PAYOUT_RATE,
+        }
+    return jsonify(result)
 
 
 # ---------------------------------------------------------------- reset (demo convenience)

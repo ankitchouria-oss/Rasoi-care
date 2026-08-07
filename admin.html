@@ -292,13 +292,30 @@ body{
 </head>
 <body>
 <div class="appwrap" id="vp">
+
+      <section class="screen active" id="staffLogin">
+        <div style="height:10px"></div>
+        <div class="scroll pad pb" style="justify-content:center;flex:1;display:flex;flex-direction:column">
+          <p class="eyebrow">Rasoi Care</p>
+          <h1 class="display" style="font-size:26px;margin-top:6px">Operations sign in</h1>
+          <p class="sub" style="margin-top:8px">Owner and staff accounts only.</p>
+          <label class="field" style="margin-top:24px"><input id="staffPhoneInput" placeholder=" " inputmode="tel"><span>Phone number</span></label>
+          <label class="field" style="margin-top:14px"><input id="staffPinInput" placeholder=" " type="password" inputmode="numeric" maxlength="6"><span>PIN</span></label>
+          <button class="btn btn-p btn-block" style="margin-top:18px" onclick="submitStaffLogin()">Sign in</button>
+          <p class="tiny muted" style="margin-top:16px;line-height:1.6">Demo — Owner: 9822000001 · Staff: 9822000002 · PIN 1234</p>
+        </div>
+      </section>
+
       <section class="screen" id="admin">
         <div style="height:10px"></div>
         <div class="pad between" style="padding-bottom:14px">
-          <div><p class="eyebrow">Rasoi Care operations</p><b style="font-size:16px;letter-spacing:-.02em">Nashik cluster</b></div>
-          <div class="row" style="gap:9px"><span class="chip" style="height:32px">Today ▾</span><button class="iconbtn" onclick="go('profile')">←</button></div>
+          <div><p class="eyebrow">Rasoi Care operations</p><b style="font-size:16px;letter-spacing:-.02em" id="adminStaffName">—</b></div>
+          <div class="row" style="gap:9px"><button class="iconbtn" onclick="logout()" title="Sign out">⎋</button></div>
         </div>
-        <div class="pad"><div class="seg"><button class="on" onclick="tabSwap(this,'adOps')">Overview</button><button onclick="tabSwap(this,'adBook')">Bookings</button><button onclick="tabSwap(this,'adTeam')">Team</button><button onclick="tabSwap(this,'adStock')">Stock</button></div></div>
+        <div class="pad">
+          <div class="seg"><button class="on" onclick="tabSwap(this,'adOps')">Overview</button><button onclick="tabSwap(this,'adBook')">Bookings</button><button onclick="tabSwap(this,'adTeam')">Team</button></div>
+          <div class="seg" style="margin-top:8px"><button onclick="tabSwap(this,'adReports')">Reports</button><button onclick="tabSwap(this,'adStock')">Stock</button><button onclick="tabSwap(this,'adSettings')">Settings</button></div>
+        </div>
 
         <div class="scroll pad pb" style="margin-top:16px">
           <!-- overview -->
@@ -336,7 +353,10 @@ body{
           <!-- bookings -->
           <div id="adBook" style="display:none">
             <div class="hscroll" style="margin-bottom:14px">
-              <button class="chip on">All <span id="adBookCount">0</span></button>
+              <button class="chip on" data-filter="all" onclick="bookFilterPick(this)">All <span id="fCountAll">0</span></button>
+              <button class="chip" data-filter="requested" onclick="bookFilterPick(this)">Requested <span id="fCountRequested">0</span></button>
+              <button class="chip" data-filter="active" onclick="bookFilterPick(this)">In progress <span id="fCountActive">0</span></button>
+              <button class="chip" data-filter="closed" onclick="bookFilterPick(this)">Closed <span id="fCountClosed">0</span></button>
             </div>
             <div class="stack" id="adBookList"></div>
           </div>
@@ -353,12 +373,47 @@ body{
 
           <!-- stock -->
           <div id="adStock" style="display:none">
-            <div class="card card-p" style="background:var(--signal-soft);border-color:transparent;margin-bottom:12px">
-              <b style="font-size:13px;color:var(--signal)">3 SKUs below reorder level</b>
-              <p class="tiny" style="margin:6px 0 0;color:var(--ink-2)">At the current burn rate the Ashok Nagar hub runs dry in 4 days.</p>
-              <button class="btn btn-o btn-sm" style="margin-top:11px" onclick="toast('Purchase order drafted')">Raise purchase order</button>
+            <div class="card card-p" id="stockAlertCard" style="display:none;background:var(--signal-soft);border-color:transparent;margin-bottom:12px"></div>
+            <button class="btn btn-o btn-block" style="margin-bottom:12px" onclick="openAddStockItem()">+ Add stock item</button>
+            <div class="stack" id="adStockList"></div>
+          </div>
+
+          <!-- reports -->
+          <div id="adReports" style="display:none">
+            <div class="seg" style="max-width:280px"><button class="on" onclick="reportsPeriodPick(this,'week')">Week</button><button onclick="reportsPeriodPick(this,'month')">Month</button><button onclick="reportsPeriodPick(this,'quarter')">Quarter</button></div>
+
+            <div class="grid2" style="margin-top:14px">
+              <div class="stat"><p class="eyebrow">Revenue</p><b id="repRevenue">₹0</b></div>
+              <div class="stat"><p class="eyebrow">Jobs completed</p><b id="repJobs">0</b></div>
             </div>
-            <div class="stack stagger" id="adStockList"></div>
+
+            <div class="card card-p" style="margin-top:12px">
+              <div class="between"><b style="font-size:13.5px">Revenue trend</b><span class="mono muted" id="repTrendRange"></span></div>
+              <div class="row" style="align-items:flex-end;gap:6px;height:96px;margin-top:16px" id="repTrendBars"></div>
+            </div>
+
+            <div class="sect"><h3>Revenue by category</h3></div>
+            <div class="stack" id="repCategoryList"></div>
+
+            <div class="sect"><h3>Technician leaderboard</h3></div>
+            <div class="stack" id="repLeaderboard"></div>
+
+            <div class="sect"><h3>Complaints</h3></div>
+            <div class="stack" id="repComplaints"></div>
+
+            <div id="repPnlWrap"></div>
+          </div>
+
+          <!-- settings -->
+          <div id="adSettings" style="display:none">
+            <div class="card card-p row" style="margin-bottom:14px">
+              <div class="avatar" style="width:44px;height:44px;flex:0 0 44px;font-size:13px" id="meInitials">--</div>
+              <div style="flex:1"><b style="font-size:14px" id="meName">—</b><p class="tiny muted" style="margin:2px 0 0" id="meRole">—</p></div>
+              <button class="btn btn-o btn-sm" onclick="logout()">Sign out</button>
+            </div>
+            <div class="sect"><h3>Team &amp; access</h3></div>
+            <button class="btn btn-o btn-block" style="margin-bottom:12px" id="inviteStaffBtn" onclick="openInviteStaff()">+ Invite staff</button>
+            <div class="stack" id="adStaffList"></div>
           </div>
         </div>
       </section>
@@ -376,28 +431,109 @@ body{
   <div class="sheet-bg" onclick="closeSheet()"></div>
   <div class="sheet-body"><div class="grabber"></div><div id="sheetAddTechBody"></div></div>
 </div>
+<div class="sheet" id="sheetAddStock">
+  <div class="sheet-bg" onclick="closeSheet()"></div>
+  <div class="sheet-body"><div class="grabber"></div><div id="sheetAddStockBody"></div></div>
+</div>
+<div class="sheet" id="sheetInviteStaff">
+  <div class="sheet-bg" onclick="closeSheet()"></div>
+  <div class="sheet-body"><div class="grabber"></div><div id="sheetInviteStaffBody"></div></div>
+</div>
 
 <div class="toast" id="toast"><span>✓</span><span id="toastMsg"></span></div>
 </div>
 <script>
 
 const API_BASE = window.location.origin;
-const STATE = { bookings: [], complaints: [], technicians: [] };
+const TECH_CATEGORIES=['RasoiAir','RasoiSpark','RasoiBuilt','RasoiWash','RasoiChill','RasoiPure'];
+const SELECT_STYLE = "width:100%;height:48px;margin-top:8px;border-radius:var(--r-md);border:1.5px solid var(--line);background:var(--surface);color:var(--ink);font-size:13.5px;font-weight:600;padding:0 12px";
+const STATE = { bookings: [], complaints: [], technicians: [], inventory: [], staff: null, reportsPeriod: 'week', bookFilter: 'all' };
+
 async function apiGet(path){ const r = await fetch(API_BASE+path); if(!r.ok) throw new Error('GET '+path+' '+r.status); return r.json(); }
-async function apiPatch(path, body){ const r = await fetch(API_BASE+path, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{}) }); if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.error||('PATCH '+path+' '+r.status)); } return r.json(); }
 async function apiPost(path, body){ const r = await fetch(API_BASE+path, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{}) }); if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.error||('POST '+path+' '+r.status)); } return r.json(); }
+async function apiPatch(path, body){ const r = await fetch(API_BASE+path, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{}) }); if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.error||('PATCH '+path+' '+r.status)); } return r.json(); }
+
+function authHeaders(){ const t = localStorage.getItem('adminToken'); return t ? {'Authorization':'Bearer '+t} : {}; }
+async function apiGetAuth(path){
+  const r = await fetch(API_BASE+path, { headers: authHeaders() });
+  if(r.status===401){ logout(); throw new Error('Session expired'); }
+  if(!r.ok) throw new Error('GET '+path+' '+r.status);
+  return r.json();
+}
+async function apiPostAuth(path, body){
+  const r = await fetch(API_BASE+path, { method:'POST', headers:{'Content-Type':'application/json', ...authHeaders()}, body: JSON.stringify(body||{}) });
+  if(r.status===401){ logout(); throw new Error('Session expired'); }
+  if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.error||('POST '+path+' '+r.status)); }
+  return r.json();
+}
+async function apiPatchAuth(path, body){
+  const r = await fetch(API_BASE+path, { method:'PATCH', headers:{'Content-Type':'application/json', ...authHeaders()}, body: JSON.stringify(body||{}) });
+  if(r.status===401){ logout(); throw new Error('Session expired'); }
+  if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.error||('PATCH '+path+' '+r.status)); }
+  return r.json();
+}
 
 function toast(m){const t=document.getElementById('toast');document.getElementById('toastMsg').textContent=m;t.classList.add('show');clearTimeout(t._x);t._x=setTimeout(()=>t.classList.remove('show'),2400);}
 function chipPick(el){[...el.parentElement.children].forEach(c=>c.classList&&c.classList.remove('on'));el.classList.add('on');}
-function tabSwap(btn,show){
-  chipPick(btn);
-  const wrap=btn.closest('.screen');
-  const ids=[...btn.parentElement.children].map(b=>b.getAttribute('onclick').match(/'([^']+)'\)$/)[1]);
-  ids.forEach(i=>{const n=wrap.querySelector('#'+i);if(n)n.style.display=i===show?'':'none';});
+function initials(name){ return name.split(' ').map(p=>p[0]).slice(0,2).join('').toUpperCase(); }
+
+const ADMIN_TABS = ['adOps','adBook','adTeam','adReports','adStock','adSettings'];
+function tabSwap(btn, show){
+  const wrap = btn.closest('.screen');
+  wrap.querySelectorAll('.seg button').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  ADMIN_TABS.forEach(i=>{ const n=wrap.querySelector('#'+i); if(n) n.style.display = i===show?'':'none'; });
+  if(show==='adReports') loadReports();
+  if(show==='adStock') loadInventory();
+  if(show==='adSettings') loadSettings();
 }
 function openSheet(id){document.getElementById(id).classList.add('open');}
 function closeSheet(){document.querySelectorAll('.sheet').forEach(s=>s.classList.remove('open'));}
 
+/* ---------------- auth ---------------- */
+async function submitStaffLogin(){
+  const phone = document.getElementById('staffPhoneInput').value.trim();
+  const pin = document.getElementById('staffPinInput').value.trim();
+  if(!phone || !pin){ toast('Enter phone and PIN'); return; }
+  try{
+    const r = await apiPost('/api/staff/login', { phone, pin });
+    localStorage.setItem('adminToken', r.token);
+    STATE.staff = r.staff;
+    await enterAdmin();
+  }catch(e){ toast('Invalid phone or PIN'); }
+}
+function logout(){
+  localStorage.removeItem('adminToken');
+  STATE.staff = null;
+  if(dashPoll) clearInterval(dashPoll);
+  document.getElementById('admin').classList.remove('active');
+  document.getElementById('staffLogin').classList.add('active');
+  const pin = document.getElementById('staffPinInput'); if(pin) pin.value='';
+}
+async function enterAdmin(){
+  document.getElementById('staffLogin').classList.remove('active');
+  document.getElementById('admin').classList.add('active');
+  document.getElementById('adminStaffName').textContent = STATE.staff.name + ' · ' + (STATE.staff.role==='owner'?'Owner':'Staff');
+  await loadTeam();
+  await loadOverview();
+  await loadBookings();
+  if(dashPoll) clearInterval(dashPoll);
+  dashPoll = setInterval(async()=>{ await loadTeam(); await loadOverview(); await loadBookings(); }, 8000);
+}
+let dashPoll=null;
+async function boot(){
+  const token = localStorage.getItem('adminToken');
+  if(token){
+    try{
+      STATE.staff = await apiGetAuth('/api/staff/me');
+      await enterAdmin();
+      return;
+    }catch(e){ /* invalid/expired token — fall through to login */ }
+  }
+  document.getElementById('staffLogin').classList.add('active');
+}
+
+/* ---------------- overview ---------------- */
 async function loadOverview(){
   try{
     const stats = await apiGet('/api/stats/overview');
@@ -431,20 +567,36 @@ function techOptionsHtml(selectedId, bookingArea){
   ).join('');
 }
 
+/* ---------------- bookings ---------------- */
+function bookFilterPick(el){ chipPick(el); STATE.bookFilter = el.dataset.filter; renderBookings(); }
 async function loadBookings(){
-  try{
-    STATE.bookings = await apiGet('/api/bookings');
-    document.getElementById('adBookCount').textContent = STATE.bookings.length;
-    document.getElementById('adBookList').innerHTML = STATE.bookings.map(b=>{
-      const tech = STATE.technicians.find(t=>t.id===b.technicianId);
-      return `<div class="card card-p tap" onclick="openBooking('${b.id}')">
-        <div class="between"><span class="chip ${b.status==='Completed'?'chip-grow':(b.status==='Requested'?'chip-signal':'chip-brass')}" style="height:24px;font-size:10.5px">${b.status}</span><span class="mono muted">${b.id}</span></div>
-        <b style="display:block;margin-top:10px;font-size:13.5px">${b.service}</b>
-        <p class="tiny muted" style="margin:4px 0 0">${b.customerName} · ₹${b.total_amount||b.price}${b.area?' · '+b.area:''} · ${tech?tech.name:'Unassigned'}</p></div>`;
-    }).join('');
-  }catch(e){ console.warn(e); }
+  try{ STATE.bookings = await apiGet('/api/bookings'); renderBookings(); }
+  catch(e){ console.warn(e); }
+}
+function renderBookings(){
+  const isActive = s => ['Accepted','On the way','In Progress'].includes(s);
+  document.getElementById('fCountAll').textContent = STATE.bookings.length;
+  document.getElementById('fCountRequested').textContent = STATE.bookings.filter(b=>b.status==='Requested').length;
+  document.getElementById('fCountActive').textContent = STATE.bookings.filter(b=>isActive(b.status)).length;
+  document.getElementById('fCountClosed').textContent = STATE.bookings.filter(b=>b.status==='Completed').length;
+
+  const filtered = STATE.bookings.filter(b=>{
+    if(STATE.bookFilter==='all') return true;
+    if(STATE.bookFilter==='requested') return b.status==='Requested';
+    if(STATE.bookFilter==='active') return isActive(b.status);
+    if(STATE.bookFilter==='closed') return b.status==='Completed';
+    return true;
+  });
+  document.getElementById('adBookList').innerHTML = filtered.map(b=>{
+    const tech = STATE.technicians.find(t=>t.id===b.technicianId);
+    return `<div class="card card-p tap" onclick="openBooking('${b.id}')">
+      <div class="between"><span class="chip ${b.status==='Completed'?'chip-grow':(b.status==='Requested'?'chip-signal':'chip-brass')}" style="height:24px;font-size:10.5px">${b.status}</span><span class="mono muted">${b.id}</span></div>
+      <b style="display:block;margin-top:10px;font-size:13.5px">${b.service}</b>
+      <p class="tiny muted" style="margin:4px 0 0">${b.customerName} · ₹${b.total_amount||b.price}${b.area?' · '+b.area:''} · ${tech?tech.name:'Unassigned'}</p></div>`;
+  }).join('') || '<p class="sub" style="padding:14px 0">No bookings in this filter.</p>';
 }
 
+/* ---------------- team ---------------- */
 async function loadTeam(){
   try{
     STATE.technicians = await apiGet('/api/technicians');
@@ -453,31 +605,29 @@ async function loadTeam(){
     const avg = STATE.technicians.length ? (STATE.technicians.reduce((s,t)=>s+t.rating,0)/STATE.technicians.length).toFixed(2) : '—';
     document.getElementById('teamAvgRating').textContent = avg;
     document.getElementById('adTeamList').innerHTML = STATE.technicians.map(t=>{
-      const initials = t.name.split(' ').map(p=>p[0]).slice(0,2).join('').toUpperCase();
+      const tInitials = initials(t.name);
       if(!t.verified){
         return `<div class="card card-p" style="border-color:var(--accent);border-width:1.5px">
-          <div class="row"><div class="avatar" style="width:40px;height:40px;flex:0 0 40px;font-size:12px">${initials}</div>
+          <div class="row"><div class="avatar" style="width:40px;height:40px;flex:0 0 40px;font-size:12px">${tInitials}</div>
           <div style="flex:1"><b style="font-size:13.5px">${t.name}</b><p class="tiny muted" style="margin:2px 0 0">${t.category} · ${t.area}</p></div>
           <span class="chip chip-brass" style="height:24px;font-size:10.5px">Pending</span></div>
           <button class="btn btn-p btn-sm btn-block" style="margin-top:11px" onclick="verifyTechnician('${t.id}')">Verify &amp; bring online</button>
         </div>`;
       }
       return `<div class="card card-p tap row" onclick="toast('${t.name} · ${t.jobsCompleted} jobs completed')">
-        <div class="avatar" style="width:40px;height:40px;flex:0 0 40px;font-size:12px">${initials}</div>
+        <div class="avatar" style="width:40px;height:40px;flex:0 0 40px;font-size:12px">${tInitials}</div>
         <div style="flex:1"><b style="font-size:13.5px">${t.name}</b><p class="tiny muted" style="margin:2px 0 0">${t.category} · ${t.area}</p></div>
         <div style="text-align:right"><b class="price tiny" style="color:var(--accent)">★ ${t.rating}</b><p class="tiny muted" style="margin:3px 0 0">${t.online?'On duty':'Offline'}</p></div></div>`;
     }).join('');
   }catch(e){ console.warn(e); }
 }
 
-/* ---------------- add / verify technicians ---------------- */
-const TECH_CATEGORIES=['RasoiAir','RasoiSpark','RasoiBuilt','RasoiWash','RasoiChill','RasoiPure'];
 function openAddTechnician(){
   document.getElementById('sheetAddTechBody').innerHTML = `
     <p class="eyebrow">New technician</p>
     <label class="field" style="margin-top:10px"><input id="newTechName" placeholder=" "><span>Full name</span></label>
     <p class="eyebrow" style="margin-top:16px">Category</p>
-    <select id="newTechCategory" style="width:100%;height:48px;margin-top:8px;border-radius:var(--r-md);border:1.5px solid var(--line);background:var(--surface);color:var(--ink);font-size:13.5px;font-weight:600;padding:0 12px">
+    <select id="newTechCategory" style="${SELECT_STYLE}">
       ${TECH_CATEGORIES.map(c=>`<option value="${c}">${c}</option>`).join('')}
     </select>
     <label class="field" style="margin-top:16px"><input id="newTechArea" placeholder=" "><span>Service area (e.g. Gangapur Road)</span></label>
@@ -520,7 +670,7 @@ function openBooking(id){
     <p class="tiny muted" style="margin:5px 0 0">${b.customerName} · ₹${b.total_amount||b.price}${b.area?' · '+b.area:''}</p>
     <div class="divider"></div>
     <p class="eyebrow">Assign technician${b.area?' — customer is in '+b.area:''}</p>
-    <select id="assignSelect" style="width:100%;height:48px;margin-top:8px;border-radius:var(--r-md);border:1.5px solid var(--line);background:var(--surface);color:var(--ink);font-size:13.5px;font-weight:600;padding:0 12px">
+    <select id="assignSelect" style="${SELECT_STYLE}">
       ${techOptionsHtml(b.technicianId, b.area)}
     </select>
     <button class="btn btn-p btn-block" style="margin-top:12px" onclick="assignTechnician()">Assign</button>
@@ -576,23 +726,181 @@ async function resolveComplaint(){
   }catch(e){ toast('Could not resolve complaint'); }
 }
 
-const ADS=[['Elica baffle filter 90cm','ELF-90B',8,40,'signal'],['RO membrane 80 GPD','ROM-80',14,40,'signal'],
- ['Hob igniter — universal','HBI-U',9,30,'signal'],['Dishwasher drain pump','DWP-BSH',26,30,''],
- ['Fridge gas R600a (can)','GAS-600',48,30,'']];
-document.getElementById('adStockList').innerHTML=ADS.map(s=>
- `<div class="card card-p">
-   <div class="between"><b style="font-size:13.5px">${s[0]}</b><span class="mono muted">${s[1]}</span></div>
-   <div class="between" style="margin-top:10px"><span class="tiny muted">${s[2]} in stock · reorder at ${s[3]}</span>
-   <span class="chip ${s[4]?'chip-signal':'chip-grow'}" style="height:24px;font-size:10.5px">${s[4]?'Low':'Healthy'}</span></div>
-   <div class="bar" style="margin-top:10px"><i style="--w:${Math.min(100,s[2]/s[3]*100)}%;background:${s[4]?'var(--signal)':'var(--grow)'}"></i></div></div>`).join('');
+/* ---------------- reports ---------------- */
+async function loadReports(period){
+  period = period || STATE.reportsPeriod || 'week';
+  STATE.reportsPeriod = period;
+  try{
+    const r = await apiGetAuth('/api/stats/reports?period='+period);
+    document.getElementById('repRevenue').textContent = '₹'+r.grossRevenue.toLocaleString('en-IN');
+    document.getElementById('repJobs').textContent = r.completedJobs;
 
-async function boot(){
-  document.getElementById('admin').classList.add('active');
-  await loadTeam();
-  await loadOverview();
-  await loadBookings();
-  setInterval(async()=>{ await loadTeam(); await loadOverview(); await loadBookings(); }, 8000);
+    const trend = r.revenueTrend;
+    const max = Math.max(1, ...trend.map(t=>t.revenue));
+    document.getElementById('repTrendRange').textContent = trend.length ? trend[0].date.slice(5)+' – '+trend[trend.length-1].date.slice(5) : '—';
+    document.getElementById('repTrendBars').innerHTML = trend.length ? trend.map(t=>`
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end">
+        <div style="width:100%;max-width:22px;height:${Math.max(4,Math.round(t.revenue/max*80))}px;background:var(--primary);border-radius:4px 4px 0 0"></div>
+        <span class="tiny muted" style="font-size:9px">${t.date.slice(8)}</span>
+      </div>`).join('') : '<p class="sub" style="padding:14px 0">No completed jobs in this period.</p>';
+
+    document.getElementById('repCategoryList').innerHTML = r.revenueByCategory.length ? r.revenueByCategory.map(c=>{
+      const pct = r.grossRevenue ? Math.round(c.revenue / r.grossRevenue * 100) : 0;
+      return `<div class="card card-p">
+        <div class="between"><b style="font-size:13px">${c.category}</b><span class="mono muted">₹${c.revenue.toLocaleString('en-IN')}</span></div>
+        <div class="bar" style="margin-top:9px"><i style="--w:${pct}%"></i></div></div>`;
+    }).join('') : '<p class="sub" style="padding:14px 0">No revenue yet.</p>';
+
+    document.getElementById('repLeaderboard').innerHTML = r.technicianLeaderboard.map((t,i)=>`
+      <div class="card card-p row">
+        <b class="mono muted" style="width:20px">${i+1}</b>
+        <div style="flex:1"><b style="font-size:13.5px">${t.name}</b><p class="tiny muted" style="margin:2px 0 0">${t.jobsInPeriod} jobs · ★ ${t.rating}</p></div>
+        <b class="price tiny">₹${t.revenueInPeriod.toLocaleString('en-IN')}</b>
+      </div>`).join('');
+
+    document.getElementById('repComplaints').innerHTML = r.complaintStatusBreakdown.length ? r.complaintStatusBreakdown.map(c=>`
+      <div class="card card-p between"><span class="tiny">${c.status}</span><span class="mono">${c.count}</span></div>`).join('') : '<p class="sub" style="padding:14px 0">No complaints in this period.</p>';
+
+    document.getElementById('repPnlWrap').innerHTML = r.pnl ? `
+      <div class="sect"><h3>Owner P&amp;L</h3></div>
+      <div class="card card-p" style="background:var(--surface-2)">
+        <div class="between"><span class="tiny muted">Gross revenue</span><b class="mono">₹${r.pnl.grossRevenue.toLocaleString('en-IN')}</b></div>
+        <div class="between" style="margin-top:8px"><span class="tiny muted">Technician payout (assumed ${Math.round(r.pnl.payoutRateAssumed*100)}%)</span><b class="mono">₹${r.pnl.technicianPayout.toLocaleString('en-IN')}</b></div>
+        <div class="divider"></div>
+        <div class="between"><b>Net margin</b><b class="price">₹${r.pnl.netMargin.toLocaleString('en-IN')}</b></div>
+      </div>` : '';
+  }catch(e){ console.warn(e); toast('Could not load reports'); }
 }
+function reportsPeriodPick(el, period){ chipPick(el); loadReports(period); }
+
+/* ---------------- stock ---------------- */
+async function loadInventory(){
+  try{
+    STATE.inventory = await apiGet('/api/inventory');
+    const low = STATE.inventory.filter(i=>i.lowStock);
+    const alertCard = document.getElementById('stockAlertCard');
+    if(low.length){
+      alertCard.style.display='';
+      alertCard.innerHTML = `<b style="font-size:13px;color:var(--signal)">${low.length} SKU${low.length>1?'s':''} below reorder level</b>
+        <p class="tiny" style="margin:6px 0 0;color:var(--ink-2)">${low.map(i=>i.name).join(', ')}</p>`;
+    } else { alertCard.style.display='none'; }
+    document.getElementById('adStockList').innerHTML = STATE.inventory.map(i=>{
+      const pct = Math.min(100, Math.round(i.quantity/Math.max(1,i.reorderLevel)*100));
+      return `<div class="card card-p tap" onclick="openRestock('${i.id}')">
+        <div class="between"><b style="font-size:13.5px">${i.name}</b><span class="mono muted">${i.sku}</span></div>
+        <div class="between" style="margin-top:10px"><span class="tiny muted">${i.quantity} in stock · reorder at ${i.reorderLevel}</span>
+        <span class="chip ${i.lowStock?'chip-signal':'chip-grow'}" style="height:24px;font-size:10.5px">${i.lowStock?'Low':'Healthy'}</span></div>
+        <div class="bar" style="margin-top:10px"><i style="--w:${pct}%;background:${i.lowStock?'var(--signal)':'var(--grow)'}"></i></div></div>`;
+    }).join('') || '<p class="sub" style="padding:14px 0">No stock items yet.</p>';
+  }catch(e){ console.warn(e); }
+}
+function openAddStockItem(){
+  window._restockId = null;
+  document.getElementById('sheetAddStockBody').innerHTML = `
+    <p class="eyebrow">New stock item</p>
+    <label class="field" style="margin-top:10px"><input id="newStockName" placeholder=" "><span>Item name</span></label>
+    <label class="field" style="margin-top:14px"><input id="newStockSku" placeholder=" "><span>SKU</span></label>
+    <p class="eyebrow" style="margin-top:16px">Category</p>
+    <select id="newStockCategory" style="${SELECT_STYLE}">${TECH_CATEGORIES.map(c=>`<option value="${c}">${c}</option>`).join('')}</select>
+    <label class="field" style="margin-top:16px"><input id="newStockQty" type="number" placeholder=" " value="0"><span>Starting quantity</span></label>
+    <label class="field" style="margin-top:14px"><input id="newStockReorder" type="number" placeholder=" " value="10"><span>Reorder level</span></label>
+    <button class="btn btn-p btn-block" style="margin-top:14px" onclick="submitAddStockItem()">Add item</button>`;
+  openSheet('sheetAddStock');
+}
+async function submitAddStockItem(){
+  const name = document.getElementById('newStockName').value.trim();
+  const sku = document.getElementById('newStockSku').value.trim();
+  const category = document.getElementById('newStockCategory').value;
+  const quantity = parseInt(document.getElementById('newStockQty').value,10)||0;
+  const reorderLevel = parseInt(document.getElementById('newStockReorder').value,10)||10;
+  if(!name||!sku){ toast('Name and SKU are required'); return; }
+  try{
+    await apiPostAuth('/api/inventory', {name,sku,category,quantity,reorderLevel});
+    toast('Stock item added');
+    closeSheet();
+    await loadInventory();
+  }catch(e){ toast(e.message || 'Could not add item'); }
+}
+function openRestock(id){
+  const item = STATE.inventory.find(i=>i.id===id);
+  if(!item) return;
+  window._restockId = id;
+  document.getElementById('sheetAddStockBody').innerHTML = `
+    <p class="eyebrow">${item.name}</p>
+    <b class="display" style="font-size:19px;display:block;margin-top:6px">${item.sku}</b>
+    <label class="field" style="margin-top:16px"><input id="restockQty" type="number" value="${item.quantity}"><span>Quantity on hand</span></label>
+    <label class="field" style="margin-top:14px"><input id="restockReorder" type="number" value="${item.reorderLevel}"><span>Reorder level</span></label>
+    <button class="btn btn-p btn-block" style="margin-top:14px" onclick="submitRestock()">Save</button>`;
+  openSheet('sheetAddStock');
+}
+async function submitRestock(){
+  const id = window._restockId;
+  const quantity = parseInt(document.getElementById('restockQty').value,10);
+  const reorderLevel = parseInt(document.getElementById('restockReorder').value,10);
+  try{
+    await apiPatchAuth('/api/inventory/'+id, {quantity, reorderLevel});
+    toast('Stock updated');
+    closeSheet();
+    await loadInventory();
+  }catch(e){ toast(e.message || 'Could not update stock'); }
+}
+
+/* ---------------- settings — team & access ---------------- */
+async function loadSettings(){
+  document.getElementById('meName').textContent = STATE.staff.name;
+  document.getElementById('meRole').textContent = STATE.staff.role === 'owner' ? 'Owner' : 'Staff';
+  document.getElementById('meInitials').textContent = initials(STATE.staff.name);
+  document.getElementById('inviteStaffBtn').style.display = STATE.staff.role==='owner' ? '' : 'none';
+  try{
+    const list = await apiGetAuth('/api/staff');
+    document.getElementById('adStaffList').innerHTML = list.map(s=>{
+      const isOwner = STATE.staff.role==='owner';
+      const toggles = isOwner && s.id!==STATE.staff.id ? `
+        <div class="row" style="gap:8px;margin-top:10px">
+          <button class="btn btn-o btn-sm" style="flex:1" onclick="toggleStaffRole('${s.id}','${s.role==='owner'?'staff':'owner'}')">Make ${s.role==='owner'?'Staff':'Owner'}</button>
+          <button class="btn btn-o btn-sm" style="flex:1" onclick="toggleStaffActive('${s.id}',${s.active?0:1})">${s.active?'Suspend':'Reinstate'}</button>
+        </div>` : '';
+      return `<div class="card card-p">
+        <div class="row"><div class="avatar" style="width:36px;height:36px;flex:0 0 36px;font-size:11px">${initials(s.name)}</div>
+        <div style="flex:1"><b style="font-size:13.5px">${s.name}</b><p class="tiny muted" style="margin:2px 0 0">${s.phone}</p></div>
+        <span class="chip ${s.role==='owner'?'chip-brass':''}" style="height:24px;font-size:10.5px">${s.role==='owner'?'Owner':'Staff'}${s.active?'':' · suspended'}</span></div>
+        ${toggles}</div>`;
+    }).join('');
+  }catch(e){ console.warn(e); }
+}
+function openInviteStaff(){
+  document.getElementById('sheetInviteStaffBody').innerHTML = `
+    <p class="eyebrow">Invite staff</p>
+    <label class="field" style="margin-top:10px"><input id="newStaffName" placeholder=" "><span>Full name</span></label>
+    <label class="field" style="margin-top:14px"><input id="newStaffPhone" placeholder=" " inputmode="tel"><span>Phone number</span></label>
+    <label class="field" style="margin-top:14px"><input id="newStaffPin" placeholder=" " inputmode="numeric" maxlength="6"><span>Set a PIN (4-6 digits)</span></label>
+    <p class="eyebrow" style="margin-top:16px">Role</p>
+    <select id="newStaffRole" style="${SELECT_STYLE}"><option value="staff">Staff</option><option value="owner">Owner</option></select>
+    <button class="btn btn-p btn-block" style="margin-top:16px" onclick="submitInviteStaff()">Send invite</button>`;
+  openSheet('sheetInviteStaff');
+}
+async function submitInviteStaff(){
+  const name = document.getElementById('newStaffName').value.trim();
+  const phone = document.getElementById('newStaffPhone').value.trim();
+  const pin = document.getElementById('newStaffPin').value.trim();
+  const role = document.getElementById('newStaffRole').value;
+  if(!name || !phone || pin.length<4){ toast('Name, phone and a 4+ digit PIN are required'); return; }
+  try{
+    await apiPostAuth('/api/staff', {name,phone,pin,role});
+    toast('Staff member added');
+    closeSheet();
+    await loadSettings();
+  }catch(e){ toast(e.message || 'Could not invite staff'); }
+}
+async function toggleStaffRole(id, role){
+  try{ await apiPatchAuth('/api/staff/'+id, {role}); toast('Role updated'); await loadSettings(); }
+  catch(e){ toast('Could not update role'); }
+}
+async function toggleStaffActive(id, active){
+  try{ await apiPatchAuth('/api/staff/'+id, {active}); toast(active?'Reinstated':'Suspended'); await loadSettings(); }
+  catch(e){ toast('Could not update status'); }
+}
+
 boot();
 
 </script>
