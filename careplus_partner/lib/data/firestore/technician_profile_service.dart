@@ -16,10 +16,12 @@ class TechnicianProfileService {
         'phone': user.phoneNumber,
         'email': user.email,
         'lastSignInAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      }, SetOptions(merge: true)).timeout(const Duration(seconds: 6));
     } catch (_) {
-      // Best-effort — a Firestore hiccup shouldn't block a technician from
-      // getting to their job feed.
+      // Best-effort — a Firestore hiccup (including one that would otherwise
+      // hang, e.g. no Firestore database created yet in the console)
+      // shouldn't block a technician from getting to their job feed. The
+      // timeout above turns a silent hang into a catchable error here.
     }
   }
 }

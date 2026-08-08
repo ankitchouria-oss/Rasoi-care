@@ -19,9 +19,12 @@ class StaffProfileService {
         'email': user.email,
         'role': role.name,
         'lastSignInAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      }, SetOptions(merge: true)).timeout(const Duration(seconds: 6));
     } catch (_) {
-      // Best-effort — a Firestore hiccup shouldn't block getting into the app.
+      // Best-effort — a Firestore hiccup (including one that would otherwise
+      // hang, e.g. no Firestore database created yet in the console)
+      // shouldn't block getting into the app. The timeout above turns a
+      // silent hang into a catchable error here.
     }
   }
 }

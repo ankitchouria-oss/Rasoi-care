@@ -680,12 +680,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   Future<void> _save() async {
     setState(() => _saving = true);
-    // Best-effort — see UserProfileService. Never blocks getting into the app.
-    await ref.read(userProfileServiceProvider).saveProfile(
+    // Fire-and-forget — see UserProfileService. Never blocks getting into
+    // the app, even if Firestore is slow, unreachable, or not set up yet.
+    unawaited(ref.read(userProfileServiceProvider).saveProfile(
           name: _nameCtrl.text.trim(),
           email: _emailCtrl.text.trim(),
           ownedAppliances: _owned,
-        );
+        ));
     if (!mounted) return;
     context.go('/');
   }

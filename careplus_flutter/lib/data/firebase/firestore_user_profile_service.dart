@@ -23,10 +23,12 @@ class UserProfileService {
         'phone': user.phoneNumber,
         'ownedAppliances': ownedAppliances.toList(),
         'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      }, SetOptions(merge: true)).timeout(const Duration(seconds: 6));
     } catch (_) {
-      // Profile is convenience data — a Firestore hiccup shouldn't strand
-      // someone mid-onboarding.
+      // Profile is convenience data — a Firestore hiccup (including one
+      // that would otherwise hang, e.g. no Firestore database created yet
+      // in the console) shouldn't strand someone mid-onboarding. The
+      // timeout above turns a silent hang into a catchable error here.
     }
   }
 }

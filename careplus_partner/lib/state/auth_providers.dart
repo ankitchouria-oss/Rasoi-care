@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -89,7 +91,7 @@ class AuthFlowVM extends Notifier<AuthFlowState> {
     try {
       await ref.read(authServiceProvider).verifyOtp(verificationId: vid, smsCode: code);
       state = state.copyWith(verifying: false);
-      await ref.read(technicianProfileServiceProvider).touchProfile();
+      unawaited(ref.read(technicianProfileServiceProvider).touchProfile());
       return true;
     } on AuthException catch (e) {
       state = state.copyWith(verifying: false, error: e.message);
@@ -114,7 +116,7 @@ class AuthFlowVM extends Notifier<AuthFlowState> {
     try {
       await action();
       state = state.copyWith(submitting: false);
-      await ref.read(technicianProfileServiceProvider).touchProfile();
+      unawaited(ref.read(technicianProfileServiceProvider).touchProfile());
       return true;
     } on AuthException catch (e) {
       state = state.copyWith(submitting: false, error: e.message);
