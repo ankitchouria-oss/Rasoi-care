@@ -334,8 +334,8 @@ class _CategoryTile extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(appliance.glyph,
-                  style: TextStyle(fontSize: 20, color: context.scheme.primary)),
-              const SizedBox(height: 7),
+                  style: TextStyle(fontSize: 28, color: context.scheme.primary)),
+              const SizedBox(height: 9),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2),
                 child: FittedBox(

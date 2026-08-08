@@ -137,16 +137,7 @@ class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
                 children: [
-                  Container(
-                    height: 150,
-                    decoration: BoxDecoration(
-                        color: context.scheme.surfaceContainerHigh,
-                        borderRadius: Radii.rLg),
-                    alignment: Alignment.center,
-                    child: Text(widget.appliance.glyph,
-                        style: TextStyle(
-                            fontSize: 64, color: context.scheme.primary)),
-                  ),
+                  _ApplianceHero(appliance: widget.appliance),
                   const SizedBox(height: 16),
                   Wrap(spacing: 8, children: [
                     StatusChip(
@@ -348,6 +339,37 @@ class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
       ];
 }
 
+class _ApplianceHero extends StatelessWidget {
+  const _ApplianceHero({required this.appliance});
+  final Appliance appliance;
+  @override
+  Widget build(BuildContext context) => Container(
+        height: 150,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          borderRadius: Radii.rLg,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              context.scheme.primaryContainer,
+              context.scheme.surfaceContainerHigh,
+            ],
+          ),
+        ),
+        child: CareDial(
+          value: 1,
+          size: 108,
+          stroke: 6,
+          showTicks: false,
+          color: context.scheme.primary,
+          trackColor: context.scheme.primary.withValues(alpha: 0.16),
+          child: Text(appliance.glyph,
+              style: TextStyle(fontSize: 48, color: context.scheme.primary)),
+        ),
+      );
+}
+
 // ============================================================ COMING SOON
 class _ComingSoonScreen extends StatelessWidget {
   const _ComingSoonScreen({required this.appliance, required this.detail});
@@ -363,14 +385,7 @@ class _ComingSoonScreen extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
             child: Column(
               children: [
-                Container(
-                  height: 150,
-                  decoration: BoxDecoration(
-                      color: context.scheme.surfaceContainerHigh, borderRadius: Radii.rLg),
-                  alignment: Alignment.center,
-                  child: Text(appliance.glyph,
-                      style: TextStyle(fontSize: 64, color: context.scheme.primary)),
-                ),
+                _ApplianceHero(appliance: appliance),
                 const SizedBox(height: 16),
                 const StatusChip('Coming soon', height: 28),
                 const SizedBox(height: 16),
