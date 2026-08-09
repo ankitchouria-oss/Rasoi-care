@@ -110,6 +110,7 @@ class ServiceDetailScreen extends ConsumerStatefulWidget {
 class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
   int _tab = 0;
   ServiceItem? _selected;
+  bool _includedExpanded = false;
 
   @override
   Widget build(BuildContext context) {
@@ -155,14 +156,22 @@ class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
                   Text(detail.blurb, style: context.type.bodyMedium),
                   const SizedBox(height: 22),
                   _Segmented(
-                    tabs: const ['Services', "What's included", 'Reviews'],
+                    tabs: const ['Services', 'Reviews'],
                     index: _tab,
                     onChanged: (i) => setState(() => _tab = i),
                   ),
                   const SizedBox(height: 16),
-                  if (_tab == 0) ..._servicesTab(services),
-                  if (_tab == 1) ..._includedTab(detail),
-                  if (_tab == 2) ..._reviewsTab(detail),
+                  if (_tab == 0) ...[
+                    _IncludedDropdown(
+                      detail: detail,
+                      expanded: _includedExpanded,
+                      onToggle: () =>
+                          setState(() => _includedExpanded = !_includedExpanded),
+                    ),
+                    const SizedBox(height: 16),
+                    ..._servicesTab(services),
+                  ],
+                  if (_tab == 1) ..._reviewsTab(detail),
                 ],
               ),
             ),
@@ -244,45 +253,6 @@ class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
         ],
       ];
 
-  List<Widget> _includedTab(ApplianceDetail detail) => [
-        CareCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(detail.includedTitle,
-                  style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 12),
-              for (final t in detail.included)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 9),
-                  child: Row(children: [
-                    Icon(Icons.check, size: 16, color: context.care.success),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(t, style: context.type.bodySmall)),
-                  ]),
-                ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 10),
-        CareCard(
-          color: context.scheme.errorContainer,
-          borderColor: Colors.transparent,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Not included',
-                  style: TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w700,
-                      color: context.scheme.error)),
-              const SizedBox(height: 8),
-              Text(detail.notIncluded, style: context.type.bodySmall),
-            ],
-          ),
-        ),
-      ];
-
   List<Widget> _reviewsTab(ApplianceDetail detail) => [
         CareCard(
           child: Row(
@@ -339,6 +309,86 @@ class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
           const SizedBox(height: 10),
         ],
       ];
+}
+
+/// A collapsible "What's included" card shown above the services list,
+/// instead of its own tab — tap the header to expand/collapse.
+class _IncludedDropdown extends StatelessWidget {
+  const _IncludedDropdown({
+    required this.detail,
+    required this.expanded,
+    required this.onToggle,
+  });
+  final ApplianceDetail detail;
+  final bool expanded;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) => CareCard(
+        padding: EdgeInsets.zero,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Pressable(
+              onTap: onToggle,
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text("What's included",
+                          style: const TextStyle(
+                              fontSize: 13.5, fontWeight: FontWeight.w700)),
+                    ),
+                    AnimatedRotation(
+                      turns: expanded ? 0.5 : 0,
+                      duration: Motion.press,
+                      child: Icon(Icons.expand_more, color: context.care.inkMuted),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            AnimatedCrossFade(
+              firstChild: const SizedBox(width: double.infinity),
+              secondChild: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Divider(height: 1),
+                    const SizedBox(height: 14),
+                    Text(detail.includedTitle,
+                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 10),
+                    for (final t in detail.included)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 9),
+                        child: Row(children: [
+                          Icon(Icons.check, size: 16, color: context.care.success),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(t, style: context.type.bodySmall)),
+                        ]),
+                      ),
+                    const SizedBox(height: 4),
+                    Text('Not included',
+                        style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: context.scheme.error)),
+                    const SizedBox(height: 6),
+                    Text(detail.notIncluded, style: context.type.bodySmall),
+                  ],
+                ),
+              ),
+              crossFadeState:
+                  expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+              duration: Motion.screen,
+              sizeCurve: Motion.ease,
+            ),
+          ],
+        ),
+      );
 }
 
 class _ApplianceHero extends StatefulWidget {
