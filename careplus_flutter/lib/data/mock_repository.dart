@@ -49,6 +49,16 @@ class MockRepository implements CareRepository {
               pricePaise: 159900,
               durationMin: 90,
               mostBooked: true,
+              included: const [
+                'Baffle or mesh filters soaked and scrubbed',
+                'Blower wheel and motor housing degreased',
+                'Oil collector emptied and washed',
+                'Duct checked for blockage and leak',
+                'Suction reading before and after, logged in app',
+                'Floor sheeting and full cleanup',
+              ],
+              notIncluded: 'Replacement filters, motor rewinding, control boards and duct '
+                  'extensions beyond 6 ft. Quoted in the app before work starts.',
             ),
             ServiceItem(
               id: '${a.name}_repair',
@@ -57,6 +67,14 @@ class MockRepository implements CareRepository {
               blurb: 'Fee waived if you approve the repair quote · parts extra',
               pricePaise: 39900,
               durationMin: 45,
+              included: const [
+                'Full diagnostic of suction, motor and electronics',
+                'Fault identified and quoted before anything is opened',
+                'Minor adjustments — belt tension, loose mounts — included',
+                'Written report logged in the app',
+              ],
+              notIncluded: 'Replacement parts (motor, PCB, capacitor) — quoted separately '
+                  'and fitted only after your approval.',
             ),
             ServiceItem(
               id: '${a.name}_install',
@@ -65,6 +83,13 @@ class MockRepository implements CareRepository {
               blurb: 'Wall or island mount, up to 6 ft of ducting included',
               pricePaise: 169900,
               durationMin: 120,
+              included: const [
+                'Wall or island mounting hardware and bracket fitting',
+                'Up to 6 ft of ducting connected and sealed',
+                'Suction tested after fitting',
+              ],
+              notIncluded: 'Ducting beyond 6 ft, false-ceiling cutting and electrical '
+                  'point extension.',
             ),
             ServiceItem(
               id: '${a.name}_uninstall',
@@ -73,6 +98,12 @@ class MockRepository implements CareRepository {
               blurb: 'Safe removal, capping and packing for a move',
               pricePaise: 59900,
               durationMin: 60,
+              included: const [
+                'Safe disconnection of power and ducting',
+                'Chimney body wrapped and packed for transport',
+                'Duct capped to prevent drafts',
+              ],
+              notIncluded: 'Wall or ceiling patch-up and repainting after removal.',
             ),
           ],
         Appliance.hob => [
@@ -84,6 +115,16 @@ class MockRepository implements CareRepository {
               pricePaise: 79900,
               durationMin: 60,
               mostBooked: true,
+              included: const [
+                'Burner caps and pan supports soaked and scrubbed',
+                'Igniter contacts cleaned and tested',
+                'Gas valve and knob action checked',
+                'Flame colour and evenness verified',
+                'Leak test on every joint',
+                'Countertop wiped and degreased',
+              ],
+              notIncluded: 'Burner replacement, valve rebuilds and glass-top panels. '
+                  'Quoted in the app before work starts.',
             ),
             ServiceItem(
               id: '${a.name}_repair',
@@ -92,6 +133,14 @@ class MockRepository implements CareRepository {
               blurb: 'Fee waived if you approve the repair quote · parts extra',
               pricePaise: 39900,
               durationMin: 45,
+              included: const [
+                'Igniter, valve and burner diagnosis',
+                'Leak check on every joint',
+                'Minor cleaning and adjustment included',
+                'Written fault report',
+              ],
+              notIncluded: 'Replacement igniters, valves or burner caps — quoted and '
+                  'fitted only after approval.',
             ),
             ServiceItem(
               id: '${a.name}_install',
@@ -100,6 +149,13 @@ class MockRepository implements CareRepository {
               blurb: 'Countertop or built-in mount, leak-tested on every joint',
               pricePaise: 69900,
               durationMin: 75,
+              included: const [
+                'Countertop or built-in mounting',
+                'Gas line connection, every joint leak-tested',
+                'Flame test on every burner after fitting',
+              ],
+              notIncluded: 'New gas line runs, cutout enlargement and regulator '
+                  'replacement.',
             ),
             ServiceItem(
               id: '${a.name}_uninstall',
@@ -108,6 +164,12 @@ class MockRepository implements CareRepository {
               blurb: 'Safe gas disconnection and capping for a move',
               pricePaise: 39900,
               durationMin: 45,
+              included: const [
+                'Safe gas disconnection',
+                'Line capped to prevent leaks',
+                'Hob wrapped and packed for transport',
+              ],
+              notIncluded: 'Countertop patch-up after removal.',
             ),
           ],
         Appliance.cooktop => [
@@ -119,6 +181,16 @@ class MockRepository implements CareRepository {
               pricePaise: 49900,
               durationMin: 50,
               mostBooked: true,
+              included: const [
+                'Glass surface polished and checked for cracks',
+                'Induction coil and sensor tested',
+                'Touch panel calibrated',
+                'Ventilation checked for overheating',
+                'Power draw tested under load',
+                'Countertop wiped and degreased',
+              ],
+              notIncluded: 'Glass-top replacement, coil rewinding and control boards. '
+                  'Quoted before work starts.',
             ),
             ServiceItem(
               id: '${a.name}_repair',
@@ -127,6 +199,13 @@ class MockRepository implements CareRepository {
               blurb: 'Fee waived if you approve the repair quote · parts extra',
               pricePaise: 39900,
               durationMin: 45,
+              included: const [
+                'Induction coil, sensor and control-panel diagnosis',
+                'Error code read out and explained',
+                'Minor recalibration included',
+              ],
+              notIncluded: 'Replacement glass top, coil or control board — quoted and '
+                  'fitted only after approval.',
             ),
             ServiceItem(
               id: '${a.name}_install',
@@ -135,6 +214,12 @@ class MockRepository implements CareRepository {
               blurb: 'Countertop cutout fitting and power point check',
               pricePaise: 39900,
               durationMin: 60,
+              included: const [
+                'Countertop cutout fitting',
+                'Power point and load check',
+                'Panel calibrated after fitting',
+              ],
+              notIncluded: 'Countertop cutting/enlargement and new power point wiring.',
             ),
             ServiceItem(
               id: '${a.name}_uninstall',
@@ -143,6 +228,12 @@ class MockRepository implements CareRepository {
               blurb: 'Safe removal and packing, glass surface protected',
               pricePaise: 29900,
               durationMin: 40,
+              included: const [
+                'Safe removal with glass surface protected',
+                'Power disconnected and capped',
+                'Packed for transport',
+              ],
+              notIncluded: 'Countertop patch-up after removal.',
             ),
           ],
         Appliance.dishwasher => [
@@ -154,6 +245,16 @@ class MockRepository implements CareRepository {
               pricePaise: 119900,
               durationMin: 75,
               mostBooked: true,
+              included: const [
+                'Filter basket and sump cleaned',
+                'Spray arms unclogged and tested',
+                'Door seals inspected for leaks',
+                'Drain pump and hose checked',
+                'A full cycle run and verified',
+                'Interior wiped down',
+              ],
+              notIncluded: 'Drain pump replacement, control boards and door seal kits. '
+                  'Quoted before work starts.',
             ),
             ServiceItem(
               id: '${a.name}_repair',
@@ -162,6 +263,13 @@ class MockRepository implements CareRepository {
               blurb: 'Fee waived if you approve the repair quote · parts extra',
               pricePaise: 59900,
               durationMin: 45,
+              included: const [
+                'Drain pump, spray arm and control-board diagnosis',
+                'A full test cycle to confirm the fault',
+                'Written report before any part is quoted',
+              ],
+              notIncluded: 'Replacement pump, control board or seal kit — fitted only '
+                  'after your approval.',
             ),
             ServiceItem(
               id: '${a.name}_install',
@@ -170,6 +278,11 @@ class MockRepository implements CareRepository {
               blurb: 'Water inlet, drain hose and levelling included',
               pricePaise: 149900,
               durationMin: 90,
+              included: const [
+                'Water inlet, drain hose and levelling',
+                'First cycle run to confirm no leaks',
+              ],
+              notIncluded: 'New plumbing points and cabinet modification.',
             ),
             ServiceItem(
               id: '${a.name}_uninstall',
@@ -178,6 +291,12 @@ class MockRepository implements CareRepository {
               blurb: 'Safe disconnection and capping for a move',
               pricePaise: 59900,
               durationMin: 60,
+              included: const [
+                'Safe disconnection of water and drain lines',
+                'Lines capped',
+                'Unit packed for transport',
+              ],
+              notIncluded: 'Plumbing patch-up after removal.',
             ),
           ],
         Appliance.microwave => [
@@ -189,6 +308,16 @@ class MockRepository implements CareRepository {
               pricePaise: 54900,
               durationMin: 45,
               mostBooked: true,
+              included: const [
+                'Interior cavity deep cleaned',
+                'Door seal and switch tested',
+                'Turntable motor and roller checked',
+                'Magnetron leakage safety tested',
+                'Control panel and display verified',
+                'Vent and housing wiped down',
+              ],
+              notIncluded: 'Magnetron replacement and control board repairs. Quoted '
+                  'before work starts.',
             ),
             ServiceItem(
               id: '${a.name}_repair',
@@ -197,6 +326,13 @@ class MockRepository implements CareRepository {
               blurb: 'Fee waived if you approve the repair quote · parts extra',
               pricePaise: 39900,
               durationMin: 45,
+              included: const [
+                'Magnetron, door switch and control-panel diagnosis',
+                'Leakage safety test included',
+                'Written fault report',
+              ],
+              notIncluded: 'Replacement magnetron or control board — quoted and fitted '
+                  'only after approval.',
             ),
             ServiceItem(
               id: '${a.name}_install',
@@ -205,6 +341,12 @@ class MockRepository implements CareRepository {
               blurb: 'Cabinet mount, trim kit and vent check',
               pricePaise: 99900,
               durationMin: 75,
+              included: const [
+                'Cabinet mount and trim kit fitting',
+                'Vent check',
+                'Test run to confirm heating',
+              ],
+              notIncluded: 'Cabinet cutout modification and new power point.',
             ),
             ServiceItem(
               id: '${a.name}_uninstall',
@@ -213,6 +355,12 @@ class MockRepository implements CareRepository {
               blurb: 'Safe removal and packing for a move',
               pricePaise: 59900,
               durationMin: 45,
+              included: const [
+                'Safe removal from housing',
+                'Packed for transport',
+                'Housing left clean',
+              ],
+              notIncluded: 'Cabinet patch-up after removal.',
             ),
           ],
         Appliance.otg => [
@@ -224,6 +372,16 @@ class MockRepository implements CareRepository {
               pricePaise: 54900,
               durationMin: 40,
               mostBooked: true,
+              included: const [
+                'Heating elements inspected and cleaned',
+                'Thermostat accuracy tested',
+                'Timer and knob action checked',
+                'Interior cavity degreased',
+                'Door seal and glass checked',
+                'Test bake run and verified',
+              ],
+              notIncluded: 'Heating element replacement and thermostat swaps. Quoted '
+                  'before work starts.',
             ),
             ServiceItem(
               id: '${a.name}_repair',
@@ -232,6 +390,13 @@ class MockRepository implements CareRepository {
               blurb: 'Fee waived if you approve the repair quote · parts extra',
               pricePaise: 39900,
               durationMin: 45,
+              included: const [
+                'Heating element and thermostat diagnosis',
+                'Test bake to confirm even heating',
+                'Written fault report',
+              ],
+              notIncluded: 'Replacement heating element or thermostat — quoted and '
+                  'fitted only after approval.',
             ),
             ServiceItem(
               id: '${a.name}_install',
@@ -240,6 +405,11 @@ class MockRepository implements CareRepository {
               blurb: 'Placement, wiring check and a verified test bake',
               pricePaise: 99900,
               durationMin: 60,
+              included: const [
+                'Placement and wiring check',
+                'A verified test bake',
+              ],
+              notIncluded: 'New power point and cabinet modification.',
             ),
             ServiceItem(
               id: '${a.name}_uninstall',
@@ -248,6 +418,11 @@ class MockRepository implements CareRepository {
               blurb: 'Safe removal and packing for a move',
               pricePaise: 59900,
               durationMin: 45,
+              included: const [
+                'Safe disconnection',
+                'Packed for a move',
+              ],
+              notIncluded: 'Wall or counter patch-up after removal.',
             ),
           ],
         Appliance.refrigerator || Appliance.purifier => const [],
@@ -324,17 +499,6 @@ class MockRepository implements CareRepository {
                 'Suction loss, oil dripping, loud motor, auto-clean failure — diagnosed and fixed by technicians trained on Elica, Faber, Hindware, Glen and Bosch units.',
             rating: 4.89,
             ratingCount: 3102,
-            includedTitle: 'In every deep clean',
-            included: [
-              'Baffle or mesh filters soaked and scrubbed',
-              'Blower wheel and motor housing degreased',
-              'Oil collector emptied and washed',
-              'Duct checked for blockage and leak',
-              'Suction reading before and after, logged in app',
-              'Floor sheeting and full cleanup',
-            ],
-            notIncluded:
-                'Replacement filters, motor rewinding, control boards and duct extensions beyond 6 ft. These are quoted in the app before work starts.',
             reviews: [
               Review('PJ', 'Priya Joshi', 'Elica 90cm · 20 Jul',
                   'Suction went from 480 to 1,180 m³/hr on the app reading. Worth every rupee.'),
@@ -348,17 +512,6 @@ class MockRepository implements CareRepository {
                 'Igniter failure, low or uneven flame, burner clogging, knob and valve faults — fixed by technicians trained on Elica, Prestige, Sunflame, Faber and Bosch hobs.',
             rating: 4.86,
             ratingCount: 2140,
-            includedTitle: 'In every hob service',
-            included: [
-              'Burner caps and pan supports soaked and scrubbed',
-              'Igniter contacts cleaned and tested',
-              'Gas valve and knob action checked',
-              'Flame colour and evenness verified',
-              'Leak test on every joint',
-              'Countertop wiped and degreased',
-            ],
-            notIncluded:
-                'Burner replacement, valve rebuilds and glass-top panels. Quoted in the app before work starts.',
             reviews: [
               Review('MK', 'Manoj Kulkarni', 'Elica hob · 14 Jul',
                   'Flame was yellow and uneven on two burners — cleaned the igniters and it runs blue now.'),
@@ -372,17 +525,6 @@ class MockRepository implements CareRepository {
                 'Induction coil faults, glass-top cracks, touch panel errors and sensor issues — diagnosed and repaired on all major induction and radiant cooktop brands.',
             rating: 4.81,
             ratingCount: 968,
-            includedTitle: 'In every cooktop service',
-            included: [
-              'Glass surface polished and checked for cracks',
-              'Induction coil and sensor tested',
-              'Touch panel calibrated',
-              'Ventilation checked for overheating',
-              'Power draw tested under load',
-              'Countertop wiped and degreased',
-            ],
-            notIncluded:
-                'Glass-top replacement, coil rewinding and control boards. Quoted before work starts.',
             reviews: [
               Review('AT', 'Anita Thakur', 'Induction cooktop · 22 Jun',
                   'Panel kept flashing an error code — turned out to be a loose sensor connector. Fixed in 20 minutes.'),
@@ -396,17 +538,6 @@ class MockRepository implements CareRepository {
                 'Not draining, not cleaning properly, error codes and noisy cycles — fixed by technicians trained on Bosch, Siemens, IFB and LG dishwashers.',
             rating: 4.83,
             ratingCount: 1420,
-            includedTitle: 'In every dishwasher service',
-            included: [
-              'Filter basket and sump cleaned',
-              'Spray arms unclogged and tested',
-              'Door seals inspected for leaks',
-              'Drain pump and hose checked',
-              'A full cycle run and verified',
-              'Interior wiped down',
-            ],
-            notIncluded:
-                'Drain pump replacement, control boards and door seal kits. Quoted before work starts.',
             reviews: [
               Review('RK', 'Rekha Kamath', 'Bosch series 4 · 18 Jul',
                   'Dishes were coming out cloudy — filter was completely clogged. Runs like new now.'),
@@ -420,16 +551,6 @@ class MockRepository implements CareRepository {
                 'Magnetron faults, turntable not spinning, door switch failures and control panel issues — fixed on all major built-in and OTR microwave brands.',
             rating: 4.79,
             ratingCount: 742,
-            includedTitle: 'In every microwave service',
-            included: [
-              'Interior cavity deep cleaned',
-              'Door seal and switch tested',
-              'Turntable motor and roller checked',
-              'Magnetron leakage safety tested',
-              'Control panel and display verified',
-              'Vent and housing wiped down',
-            ],
-            notIncluded: 'Magnetron replacement and control board repairs. Quoted before work starts.',
             reviews: [
               Review('PS', 'Pooja Shetty', 'IFB built-in · 30 Jun',
                   'Turntable had stopped spinning — worn roller ring, five-minute fix once he opened it up.'),
@@ -443,16 +564,6 @@ class MockRepository implements CareRepository {
                 'Heating element failure, thermostat drift and timer faults — diagnosed and fixed on all major oven-toaster-griller brands.',
             rating: 4.75,
             ratingCount: 512,
-            includedTitle: 'In every OTG service',
-            included: [
-              'Heating elements inspected and cleaned',
-              'Thermostat accuracy tested',
-              'Timer and knob action checked',
-              'Interior cavity degreased',
-              'Door seal and glass checked',
-              'Test bake run and verified',
-            ],
-            notIncluded: 'Heating element replacement and thermostat swaps. Quoted before work starts.',
             reviews: [
               Review('SM', 'Sunita More', 'Bajaj OTG · 08 Jun',
                   'Baking had gone uneven for weeks — one element was dead. Works perfectly now.'),

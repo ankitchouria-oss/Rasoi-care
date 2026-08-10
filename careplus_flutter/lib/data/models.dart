@@ -33,6 +33,8 @@ class ServiceItem {
     required this.durationMin,
     this.mostBooked = false,
     this.strikePaise,
+    this.included = const [],
+    this.notIncluded = '',
   });
 
   final String id;
@@ -43,6 +45,12 @@ class ServiceItem {
   final int durationMin;
   final bool mostBooked;
   final int? strikePaise;
+
+  /// What's included in *this specific* service — shown as a dropdown on
+  /// its card, not a shared appliance-wide list, since a repair visit and a
+  /// deep clean genuinely include different things.
+  final List<String> included;
+  final String notIncluded;
 }
 
 /// One symptom a customer can flag before the visit.
@@ -74,9 +82,6 @@ class ApplianceDetail {
     required this.blurb,
     this.rating = 0,
     this.ratingCount = 0,
-    this.includedTitle = '',
-    this.included = const [],
-    this.notIncluded = '',
     this.reviews = const [],
     this.comingSoon = false,
   });
@@ -84,9 +89,6 @@ class ApplianceDetail {
   final String blurb;
   final double rating;
   final int ratingCount;
-  final String includedTitle;
-  final List<String> included;
-  final String notIncluded;
   final List<Review> reviews;
   final bool comingSoon;
 }
