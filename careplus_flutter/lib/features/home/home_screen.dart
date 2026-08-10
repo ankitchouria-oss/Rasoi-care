@@ -177,7 +177,7 @@ class HomeScreen extends ConsumerWidget {
                     child: SectionHeader('Offers', actionLabel: 'See all', onAction: () {}),
                   ),
                   SizedBox(
-                    height: 118,
+                    height: 132,
                     child: ListView(
                       scrollDirection: Axis.horizontal,
                       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -383,14 +383,20 @@ class _OfferCard extends StatelessWidget {
         width: 214,
         child: CareCard(
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               StatusChip(tag, tone: tone, height: 24),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               Text(title,
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 5),
-              Text(sub, style: context.type.bodySmall),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, height: 1.2)),
+              const SizedBox(height: 4),
+              Text(sub,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.type.bodySmall),
             ],
           ),
         ),
