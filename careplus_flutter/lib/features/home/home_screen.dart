@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/widgets/care_widgets.dart';
+import '../../core/widgets/appliance_illustration.dart';
 import '../../core/theme/care_plus_theme.dart';
 import '../../data/models.dart';
 import '../../state/providers.dart';
@@ -333,8 +334,17 @@ class _CategoryTile extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(appliance.glyph,
-                  style: TextStyle(fontSize: 28, color: context.scheme.primary)),
+              Container(
+                width: 40,
+                height: 40,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: context.scheme.primaryContainer,
+                ),
+                child: ApplianceIllustration(
+                    appliance: appliance, size: 24, color: context.scheme.primary),
+              ),
               const SizedBox(height: 9),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2),

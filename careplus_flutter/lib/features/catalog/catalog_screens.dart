@@ -1,10 +1,9 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/widgets/care_widgets.dart';
+import '../../core/widgets/appliance_illustration.dart';
 import '../../core/theme/care_plus_theme.dart';
 import '../../data/models.dart';
 import '../../state/providers.dart';
@@ -399,36 +398,21 @@ class _IncludedDropdown extends StatelessWidget {
       );
 }
 
-class _ApplianceHero extends StatefulWidget {
+/// The appliance illustration shown at the top of its service-detail
+/// screen — a soft gradient card with the pictogram centered on a glossy
+/// badge. Deliberately simple/static (no floating overlays that could
+/// clip or overflow at odd screen sizes): a fixed-size illustration
+/// centered in a fixed-height card, nothing positioned outside its bounds.
+class _ApplianceHero extends StatelessWidget {
   const _ApplianceHero({required this.appliance});
   final Appliance appliance;
-  @override
-  State<_ApplianceHero> createState() => _ApplianceHeroState();
-}
-
-class _ApplianceHeroState extends State<_ApplianceHero>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _c;
-
-  @override
-  void initState() {
-    super.initState();
-    _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 2600))
-      ..repeat();
-  }
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
     final primary = context.scheme.primary;
     return Container(
       height: 150,
-      clipBehavior: Clip.antiAlias,
+      alignment: Alignment.center,
       decoration: BoxDecoration(
         borderRadius: Radii.rLg,
         gradient: LinearGradient(
@@ -437,249 +421,28 @@ class _ApplianceHeroState extends State<_ApplianceHero>
           colors: [context.scheme.primaryContainer, context.scheme.surfaceContainerHigh],
         ),
       ),
-      child: Stack(
+      child: Container(
+        width: 108,
+        height: 108,
         alignment: Alignment.center,
-        children: [
-          ..._accents(primary),
-          CareDial(
-            value: 1,
-            size: 108,
-            stroke: 6,
-            showTicks: false,
-            color: primary,
-            trackColor: primary.withValues(alpha: 0.16),
-            child: Container(
-              width: 72,
-              height: 72,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  center: const Alignment(-0.3, -0.35),
-                  radius: 0.95,
-                  colors: [Color.lerp(primary, Colors.white, 0.4)!, primary],
-                ),
-                boxShadow: [
-                  BoxShadow(
-                      color: primary.withValues(alpha: 0.4),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6)),
-                  BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.08),
-                      blurRadius: 3,
-                      offset: const Offset(0, 2)),
-                ],
-              ),
-              child: Text(widget.appliance.glyph,
-                  style: const TextStyle(
-                      fontSize: 30, color: Colors.white, fontWeight: FontWeight.w600)),
-            ),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            center: const Alignment(-0.3, -0.35),
+            radius: 0.95,
+            colors: [Color.lerp(primary, Colors.white, 0.45)!, primary],
           ),
-        ],
+          boxShadow: [
+            BoxShadow(
+                color: primary.withValues(alpha: 0.35),
+                blurRadius: 18,
+                offset: const Offset(0, 8)),
+          ],
+        ),
+        child: ApplianceIllustration(appliance: appliance, size: 62, color: Colors.white),
       ),
     );
   }
-
-  List<Widget> _accents(Color primary) {
-    switch (widget.appliance) {
-      case Appliance.chimney:
-        return [
-          _Puff(controller: _c, delay: 0.00, dx: -16, color: primary),
-          _Puff(controller: _c, delay: 0.33, dx: 0, color: primary),
-          _Puff(controller: _c, delay: 0.66, dx: 16, color: primary),
-        ];
-      case Appliance.hob:
-      case Appliance.cooktop:
-      case Appliance.otg:
-        return [_Flicker(controller: _c)];
-      case Appliance.dishwasher:
-        return [
-          _Puff(controller: _c, delay: 0.00, dx: -14, color: Colors.lightBlue),
-          _Puff(controller: _c, delay: 0.50, dx: 14, color: Colors.lightBlue),
-        ];
-      case Appliance.refrigerator:
-        return [
-          _Sparkle(controller: _c, delay: 0.00, dx: -26, dy: -22),
-          _Sparkle(controller: _c, delay: 0.40, dx: 26, dy: -8),
-          _Sparkle(controller: _c, delay: 0.70, dx: -8, dy: 24),
-        ];
-      case Appliance.microwave:
-        return [_PulseRing(controller: _c)];
-      case Appliance.purifier:
-        return [_Drip(controller: _c)];
-    }
-  }
-}
-
-/// A single rising, fading puff — used for chimney smoke and dishwasher
-/// steam/bubbles. [delay] staggers puffs sharing one looping controller by
-/// offsetting where in the 0..1 cycle each one reads from.
-class _Puff extends StatelessWidget {
-  const _Puff({
-    required this.controller,
-    required this.delay,
-    required this.dx,
-    required this.color,
-  });
-  final Animation<double> controller;
-  final double delay;
-  final double dx;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-        animation: controller,
-        builder: (context, _) {
-          final t = (controller.value + delay) % 1.0;
-          final fade = math.sin(t * math.pi).clamp(0.0, 1.0);
-          final size = 8 + t * 6;
-          return Positioned(
-            top: 16,
-            child: Transform.translate(
-              offset: Offset(dx, -t * 44),
-              child: Opacity(
-                opacity: fade * 0.55,
-                child: Container(
-                  width: size,
-                  height: size,
-                  decoration: BoxDecoration(shape: BoxShape.circle, color: color),
-                ),
-              ),
-            ),
-          );
-        },
-      );
-}
-
-/// Flickering flame — hob, cooktop, OTG.
-class _Flicker extends StatelessWidget {
-  const _Flicker({required this.controller});
-  final Animation<double> controller;
-
-  @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-        animation: controller,
-        builder: (context, _) {
-          final wobble = math.sin(controller.value * 2 * math.pi);
-          final scale = 1.0 + wobble * 0.14;
-          final opacity = 0.75 + wobble * 0.2;
-          return Positioned(
-            bottom: 20,
-            child: Transform.scale(
-              scale: scale,
-              child: Opacity(
-                opacity: opacity.clamp(0.0, 1.0),
-                child: const Icon(Icons.local_fire_department,
-                    color: Colors.deepOrange, size: 26),
-              ),
-            ),
-          );
-        },
-      );
-}
-
-/// Twinkling frost accent — refrigerator.
-class _Sparkle extends StatelessWidget {
-  const _Sparkle({
-    required this.controller,
-    required this.delay,
-    required this.dx,
-    required this.dy,
-  });
-  final Animation<double> controller;
-  final double delay, dx, dy;
-
-  @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-        animation: controller,
-        builder: (context, _) {
-          final t = (controller.value + delay) % 1.0;
-          final fade = math.sin(t * math.pi).clamp(0.0, 1.0);
-          return Transform.translate(
-            offset: Offset(dx, dy),
-            child: Opacity(
-              opacity: fade,
-              child: const Text('❄', style: TextStyle(fontSize: 13, color: Colors.lightBlue)),
-            ),
-          );
-        },
-      );
-}
-
-/// Expanding heat pulse — microwave.
-class _PulseRing extends StatelessWidget {
-  const _PulseRing({required this.controller});
-  final Animation<double> controller;
-
-  @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-        animation: controller,
-        builder: (context, _) {
-          final t = controller.value;
-          final scale = 0.5 + t * 0.9;
-          final opacity = (1 - t) * 0.5;
-          return Transform.scale(
-            scale: scale,
-            child: Opacity(
-              opacity: opacity,
-              child: Container(
-                width: 96,
-                height: 96,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: context.scheme.primary, width: 2),
-                ),
-              ),
-            ),
-          );
-        },
-      );
-}
-
-/// Falling droplet + landing ripple — water purifier.
-class _Drip extends StatelessWidget {
-  const _Drip({required this.controller});
-  final Animation<double> controller;
-
-  @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-        animation: controller,
-        builder: (context, _) {
-          final t = controller.value;
-          final dropOpacity = t < 0.6 ? 1 - (t / 0.6) : 0.0;
-          final dropDy = -26 + t * 46;
-          final rippleT = t > 0.5 ? (t - 0.5) * 2 : 0.0;
-          return Stack(
-            alignment: Alignment.center,
-            children: [
-              Transform.translate(
-                offset: Offset(0, dropDy),
-                child: Opacity(
-                  opacity: dropOpacity.clamp(0.0, 1.0),
-                  child: const Icon(Icons.water_drop, color: Colors.lightBlue, size: 16),
-                ),
-              ),
-              Transform.translate(
-                offset: const Offset(0, 24),
-                child: Transform.scale(
-                  scale: 0.3 + rippleT * 1.1,
-                  child: Opacity(
-                    opacity: ((1 - rippleT) * 0.5).clamp(0.0, 1.0),
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.lightBlue, width: 1.6),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
-      );
 }
 
 // ============================================================ COMING SOON
