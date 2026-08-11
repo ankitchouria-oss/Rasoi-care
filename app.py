@@ -121,6 +121,7 @@ def technician_row_to_dict(row):
         "name": row["name"],
         "category": row["category"],
         "area": row["area"] if "area" in keys else "",
+        "email": row["email"] if "email" in keys else None,
         "verified": bool(row["verified"]) if "verified" in keys else True,
         "online": bool(row["online"]),
         "rating": round(row["rating"], 1),
@@ -161,10 +162,12 @@ def service_row_to_dict(row):
 
 
 def staff_row_to_dict(row):
+    keys = row.keys()
     return {
         "id": row["id"],
         "name": row["name"],
         "phone": row["phone"],
+        "email": row["email"] if "email" in keys else None,
         "role": row["role"],
         "active": bool(row["active"]),
         "createdAt": row["created_at"],
@@ -220,20 +223,103 @@ def get_bearer_token():
     return header[len("Bearer "):].strip()
 
 
+# ---------------------------------------------------------------- Firebase bridge
+#
+# The three native apps (Customer/Partner/Admin) sign in with Firebase Auth
+# directly, not through /api/auth/login — there's no separate "backend
+# password" for them. Instead they send their Firebase ID token as the
+# Bearer token on every API call, and we verify it here ourselves (no
+# firebase-admin dependency needed: it's a standard RS256-signed JWT,
+# verifiable with Google's published public certs).
+#
+# This is purely additive — decode_token/decode_staff_token (the existing
+# backend-issued JWTs the web apps use) are tried first everywhere, so
+# nothing about the web apps' auth changes.
+FIREBASE_PROJECT_ID = os.environ.get("FIREBASE_PROJECT_ID", "rasoi-care")
+_GOOGLE_CERTS_URL = (
+    "https://www.googleapis.com/robot/v1/metadata/x509/"
+    "securetoken@system.gserviceaccount.com"
+)
+_firebase_certs_cache = {"certs": None, "fetched_at": 0.0}
+
+
+def _get_firebase_certs():
+    """Google rotates these certs periodically; a short cache keeps every
+    request from re-fetching while still picking up rotations quickly."""
+    import time
+    import urllib.request
+
+    cache = _firebase_certs_cache
+    if cache["certs"] and (time.time() - cache["fetched_at"]) < 3600:
+        return cache["certs"]
+    try:
+        with urllib.request.urlopen(_GOOGLE_CERTS_URL, timeout=10) as resp:
+            certs = json.loads(resp.read().decode())
+        cache["certs"] = certs
+        cache["fetched_at"] = time.time()
+        return certs
+    except Exception:
+        # Network hiccup — fall back to whatever we last had (possibly
+        # None, in which case verification below just fails closed).
+        return cache["certs"]
+
+
+def verify_firebase_token(id_token):
+    """Returns {"uid", "email", "name"} for a valid Firebase ID token
+    issued to the rasoi-care project, or None if it's missing, expired,
+    or fails signature/audience/issuer checks."""
+    if not id_token:
+        return None
+    try:
+        from cryptography.hazmat.backends import default_backend
+        from cryptography.x509 import load_pem_x509_certificate
+
+        unverified_header = jwt.get_unverified_header(id_token)
+        kid = unverified_header.get("kid")
+        certs = _get_firebase_certs()
+        if not certs or kid not in certs:
+            return None
+        public_key = load_pem_x509_certificate(
+            certs[kid].encode("utf-8"), default_backend()
+        ).public_key()
+        payload = jwt.decode(
+            id_token,
+            public_key,
+            algorithms=["RS256"],
+            audience=FIREBASE_PROJECT_ID,
+            issuer=f"https://securetoken.google.com/{FIREBASE_PROJECT_ID}",
+        )
+        uid = payload.get("user_id") or payload.get("sub")
+        if not uid:
+            return None
+        return {"uid": uid, "email": payload.get("email"), "name": payload.get("name")}
+    except Exception:
+        return None
+
+
 def get_current_user_optional():
     """Returns the user row for a valid Bearer token, or None (does not
     reject the request) — used by endpoints that behave differently for
-    authenticated vs anonymous callers without requiring auth."""
+    authenticated vs anonymous callers without requiring auth. Accepts
+    either a backend-issued JWT or a Firebase ID token."""
     token = get_bearer_token()
     if not token:
         return None
-    user_id = decode_token(token)
-    if not user_id:
-        return None
     conn = get_db()
-    row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    user_id = decode_token(token)
+    if user_id:
+        row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+        conn.close()
+        return row
+    claims = verify_firebase_token(token)
+    if claims:
+        row = conn.execute(
+            "SELECT * FROM users WHERE firebase_uid = ?", (claims["uid"],)
+        ).fetchone()
+        conn.close()
+        return row
     conn.close()
-    return row
+    return None
 
 
 def require_auth(fn):
@@ -242,14 +328,9 @@ def require_auth(fn):
         token = get_bearer_token()
         if not token:
             return jsonify({"error": "Unauthorized", "message": "Missing bearer token"}), 401
-        user_id = decode_token(token)
-        if not user_id:
-            return jsonify({"error": "Unauthorized", "message": "Invalid or expired token"}), 401
-        conn = get_db()
-        row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
-        conn.close()
+        row = get_current_user_optional()
         if not row:
-            return jsonify({"error": "Unauthorized", "message": "User no longer exists"}), 401
+            return jsonify({"error": "Unauthorized", "message": "Invalid or expired token"}), 401
         request.user = row
         return fn(*args, **kwargs)
     return wrapper
@@ -275,18 +356,36 @@ def decode_staff_token(token):
         return None
 
 
+def get_current_staff_optional():
+    """Same Firebase-or-backend-JWT bridging as get_current_user_optional,
+    for the staff table (Admin app)."""
+    token = get_bearer_token()
+    if not token:
+        return None
+    conn = get_db()
+    staff_id = decode_staff_token(token)
+    if staff_id:
+        row = conn.execute("SELECT * FROM staff WHERE id = ?", (staff_id,)).fetchone()
+        conn.close()
+        return row
+    claims = verify_firebase_token(token)
+    if claims:
+        row = conn.execute(
+            "SELECT * FROM staff WHERE firebase_uid = ?", (claims["uid"],)
+        ).fetchone()
+        conn.close()
+        return row
+    conn.close()
+    return None
+
+
 def require_staff_auth(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):
         token = get_bearer_token()
         if not token:
             return jsonify({"error": "Unauthorized", "message": "Missing bearer token"}), 401
-        staff_id = decode_staff_token(token)
-        if not staff_id:
-            return jsonify({"error": "Unauthorized", "message": "Invalid or expired token"}), 401
-        conn = get_db()
-        row = conn.execute("SELECT * FROM staff WHERE id = ?", (staff_id,)).fetchone()
-        conn.close()
+        row = get_current_staff_optional()
         if not row or not row["active"]:
             return jsonify({"error": "Unauthorized", "message": "Staff account not found or inactive"}), 401
         request.staff = row
@@ -300,6 +399,28 @@ def require_owner(fn):
     def wrapper(*args, **kwargs):
         if request.staff["role"] != "owner":
             return jsonify({"error": "Forbidden", "message": "Owner role required"}), 403
+        return fn(*args, **kwargs)
+    return wrapper
+
+
+def require_technician_auth(fn):
+    """Technicians only ever authenticate via Firebase (the Partner app) —
+    there's no legacy backend JWT for them, since technician.html has
+    never had a login system."""
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        token = get_bearer_token()
+        claims = verify_firebase_token(token) if token else None
+        if not claims:
+            return jsonify({"error": "Unauthorized", "message": "Invalid or missing Firebase token"}), 401
+        conn = get_db()
+        row = conn.execute(
+            "SELECT * FROM technicians WHERE firebase_uid = ?", (claims["uid"],)
+        ).fetchone()
+        conn.close()
+        if not row:
+            return jsonify({"error": "Unauthorized", "message": "No technician profile — call /api/technician/bootstrap first"}), 401
+        request.technician = row
         return fn(*args, **kwargs)
     return wrapper
 
@@ -321,6 +442,52 @@ def staff_login():
 @require_staff_auth
 def staff_me():
     return jsonify(staff_row_to_dict(request.staff))
+
+
+@app.route("/api/staff/bootstrap", methods=["POST"])
+def bootstrap_staff():
+    """Called once right after Firebase sign-in/sign-up in the Admin app.
+    The very first person to bootstrap becomes 'owner' automatically (a
+    fresh deployment has no staff yet); everyone after that is created
+    as whatever role they asked for, since only an existing owner's
+    invite flow should be minting new owners in a real rollout — the
+    role passed here is otherwise advisory for this prototype."""
+    token = get_bearer_token()
+    claims = verify_firebase_token(token) if token else None
+    if not claims:
+        return jsonify({"error": "Unauthorized", "message": "Invalid or missing Firebase token"}), 401
+
+    data = request.get_json(force=True, silent=True) or {}
+    name = (data.get("name") or claims.get("name") or "").strip() or "Staff"
+    requested_role = data.get("role") if data.get("role") in ("owner", "staff") else "staff"
+
+    conn = get_db()
+    row = conn.execute("SELECT * FROM staff WHERE firebase_uid = ?", (claims["uid"],)).fetchone()
+    if not row and claims.get("email"):
+        row = conn.execute("SELECT * FROM staff WHERE email = ?", (claims["email"],)).fetchone()
+    ts = now()
+    if row:
+        conn.execute(
+            "UPDATE staff SET firebase_uid = ?, name = ? WHERE id = ?",
+            (claims["uid"], name, row["id"]),
+        )
+        staff_id = row["id"]
+    else:
+        any_staff = conn.execute("SELECT 1 FROM staff LIMIT 1").fetchone()
+        role = "owner" if not any_staff else requested_role
+        staff_id = new_uuid_id("STF")
+        conn.execute(
+            "INSERT INTO staff (id, name, phone, email, pin_hash, role, active, created_at, firebase_uid) "
+            "VALUES (?,?,?,?,?,?,1,?,?)",
+            (staff_id, name, f"fb-{claims['uid'][:24]}", claims.get("email"),
+             "firebase-auth", role, ts, claims["uid"]),
+        )
+    conn.commit()
+    row = conn.execute("SELECT * FROM staff WHERE id = ?", (staff_id,)).fetchone()
+    conn.close()
+    if not row["active"]:
+        return jsonify({"error": "Unauthorized", "message": "Staff account not found or inactive"}), 401
+    return jsonify(staff_row_to_dict(row))
 
 
 @app.route("/api/staff", methods=["GET"])
@@ -433,6 +600,48 @@ def auth_login():
 @require_auth
 def auth_me():
     return jsonify(user_row_to_dict(request.user))
+
+
+@app.route("/api/me/bootstrap", methods=["POST"])
+def bootstrap_customer():
+    """Called once right after Firebase sign-in/sign-up in the Customer
+    app. Finds or creates the matching `users` row (keyed by Firebase
+    uid, falling back to email so an old password-based account someone
+    already had keeps its history) and returns it — every other endpoint
+    the app calls afterwards just uses the same Firebase ID token and
+    resolves back to this same row."""
+    token = get_bearer_token()
+    claims = verify_firebase_token(token) if token else None
+    if not claims:
+        return jsonify({"error": "Unauthorized", "message": "Invalid or missing Firebase token"}), 401
+
+    data = request.get_json(force=True, silent=True) or {}
+    name = (data.get("name") or claims.get("name") or "").strip() or "Customer"
+    phone = data.get("phone")
+
+    conn = get_db()
+    row = conn.execute("SELECT * FROM users WHERE firebase_uid = ?", (claims["uid"],)).fetchone()
+    if not row and claims.get("email"):
+        row = conn.execute("SELECT * FROM users WHERE email = ?", (claims["email"],)).fetchone()
+    ts = now()
+    if row:
+        conn.execute(
+            "UPDATE users SET firebase_uid = ?, name = ?, phone = COALESCE(?, phone) WHERE id = ?",
+            (claims["uid"], name, phone, row["id"]),
+        )
+        user_id = row["id"]
+    else:
+        user_id = new_uuid_id("USR")
+        conn.execute(
+            "INSERT INTO users (id, email, password_hash, name, phone, created_at, firebase_uid) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (user_id, claims.get("email") or f"{claims['uid']}@firebase.local",
+             "firebase-auth", name, phone, ts, claims["uid"]),
+        )
+    conn.commit()
+    row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    conn.close()
+    return jsonify(user_row_to_dict(row))
 
 
 # ---------------------------------------------------------------- health
@@ -965,6 +1174,84 @@ def verify_technician(technician_id):
     row = conn.execute("SELECT * FROM technicians WHERE id = ?", (technician_id,)).fetchone()
     conn.close()
     return jsonify(technician_row_to_dict(row))
+
+
+# ------------------------------------------------ technician self-service
+# (the Partner app's own login/session — everything above this is the
+# admin-managed view that technician.html and the Admin app already use.)
+@app.route("/api/technician/bootstrap", methods=["POST"])
+def bootstrap_technician():
+    """Called once right after Firebase sign-in/sign-up in the Partner
+    app. A self-registered technician starts unverified/offline, same as
+    one an admin adds by hand — they need an admin to verify them (see
+    /api/technicians/<id>/verify) before they're routed real jobs."""
+    token = get_bearer_token()
+    claims = verify_firebase_token(token) if token else None
+    if not claims:
+        return jsonify({"error": "Unauthorized", "message": "Invalid or missing Firebase token"}), 401
+
+    data = request.get_json(force=True, silent=True) or {}
+    name = (data.get("name") or claims.get("name") or "").strip() or "Technician"
+    category = (data.get("category") or "").strip() or "RasoiSpark"
+    area = (data.get("area") or "").strip()
+
+    conn = get_db()
+    row = conn.execute(
+        "SELECT * FROM technicians WHERE firebase_uid = ?", (claims["uid"],)
+    ).fetchone()
+    if not row and claims.get("email"):
+        row = conn.execute("SELECT * FROM technicians WHERE email = ?", (claims["email"],)).fetchone()
+    if row:
+        conn.execute(
+            "UPDATE technicians SET firebase_uid = ?, name = ? WHERE id = ?",
+            (claims["uid"], name, row["id"]),
+        )
+        tech_id = row["id"]
+    else:
+        tech_id = new_uuid_id("TECH")
+        conn.execute(
+            "INSERT INTO technicians (id, name, category, area, verified, online, rating, "
+            "rating_count, jobs_completed, email, firebase_uid) VALUES (?,?,?,?,0,0,5.0,0,0,?,?)",
+            (tech_id, name, category, area, claims.get("email"), claims["uid"]),
+        )
+    conn.commit()
+    row = conn.execute("SELECT * FROM technicians WHERE id = ?", (tech_id,)).fetchone()
+    conn.close()
+    return jsonify(technician_row_to_dict(row))
+
+
+@app.route("/api/technician/me", methods=["GET"])
+@require_technician_auth
+def technician_me():
+    return jsonify(technician_row_to_dict(request.technician))
+
+
+@app.route("/api/technician/online", methods=["PATCH"])
+@require_technician_auth
+def technician_set_online():
+    data = request.get_json(force=True, silent=True) or {}
+    online = bool(data.get("online"))
+    conn = get_db()
+    conn.execute("UPDATE technicians SET online = ? WHERE id = ?", (1 if online else 0, request.technician["id"]))
+    conn.commit()
+    row = conn.execute("SELECT * FROM technicians WHERE id = ?", (request.technician["id"],)).fetchone()
+    conn.close()
+    return jsonify(technician_row_to_dict(row))
+
+
+@app.route("/api/technician/bookings", methods=["GET"])
+@require_technician_auth
+def technician_my_bookings():
+    """The Partner app's job feed — only jobs assigned to this technician,
+    scoped by their own Firebase-verified identity rather than a client-
+    supplied id (so one technician can't read another's job list)."""
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM bookings WHERE technician_id = ? ORDER BY created_at DESC",
+        (request.technician["id"],),
+    ).fetchall()
+    conn.close()
+    return jsonify([booking_row_to_dict(r) for r in rows])
 
 
 # ---------------------------------------------------------------- inventory
