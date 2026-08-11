@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -404,6 +406,24 @@ class PaymentScreen extends ConsumerWidget {
           onPressed: () {
             // Razorpay checkout opens here in production, then the app listens
             // to the booking doc for payment.status before advancing.
+            final service = draft.service;
+            if (service != null) {
+              String? addressLabel;
+              for (final a in repo.addresses()) {
+                if (a.id == draft.addressId) {
+                  addressLabel = a.label;
+                  break;
+                }
+              }
+              // Fire-and-forget — this booking flow always completes
+              // locally regardless of whether the real backend is
+              // reachable, same "never block a flow" philosophy as the
+              // Firestore profile write in firestore_user_profile_service.dart.
+              unawaited(ref.read(apiRepositoryProvider).createBooking(
+                    service: service,
+                    areaLabel: addressLabel,
+                  ));
+            }
             context.go('/booking/CP-2481-NSK/confirmed');
           },
           child: Text('Pay ${Money.rupees(draft.totalPaise)}'),

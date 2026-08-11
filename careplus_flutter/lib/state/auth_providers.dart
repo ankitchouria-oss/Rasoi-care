@@ -1,6 +1,10 @@
+import 'dart:async';
+
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../data/api/backend_client.dart';
 import '../data/firebase/auth_service.dart';
 import '../data/firebase/firebase_auth_service.dart';
 import '../data/firebase/mock_auth_service.dart';
@@ -88,6 +92,7 @@ class AuthFlowVM extends Notifier<AuthFlowState> {
     state = state.copyWith(verifying: true, clearError: true);
     try {
       await ref.read(authServiceProvider).verifyOtp(verificationId: vid, smsCode: code);
+      _bootstrapBackend();
       state = state.copyWith(verifying: false);
       return true;
     } on AuthException catch (e) {
@@ -112,6 +117,7 @@ class AuthFlowVM extends Notifier<AuthFlowState> {
     state = state.copyWith(submitting: true, clearError: true);
     try {
       await action();
+      _bootstrapBackend();
       state = state.copyWith(submitting: false);
       return true;
     } on AuthException catch (e) {
@@ -124,4 +130,30 @@ class AuthFlowVM extends Notifier<AuthFlowState> {
   }
 
   void reset() => state = const AuthFlowState();
+
+  /// Best-effort POST to the backend right after any successful sign-in
+  /// (register, email/password, Google, or phone OTP) so it has a matching
+  /// `users` row — see bootstrap_customer in app.py. Fire-and-forget, same
+  /// pattern as UserProfileService's Firestore write-through in
+  /// firestore_user_profile_service.dart: never blocks getting into the
+  /// app, and a no-op in mock mode (no Firebase project configured yet).
+  void _bootstrapBackend() {
+    if (Firebase.apps.isEmpty) return;
+    unawaited(_doBootstrapBackend());
+  }
+
+  Future<void> _doBootstrapBackend() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+      final idToken = await user.getIdToken();
+      if (idToken == null) return;
+      await BackendClient().bootstrap(
+        idToken: idToken,
+        name: user.displayName ?? user.email ?? 'Customer',
+      );
+    } catch (_) {
+      // Best-effort — never blocks sign-in.
+    }
+  }
 }

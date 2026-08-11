@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
+import '../../data/api/api_repository.dart';
 import '../../data/models.dart';
 import '../../state/providers.dart';
 
@@ -18,6 +19,7 @@ class TechJobScreen extends ConsumerStatefulWidget {
 class _TechJobScreenState extends ConsumerState<TechJobScreen> {
   int _elapsedSecs = 84; // 01:24 — matches the on-site timer already running
   Timer? _t;
+  bool _advancing = false;
 
   @override
   void initState() {
@@ -38,9 +40,48 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
+  /// Label for the dock's primary button, driven by the job's real status
+  /// when this is a known live booking (see `ApiRepository.statusOf`);
+  /// `null` covers mock/local jobs, which keep the original single-step
+  /// flow straight into the invoice screen.
+  String _primaryLabel(String? liveStatus) => switch (liveStatus) {
+        'Requested' => 'Accept job',
+        'Accepted' => 'On my way',
+        'On the way' => 'Arrived — start job',
+        _ => 'Complete and invoice', // In Progress, Completed, null (mock)
+      };
+
+  Future<void> _handlePrimaryAction(String? liveStatus) async {
+    if (liveStatus == null || liveStatus == 'Completed') {
+      context.push('/tech/job/${widget.jobId}/close');
+      return;
+    }
+    await _advanceStatus();
+    if (liveStatus == 'In Progress' && mounted) {
+      context.push('/tech/job/${widget.jobId}/close');
+    }
+  }
+
+  Future<void> _advanceStatus() async {
+    setState(() => _advancing = true);
+    final repo = ref.read(repositoryProvider);
+    if (repo is ApiRepository) {
+      final ok = await repo.advanceJob(widget.jobId);
+      if (ok) {
+        ref.read(jobsFeedTickProvider.notifier).bump();
+      } else if (mounted) {
+        _toast(context, 'Could not update status — check connection');
+      }
+    }
+    if (mounted) setState(() => _advancing = false);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final job = ref.watch(repositoryProvider).jobDetail(widget.jobId);
+    ref.watch(jobsFeedTickProvider); // rebuild once a real fetch/action lands
+    final repo = ref.watch(repositoryProvider);
+    final job = repo.jobDetail(widget.jobId);
+    final liveStatus = repo is ApiRepository ? repo.statusOf(widget.jobId) : null;
     final checklist = ref.watch(techChecklistProvider(widget.jobId));
     final checklistVM = ref.read(techChecklistProvider(widget.jobId).notifier);
     final afterPhotos = ref.watch(techAfterPhotosProvider(widget.jobId));
@@ -249,8 +290,14 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
               child: SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: () => context.push('/tech/job/${widget.jobId}/close'),
-                  child: const Text('Complete and invoice'),
+                  onPressed:
+                      _advancing ? null : () => _handlePrimaryAction(liveStatus),
+                  child: _advancing
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : Text(_primaryLabel(liveStatus)),
                 ),
               ),
             ),

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../data/api/staff_bootstrap_service.dart';
 import '../data/auth/auth_service.dart';
 import '../data/auth/firebase_auth_service.dart';
 import '../data/auth/mock_auth_service.dart';
@@ -15,8 +16,13 @@ final authServiceProvider = Provider<AuthService>(
   (ref) => Firebase.apps.isEmpty ? MockAuthService() : FirebaseAuthService(),
 );
 
-final staffProfileServiceProvider =
-    Provider<StaffProfileService>((ref) => StaffProfileService());
+final staffProfileServiceProvider = Provider<StaffProfileService>(
+  (ref) => StaffProfileService(),
+);
+
+final staffBootstrapServiceProvider = Provider<StaffBootstrapService>(
+  (ref) => StaffBootstrapService(),
+);
 
 class AuthFlowState {
   const AuthFlowState({
@@ -33,6 +39,7 @@ class AuthFlowState {
   final String? verificationId;
   final bool sending;
   final bool verifying;
+
   /// Covers email/password and Google sign-in — separate from [sending]/
   /// [verifying], which are phone-OTP-specific.
   final bool submitting;
@@ -47,20 +54,20 @@ class AuthFlowState {
     bool? submitting,
     String? error,
     bool clearError = false,
-  }) =>
-      AuthFlowState(
-        phone: phone ?? this.phone,
-        role: role ?? this.role,
-        verificationId: verificationId ?? this.verificationId,
-        sending: sending ?? this.sending,
-        verifying: verifying ?? this.verifying,
-        submitting: submitting ?? this.submitting,
-        error: clearError ? null : (error ?? this.error),
-      );
+  }) => AuthFlowState(
+    phone: phone ?? this.phone,
+    role: role ?? this.role,
+    verificationId: verificationId ?? this.verificationId,
+    sending: sending ?? this.sending,
+    verifying: verifying ?? this.verifying,
+    submitting: submitting ?? this.submitting,
+    error: clearError ? null : (error ?? this.error),
+  );
 }
 
-final authFlowProvider =
-    NotifierProvider<AuthFlowVM, AuthFlowState>(AuthFlowVM.new);
+final authFlowProvider = NotifierProvider<AuthFlowVM, AuthFlowState>(
+  AuthFlowVM.new,
+);
 
 class AuthFlowVM extends Notifier<AuthFlowState> {
   @override
@@ -73,17 +80,28 @@ class AuthFlowVM extends Notifier<AuthFlowState> {
   void setRole(AdminRole role) => state = state.copyWith(role: role);
 
   Future<bool> sendOtp(String tenDigitPhone) async {
-    state = state.copyWith(sending: true, clearError: true, phone: tenDigitPhone);
+    state = state.copyWith(
+      sending: true,
+      clearError: true,
+      phone: tenDigitPhone,
+    );
     try {
-      final result = await ref.read(authServiceProvider).sendOtp('+91$tenDigitPhone');
-      state = state.copyWith(sending: false, verificationId: result.verificationId);
+      final result = await ref
+          .read(authServiceProvider)
+          .sendOtp('+91$tenDigitPhone');
+      state = state.copyWith(
+        sending: false,
+        verificationId: result.verificationId,
+      );
       return true;
     } on AuthException catch (e) {
       state = state.copyWith(sending: false, error: e.message);
       return false;
     } catch (_) {
       state = state.copyWith(
-          sending: false, error: 'Could not send a code right now. Try again.');
+        sending: false,
+        error: 'Could not send a code right now. Try again.',
+      );
       return false;
     }
   }
@@ -96,24 +114,40 @@ class AuthFlowVM extends Notifier<AuthFlowState> {
     }
     state = state.copyWith(verifying: true, clearError: true);
     try {
-      await ref.read(authServiceProvider).verifyOtp(verificationId: vid, smsCode: code);
+      await ref
+          .read(authServiceProvider)
+          .verifyOtp(verificationId: vid, smsCode: code);
       state = state.copyWith(verifying: false);
-      unawaited(ref.read(staffProfileServiceProvider).touchProfile(role: state.role));
+      unawaited(
+        ref.read(staffProfileServiceProvider).touchProfile(role: state.role),
+      );
+      unawaited(
+        ref.read(staffBootstrapServiceProvider).bootstrap(role: state.role),
+      );
       return true;
     } on AuthException catch (e) {
       state = state.copyWith(verifying: false, error: e.message);
       return false;
     } catch (_) {
-      state = state.copyWith(verifying: false, error: 'Verification failed. Try again.');
+      state = state.copyWith(
+        verifying: false,
+        error: 'Verification failed. Try again.',
+      );
       return false;
     }
   }
 
   Future<bool> registerWithEmail(String email, String password) => _submit(
-      () => ref.read(authServiceProvider).registerWithEmail(email: email, password: password));
+    () => ref
+        .read(authServiceProvider)
+        .registerWithEmail(email: email, password: password),
+  );
 
   Future<bool> signInWithEmail(String email, String password) => _submit(
-      () => ref.read(authServiceProvider).signInWithEmail(email: email, password: password));
+    () => ref
+        .read(authServiceProvider)
+        .signInWithEmail(email: email, password: password),
+  );
 
   Future<bool> signInWithGoogle() =>
       _submit(() => ref.read(authServiceProvider).signInWithGoogle());
@@ -123,13 +157,21 @@ class AuthFlowVM extends Notifier<AuthFlowState> {
     try {
       await action();
       state = state.copyWith(submitting: false);
-      unawaited(ref.read(staffProfileServiceProvider).touchProfile(role: state.role));
+      unawaited(
+        ref.read(staffProfileServiceProvider).touchProfile(role: state.role),
+      );
+      unawaited(
+        ref.read(staffBootstrapServiceProvider).bootstrap(role: state.role),
+      );
       return true;
     } on AuthException catch (e) {
       state = state.copyWith(submitting: false, error: e.message);
       return false;
     } catch (_) {
-      state = state.copyWith(submitting: false, error: 'Something went wrong. Try again.');
+      state = state.copyWith(
+        submitting: false,
+        error: 'Something went wrong. Try again.',
+      );
       return false;
     }
   }
@@ -139,4 +181,6 @@ class AuthFlowVM extends Notifier<AuthFlowState> {
 
 /// The signed-in role, valid once auth completes. Screens gate owner-only
 /// sections on this.
-final currentRoleProvider = Provider<AdminRole>((ref) => ref.watch(authFlowProvider).role);
+final currentRoleProvider = Provider<AdminRole>(
+  (ref) => ref.watch(authFlowProvider).role,
+);

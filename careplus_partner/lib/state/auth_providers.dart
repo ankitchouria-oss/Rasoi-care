@@ -1,8 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 
+import '../data/api/api_config.dart';
 import '../data/auth/auth_service.dart';
 import '../data/auth/firebase_auth_service.dart';
 import '../data/auth/mock_auth_service.dart';
@@ -16,6 +20,41 @@ final authServiceProvider = Provider<AuthService>(
 
 final technicianProfileServiceProvider =
     Provider<TechnicianProfileService>((ref) => TechnicianProfileService());
+
+/// Best-effort call to the real backend right after a successful sign-in,
+/// mirroring [TechnicianProfileService.touchProfile]'s "never block getting
+/// into the job feed" spirit: in mock mode, or if the request fails for any
+/// reason (backend not deployed yet, timeout, network error), this is a
+/// silent no-op. A self-bootstrapped technician starts unverified/offline
+/// server-side until an admin verifies them — real jobs won't route to them
+/// until then, which is expected.
+Future<void> _bootstrapTechnicianBackend() async {
+  if (Firebase.apps.isEmpty) return; // mock mode — no backend to bootstrap
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return;
+  try {
+    final token = await user.getIdToken();
+    if (token == null) return;
+    final name = (user.displayName?.trim().isNotEmpty ?? false)
+        ? user.displayName!.trim()
+        : (user.email?.split('@').first ?? user.phoneNumber ?? 'Technician');
+    await http
+        .post(
+          Uri.parse('${ApiConfig.baseUrl}/api/technician/bootstrap'),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Content-Type': 'application/json',
+          },
+          // The registration screens here don't collect a trade category or
+          // service area today (see auth_screens.dart) — default both, same
+          // as the backend does when they're omitted.
+          body: jsonEncode({'name': name, 'category': 'RasoiSpark', 'area': ''}),
+        )
+        .timeout(const Duration(seconds: 8));
+  } catch (_) {
+    // Backend unreachable or not deployed yet — never blocks sign-in.
+  }
+}
 
 class AuthFlowState {
   const AuthFlowState({
@@ -92,6 +131,7 @@ class AuthFlowVM extends Notifier<AuthFlowState> {
       await ref.read(authServiceProvider).verifyOtp(verificationId: vid, smsCode: code);
       state = state.copyWith(verifying: false);
       unawaited(ref.read(technicianProfileServiceProvider).touchProfile());
+      unawaited(_bootstrapTechnicianBackend());
       return true;
     } on AuthException catch (e) {
       state = state.copyWith(verifying: false, error: e.message);
@@ -117,6 +157,7 @@ class AuthFlowVM extends Notifier<AuthFlowState> {
       await action();
       state = state.copyWith(submitting: false);
       unawaited(ref.read(technicianProfileServiceProvider).touchProfile());
+      unawaited(_bootstrapTechnicianBackend());
       return true;
     } on AuthException catch (e) {
       state = state.copyWith(submitting: false, error: e.message);

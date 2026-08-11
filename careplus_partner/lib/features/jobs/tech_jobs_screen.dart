@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
+import '../../data/api/api_repository.dart';
 import '../../data/models.dart';
 import '../../state/providers.dart';
 import '../../state/auth_providers.dart';
@@ -18,6 +19,8 @@ class TechJobsScreen extends ConsumerStatefulWidget {
 class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
   int _acceptSecs = 42;
   bool _requestOpen = true;
+  bool _accepting = false;
+  bool _togglingDuty = false;
   Timer? _t;
 
   @override
@@ -27,6 +30,10 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
       if (_acceptSecs == 0) return;
       setState(() => _acceptSecs--);
     });
+    // Kick off a real fetch once this screen is up — the repository starts
+    // with an empty/mock-shaped cache until this completes. Fire-and-forget
+    // from the UI's point of view; _bump forces a rebuild when it lands.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _initialRefresh());
   }
 
   @override
@@ -35,8 +42,47 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
     super.dispose();
   }
 
+  Future<void> _initialRefresh() async {
+    final repo = ref.read(repositoryProvider);
+    if (repo is ApiRepository) {
+      await repo.refreshAll();
+      if (mounted) ref.read(jobsFeedTickProvider.notifier).bump();
+    }
+  }
+
+  Future<void> _acceptRequest(String jobId) async {
+    setState(() => _accepting = true);
+    final repo = ref.read(repositoryProvider);
+    if (repo is ApiRepository) {
+      final ok = await repo.advanceJob(jobId); // Requested -> Accepted
+      if (ok) ref.read(jobsFeedTickProvider.notifier).bump();
+    }
+    if (!mounted) return;
+    setState(() {
+      _accepting = false;
+      _requestOpen = false;
+    });
+    context.push('/tech/job/$jobId');
+  }
+
+  Future<void> _toggleDuty(bool current) async {
+    setState(() => _togglingDuty = true);
+    final repo = ref.read(repositoryProvider);
+    if (repo is ApiRepository) {
+      final ok = await repo.setOnDuty(!current);
+      if (ok) {
+        ref.read(jobsFeedTickProvider.notifier).bump();
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Could not update duty status — check connection')));
+      }
+    }
+    if (mounted) setState(() => _togglingDuty = false);
+  }
+
   @override
   Widget build(BuildContext context) {
+    ref.watch(jobsFeedTickProvider); // rebuild once a real fetch/action lands
     final repo = ref.watch(repositoryProvider);
     final stats = repo.techStats();
     final request = _requestOpen ? repo.incomingRequest() : null;
@@ -61,8 +107,11 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
                       ],
                     ),
                   ),
-                  StatusChip(stats.onDuty ? '● On duty' : 'Off duty',
-                      tone: stats.onDuty ? ChipTone.success : ChipTone.neutral),
+                  GestureDetector(
+                    onTap: _togglingDuty ? null : () => _toggleDuty(stats.onDuty),
+                    child: StatusChip(stats.onDuty ? '● On duty' : 'Off duty',
+                        tone: stats.onDuty ? ChipTone.success : ChipTone.neutral),
+                  ),
                   const SizedBox(width: 9),
                   _RoundIcon(
                       icon: Icons.logout,
@@ -164,11 +213,15 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
                             const SizedBox(width: 9),
                             Expanded(
                               child: FilledButton(
-                                onPressed: () {
-                                  setState(() => _requestOpen = false);
-                                  context.push('/tech/job/${request.jobId}');
-                                },
-                                child: const Text('Accept'),
+                                onPressed:
+                                    _accepting ? null : () => _acceptRequest(request.jobId),
+                                child: _accepting
+                                    ? const SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2, color: Colors.white))
+                                    : const Text('Accept'),
                               ),
                             ),
                           ]),

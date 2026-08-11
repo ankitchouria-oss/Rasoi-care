@@ -21,6 +21,9 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
   @override
   Widget build(BuildContext context) {
     final repo = ref.watch(repositoryProvider);
+    // Rebuild when ApiRepository's real-booking cache changes (initial
+    // fetch lands, or a booking is just created) — see providers.dart.
+    ref.watch(bookingsRefreshProvider);
     final upcoming = repo.bookings();
     final past = repo.bookings(completed: true);
 

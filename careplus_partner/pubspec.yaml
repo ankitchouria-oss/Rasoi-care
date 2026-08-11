@@ -35,6 +35,7 @@ dependencies:
   go_router: ^14.6.2           # declarative routes
   google_fonts: ^6.2.1         # Fraunces · Plus Jakarta Sans · IBM Plex Mono
   intl: ^0.19.0                # ₹ formatting via en_IN
+  http: ^1.2.0                 # calls the real Flask backend — see lib/data/api/
 
   firebase_core: ^3.8.0        # wired in — see lib/data/auth/README or app §Firebase Auth
   firebase_auth: ^5.3.4        # phone/email/Google sign-in, guarded fallback to mock if unconfigured

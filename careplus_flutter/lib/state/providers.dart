@@ -6,9 +6,29 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/models.dart';
 import '../data/mock_repository.dart';
+import '../data/api/api_repository.dart';
 
-/// Swap `MockRepository()` for `FirestoreRepository()` here — nothing else moves.
-final repositoryProvider = Provider<CareRepository>((ref) => MockRepository());
+/// Bumped every time [ApiRepository]'s real-booking cache changes (initial
+/// fetch lands, or a new booking is created), so screens that read
+/// `repo.bookings()` can `ref.watch` this to pick up the change — see
+/// BookingsScreen in lib/features/account/account_screens.dart.
+final bookingsRefreshProvider = StateProvider<int>((ref) => 0);
+
+/// The concrete repository, exposed separately from [repositoryProvider] so
+/// call sites that need to *write* (creating a booking) can reach methods
+/// outside the read-only [CareRepository] interface — e.g. PaymentScreen in
+/// lib/features/booking/booking_screens.dart.
+final apiRepositoryProvider = Provider<ApiRepository>((ref) {
+  return ApiRepository(
+    onBookingsChanged: () => ref.read(bookingsRefreshProvider.notifier).state++,
+  );
+});
+
+/// Swap the provider built here to change data sources — nothing else moves.
+/// [ApiRepository] wraps a [MockRepository] for everything except bookings,
+/// which come from the real Flask+SQLite backend — see lib/data/api.
+final repositoryProvider =
+    Provider<CareRepository>((ref) => ref.watch(apiRepositoryProvider));
 
 /// App-wide light/dark toggle. Persist to shared_preferences in production.
 final themeModeProvider = NotifierProvider<ThemeModeVM, ThemeMode>(ThemeModeVM.new);
