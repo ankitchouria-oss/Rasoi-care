@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/widgets/care_widgets.dart';
+import '../../core/widgets/appliance_illustration.dart';
 import '../../core/theme/care_plus_theme.dart';
 import '../../data/models.dart';
 import '../../state/providers.dart';
@@ -31,8 +32,12 @@ class HomeScreen extends ConsumerWidget {
                           Eyebrow('Serving'),
                           const SizedBox(height: 3),
                           Row(children: [
-                            Text('Gangapur Road, Nashik',
-                                style: context.type.titleMedium),
+                            Flexible(
+                              child: Text('Gangapur Road, Nashik',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: context.type.titleMedium),
+                            ),
                             const SizedBox(width: 5),
                             const Icon(Icons.expand_more, size: 16),
                           ]),
@@ -172,7 +177,7 @@ class HomeScreen extends ConsumerWidget {
                     child: SectionHeader('Offers', actionLabel: 'See all', onAction: () {}),
                   ),
                   SizedBox(
-                    height: 118,
+                    height: 132,
                     child: ListView(
                       scrollDirection: Axis.horizontal,
                       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -329,13 +334,29 @@ class _CategoryTile extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(appliance.glyph,
-                  style: TextStyle(fontSize: 20, color: context.scheme.primary)),
-              const SizedBox(height: 7),
-              Text(_short(appliance),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                      fontSize: 11, fontWeight: FontWeight.w600, height: 1.2)),
+              Container(
+                width: 40,
+                height: 40,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: context.scheme.primaryContainer,
+                ),
+                child: ApplianceIllustration(
+                    appliance: appliance, size: 24, color: context.scheme.primary),
+              ),
+              const SizedBox(height: 9),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(_short(appliance),
+                      maxLines: 1,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                          fontSize: 11, fontWeight: FontWeight.w600, height: 1.2)),
+                ),
+              ),
             ],
           ),
         ),
@@ -362,14 +383,20 @@ class _OfferCard extends StatelessWidget {
         width: 214,
         child: CareCard(
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               StatusChip(tag, tone: tone, height: 24),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               Text(title,
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 5),
-              Text(sub, style: context.type.bodySmall),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, height: 1.2)),
+              const SizedBox(height: 4),
+              Text(sub,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.type.bodySmall),
             ],
           ),
         ),

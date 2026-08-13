@@ -16,11 +16,30 @@ flutter run            # debug
 flutter build apk --release
 ```
 
-Sign-in currently uses `MockAuthService` (`lib/data/auth/`) — any 10-digit
-phone number "sends", and the OTP screen auto-fills the demo code `4402`.
-The role (Owner/Staff) is chosen on the phone-number screen and gates
-sensitive sections; swap in a real `AuthService` + role lookup there when
-this app is wired to an actual staff directory.
+Sign-in supports phone OTP, email/password, and Google, all going through
+`lib/data/auth/`. By default `Firebase.initializeApp()` (in `main.dart`)
+fails against the placeholder config in `lib/firebase_options.dart`, so the
+app falls back to `MockAuthService`: any 10-digit phone number "sends", the
+OTP screen auto-fills the demo code `4402`, and email/Google "succeed"
+instantly without a network call. The role (Owner/Staff) is chosen on the
+sign-in screen for every method and gates sensitive sections client-side —
+there's no server-side role directory yet, so treat this the same as the
+existing mock: fine for a demo, not a real access-control boundary.
+
+**To go live**, register a third Android app under the same Firebase
+project as `careplus_flutter`/`careplus_partner` — Project settings → Add
+app → Android → package name `com.rasoicare.care_plus_admin` — then either
+run `flutterfire configure` from this folder or copy the four values
+(apiKey/appId/messagingSenderId/projectId) into `lib/firebase_options.dart`
+by hand. Add this app's SHA-1/SHA-256 fingerprint under that Android app's
+settings (Phone auth and Google Sign-in both need it), and enable
+Phone/Email-Password/Google in Authentication → Sign-in method if you
+haven't already for the project. Once `Firebase.initializeApp()` succeeds,
+`authServiceProvider` (`lib/state/auth_providers.dart`) switches to
+`FirebaseAuthService` automatically — no other code changes. A best-effort
+`staff/{uid}` Firestore document (phone, email, role, last sign-in) is
+written on every successful sign-in via `StaffProfileService`
+(`lib/data/firestore/`).
 
 ## Role gating
 

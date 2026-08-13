@@ -16,10 +16,27 @@ flutter run            # debug
 flutter build apk --release
 ```
 
-Sign-in currently uses `MockAuthService` (`lib/data/auth/`) — any 10-digit
-phone number "sends", and the OTP screen auto-fills the demo code `4402`.
-Swap in a real `AuthService` implementation there when this app is wired to
-an actual technician roster.
+Sign-in supports phone OTP, email/password, and Google, all going through
+`lib/data/auth/`. By default `Firebase.initializeApp()` (in `main.dart`)
+fails against the placeholder config in `lib/firebase_options.dart`, so the
+app falls back to `MockAuthService`: any 10-digit phone number "sends", the
+OTP screen auto-fills the demo code `4402`, and email/Google "succeed"
+instantly without a network call.
+
+**To go live**, register a second Android app under the same Firebase
+project as `careplus_flutter` — Project settings → Add app → Android →
+package name `com.rasoicare.care_plus_partner` — then either run
+`flutterfire configure` from this folder or copy the four values
+(apiKey/appId/messagingSenderId/projectId) into `lib/firebase_options.dart`
+by hand. Add this app's SHA-1/SHA-256 fingerprint under that Android app's
+settings (Phone auth and Google Sign-in both need it), and enable
+Phone/Email-Password/Google in Authentication → Sign-in method if you
+haven't already for the project. Once `Firebase.initializeApp()` succeeds,
+`authServiceProvider` (`lib/state/auth_providers.dart`) switches to
+`FirebaseAuthService` automatically — no other code changes. A best-effort
+`technicians/{uid}` Firestore document (phone, email, last sign-in) is
+written on every successful sign-in via `TechnicianProfileService`
+(`lib/data/firestore/`).
 
 ## Structure
 

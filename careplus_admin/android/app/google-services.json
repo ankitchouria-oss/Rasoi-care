@@ -1,0 +1,97 @@
+{
+  "project_info": {
+    "project_number": "1064653219482",
+    "project_id": "rasoi-care",
+    "storage_bucket": "rasoi-care.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1064653219482:android:f64b893d9752cfaae42123",
+        "android_client_info": {
+          "package_name": "com.careplus.care_plus"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1064653219482-hb2hshp1lid889lefb0ac8ks7kvvf828.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA0zbJ3DzbAWF6ExXtW2DcIsaZ8HG1dQD0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1064653219482-hb2hshp1lid889lefb0ac8ks7kvvf828.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1064653219482:android:9357fbcd0bc3c701e42123",
+        "android_client_info": {
+          "package_name": "com.rasoicare.care_plus_admin"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1064653219482-hb2hshp1lid889lefb0ac8ks7kvvf828.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA0zbJ3DzbAWF6ExXtW2DcIsaZ8HG1dQD0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1064653219482-hb2hshp1lid889lefb0ac8ks7kvvf828.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1064653219482:android:6865f3c584d89798e42123",
+        "android_client_info": {
+          "package_name": "com.rasoicare.care_plus_partner"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1064653219482-hb2hshp1lid889lefb0ac8ks7kvvf828.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA0zbJ3DzbAWF6ExXtW2DcIsaZ8HG1dQD0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1064653219482-hb2hshp1lid889lefb0ac8ks7kvvf828.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

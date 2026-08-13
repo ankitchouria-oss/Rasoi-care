@@ -324,6 +324,39 @@ def migrate_technicians_columns(conn):
         # already live and taking real jobs — treat them as verified rather
         # than silently pulling them out of rotation.
         conn.execute("UPDATE technicians SET verified = 1")
+    if "email" not in cols:
+        conn.execute("ALTER TABLE technicians ADD COLUMN email TEXT")
+    if "firebase_uid" not in cols:
+        conn.execute("ALTER TABLE technicians ADD COLUMN firebase_uid TEXT")
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_technicians_firebase_uid "
+            "ON technicians(firebase_uid) WHERE firebase_uid IS NOT NULL"
+        )
+    conn.commit()
+
+
+def migrate_firebase_columns(conn):
+    """Bridges Firebase-authenticated native apps (Customer/Partner/Admin)
+    onto this backend without disturbing the existing password/PIN auth
+    the web apps use — each table just gains an optional firebase_uid to
+    key off once a native app calls its bootstrap endpoint."""
+    user_cols = {row["name"] for row in conn.execute("PRAGMA table_info(users)").fetchall()}
+    if "firebase_uid" not in user_cols:
+        conn.execute("ALTER TABLE users ADD COLUMN firebase_uid TEXT")
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_firebase_uid "
+            "ON users(firebase_uid) WHERE firebase_uid IS NOT NULL"
+        )
+
+    staff_cols = {row["name"] for row in conn.execute("PRAGMA table_info(staff)").fetchall()}
+    if "email" not in staff_cols:
+        conn.execute("ALTER TABLE staff ADD COLUMN email TEXT")
+    if "firebase_uid" not in staff_cols:
+        conn.execute("ALTER TABLE staff ADD COLUMN firebase_uid TEXT")
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_staff_firebase_uid "
+            "ON staff(firebase_uid) WHERE firebase_uid IS NOT NULL"
+        )
     conn.commit()
 
 
@@ -403,6 +436,7 @@ def init_db(reset=False):
     conn.commit()
     migrate_bookings_columns(conn)
     migrate_technicians_columns(conn)
+    migrate_firebase_columns(conn)
     seed_catalog(conn)
     seed_staff(conn)
     seed_inventory(conn)

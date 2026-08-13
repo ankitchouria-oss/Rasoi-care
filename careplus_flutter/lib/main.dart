@@ -10,7 +10,8 @@ import 'firebase_options.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform)
+        .timeout(const Duration(seconds: 3));
   } catch (e) {
     // Expected until you run `flutterfire configure` with a real project —
     // see lib/firebase_options.dart. The app falls back to MockAuthService

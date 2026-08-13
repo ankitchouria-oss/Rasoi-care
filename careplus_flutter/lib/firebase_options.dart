@@ -1,20 +1,22 @@
-// GENERATED PLACEHOLDER — replace by running `flutterfire configure`.
+// Android values are real — copied from the rasoi-care Firebase project's
+// google-services.json (package com.careplus.care_plus). iOS/web are still
+// placeholders since no app is registered for those platforms yet; add them
+// the same way (Firebase console → Add app) if/when needed.
 //
-// This file exists so the project compiles and runs in mock-auth mode out of
-// the box. The values below are not real; Firebase.initializeApp() will fail
-// with them, and main.dart deliberately catches that failure and falls back
-// to MockAuthService so the app still works without any setup.
+// main.dart calls Firebase.initializeApp() at startup inside a try/catch.
+// With real Android values it succeeds, so authServiceProvider switches to
+// FirebaseAuthService automatically — no other code changes. iOS/web still
+// fail fast into MockAuthService until their REPLACE_ME values are filled in.
 //
-// To go live:
-//   1. Create a Firebase project at https://console.firebase.google.com
-//   2. Enable Authentication → Sign-in method → Phone
-//   3. From the project root: `dart pub global activate flutterfire_cli`
-//      then `flutterfire configure` — this OVERWRITES this file with your
-//      real projectId/apiKey/appId per platform, and (for Android) drops in
-//      google-services.json and wires the Gradle plugin automatically.
-//   4. For phone auth specifically, also add your app's SHA-1/SHA-256
-//      fingerprints in the Firebase console (Project settings → your Android
-//      app) or verification will fail even with a correct config.
+// Still to do in the Firebase console for auth to fully work:
+//   1. Authentication → Sign-in method → enable Phone, Email/Password, Google.
+//   2. Project settings → your Android app → add your SHA-1/SHA-256
+//      fingerprint (Phone auth and Google Sign-in both silently fail without
+//      this even with correct config values).
+//   3. For Google Sign-in, set FirebaseConfig.googleServerClientId in
+//      lib/data/firebase/firebase_config.dart to the Web client ID shown
+//      under Authentication → Sign-in method → Google → Web SDK configuration
+//      if you hit a DEVELOPER_ERROR/sign_in_failed on Android.
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform, kIsWeb;
 
@@ -37,21 +39,22 @@ class DefaultFirebaseOptions {
     apiKey: 'REPLACE_ME',
     appId: 'REPLACE_ME',
     messagingSenderId: 'REPLACE_ME',
-    projectId: 'careplus-placeholder',
+    projectId: 'rasoi-care',
   );
 
   static const android = FirebaseOptions(
-    apiKey: 'REPLACE_ME',
-    appId: 'REPLACE_ME',
-    messagingSenderId: 'REPLACE_ME',
-    projectId: 'careplus-placeholder',
+    apiKey: 'AIzaSyA0zbJ3DzbAWF6ExXtW2DcIsaZ8HG1dQD0',
+    appId: '1:1064653219482:android:f64b893d9752cfaae42123',
+    messagingSenderId: '1064653219482',
+    projectId: 'rasoi-care',
+    storageBucket: 'rasoi-care.firebasestorage.app',
   );
 
   static const ios = FirebaseOptions(
     apiKey: 'REPLACE_ME',
     appId: 'REPLACE_ME',
     messagingSenderId: 'REPLACE_ME',
-    projectId: 'careplus-placeholder',
+    projectId: 'rasoi-care',
     iosBundleId: 'com.careplus.carePlus',
   );
 }

@@ -24,6 +24,21 @@ abstract interface class AuthService {
   /// Throws an [AuthException] if it doesn't match.
   Future<void> verifyOtp({required String verificationId, required String smsCode});
 
+  /// Creates a new email/password account. Throws an [AuthException] on
+  /// failure (e.g. email already registered, weak password).
+  Future<void> registerWithEmail({
+    required String email,
+    required String password,
+  });
+
+  /// Signs in with an existing email/password account. Throws an
+  /// [AuthException] on failure (wrong password, no such user, etc).
+  Future<void> signInWithEmail({required String email, required String password});
+
+  /// Signs in with Google. Throws an [AuthException] on failure, including
+  /// when the person closes the account picker without choosing one.
+  Future<void> signInWithGoogle();
+
   Future<void> signOut();
 }
 

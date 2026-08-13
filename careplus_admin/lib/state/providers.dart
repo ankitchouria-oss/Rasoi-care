@@ -4,15 +4,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../data/api/api_repository.dart';
 import '../data/models.dart';
-import '../data/repository.dart';
 
-/// Swap `MockAdminRepository()` for a real implementation here — nothing
-/// else moves.
-final repositoryProvider = Provider<AdminRepository>((ref) => MockAdminRepository());
+/// [ApiRepository] wraps [MockAdminRepository] internally (see
+/// lib/data/api/api_repository.dart) — real data from the live backend once
+/// it arrives, falling back to Mock field-by-field for anything not yet
+/// fetched, un-fetchable, or that failed. It's a `ChangeNotifier` so screens
+/// watching this provider rebuild once background fetches resolve, even
+/// though [AdminRepository]'s methods stay synchronous.
+final repositoryProvider = ChangeNotifierProvider<ApiRepository>(
+  (ref) => ApiRepository(),
+);
 
 /// App-wide light/dark toggle. Persist to shared_preferences in production.
-final themeModeProvider = NotifierProvider<ThemeModeVM, ThemeMode>(ThemeModeVM.new);
+final themeModeProvider = NotifierProvider<ThemeModeVM, ThemeMode>(
+  ThemeModeVM.new,
+);
 
 class ThemeModeVM extends Notifier<ThemeMode> {
   @override
@@ -23,7 +31,9 @@ class ThemeModeVM extends Notifier<ThemeMode> {
 }
 
 /// Which date range the Reports tab is currently showing.
-final reportRangeProvider = NotifierProvider<ReportRangeVM, ReportRange>(ReportRangeVM.new);
+final reportRangeProvider = NotifierProvider<ReportRangeVM, ReportRange>(
+  ReportRangeVM.new,
+);
 
 class ReportRangeVM extends Notifier<ReportRange> {
   @override

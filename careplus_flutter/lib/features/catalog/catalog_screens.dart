@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/widgets/care_widgets.dart';
+import '../../core/widgets/appliance_illustration.dart';
 import '../../core/theme/care_plus_theme.dart';
 import '../../data/models.dart';
 import '../../state/providers.dart';
@@ -108,6 +109,7 @@ class ServiceDetailScreen extends ConsumerStatefulWidget {
 class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
   int _tab = 0;
   ServiceItem? _selected;
+  final Set<String> _expandedIncluded = {};
 
   @override
   Widget build(BuildContext context) {
@@ -137,16 +139,7 @@ class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
                 children: [
-                  Container(
-                    height: 150,
-                    decoration: BoxDecoration(
-                        color: context.scheme.surfaceContainerHigh,
-                        borderRadius: Radii.rLg),
-                    alignment: Alignment.center,
-                    child: Text(widget.appliance.glyph,
-                        style: TextStyle(
-                            fontSize: 64, color: context.scheme.primary)),
-                  ),
+                  _ApplianceHero(appliance: widget.appliance),
                   const SizedBox(height: 16),
                   Wrap(spacing: 8, children: [
                     StatusChip(
@@ -162,14 +155,13 @@ class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
                   Text(detail.blurb, style: context.type.bodyMedium),
                   const SizedBox(height: 22),
                   _Segmented(
-                    tabs: const ['Services', "What's included", 'Reviews'],
+                    tabs: const ['Services', 'Reviews'],
                     index: _tab,
                     onChanged: (i) => setState(() => _tab = i),
                   ),
                   const SizedBox(height: 16),
                   if (_tab == 0) ..._servicesTab(services),
-                  if (_tab == 1) ..._includedTab(detail),
-                  if (_tab == 2) ..._reviewsTab(detail),
+                  if (_tab == 1) ..._reviewsTab(detail),
                 ],
               ),
             ),
@@ -208,86 +200,62 @@ class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
   List<Widget> _servicesTab(List<ServiceItem> services) => [
         for (final s in services) ...[
           CareCard(
-            child: Row(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (s.mostBooked) ...[
-                        const StatusChip('Most booked',
-                            tone: ChipTone.warning, height: 22),
-                        const SizedBox(height: 8),
-                      ],
-                      Text(s.title,
-                          style: const TextStyle(
-                              fontSize: 14.5, fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 5),
-                      Text(s.blurb, style: context.type.bodySmall),
-                      const SizedBox(height: 9),
-                      Row(children: [
-                        Text(Money.rupees(s.pricePaise),
-                            style: CareType.mono(context.scheme.onSurface,
-                                size: 15, w: FontWeight.w600)),
-                        if (s.strikePaise != null) ...[
-                          const SizedBox(width: 8),
-                          Text(Money.rupees(s.strikePaise!),
-                              style: CareType.mono(context.care.inkFaint, size: 12)
-                                  .copyWith(decoration: TextDecoration.lineThrough)),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (s.mostBooked) ...[
+                            const StatusChip('Most booked',
+                                tone: ChipTone.warning, height: 22),
+                            const SizedBox(height: 8),
+                          ],
+                          Text(s.title,
+                              style: const TextStyle(
+                                  fontSize: 14.5, fontWeight: FontWeight.w700)),
+                          const SizedBox(height: 5),
+                          Text(s.blurb, style: context.type.bodySmall),
+                          const SizedBox(height: 9),
+                          Row(children: [
+                            Text(Money.rupees(s.pricePaise),
+                                style: CareType.mono(context.scheme.onSurface,
+                                    size: 15, w: FontWeight.w600)),
+                            if (s.strikePaise != null) ...[
+                              const SizedBox(width: 8),
+                              Text(Money.rupees(s.strikePaise!),
+                                  style: CareType.mono(context.care.inkFaint, size: 12)
+                                      .copyWith(decoration: TextDecoration.lineThrough)),
+                            ],
+                          ]),
                         ],
-                      ]),
-                    ],
-                  ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    ChoiceTag(_selected == s ? 'Added' : 'Add',
+                        selected: _selected == s,
+                        onTap: () => setState(() => _selected = s)),
+                  ],
                 ),
-                const SizedBox(width: 10),
-                ChoiceTag(_selected == s ? 'Added' : 'Add',
-                    selected: _selected == s,
-                    onTap: () => setState(() => _selected = s)),
+                if (s.included.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  _IncludedDropdown(
+                    service: s,
+                    expanded: _expandedIncluded.contains(s.id),
+                    onToggle: () => setState(() => _expandedIncluded.contains(s.id)
+                        ? _expandedIncluded.remove(s.id)
+                        : _expandedIncluded.add(s.id)),
+                  ),
+                ],
               ],
             ),
           ),
           const SizedBox(height: 10),
         ],
-      ];
-
-  List<Widget> _includedTab(ApplianceDetail detail) => [
-        CareCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(detail.includedTitle,
-                  style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 12),
-              for (final t in detail.included)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 9),
-                  child: Row(children: [
-                    Icon(Icons.check, size: 16, color: context.care.success),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(t, style: context.type.bodySmall)),
-                  ]),
-                ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 10),
-        CareCard(
-          color: context.scheme.errorContainer,
-          borderColor: Colors.transparent,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Not included',
-                  style: TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w700,
-                      color: context.scheme.error)),
-              const SizedBox(height: 8),
-              Text(detail.notIncluded, style: context.type.bodySmall),
-            ],
-          ),
-        ),
       ];
 
   List<Widget> _reviewsTab(ApplianceDetail detail) => [
@@ -348,6 +316,135 @@ class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
       ];
 }
 
+/// A collapsible "What's included" card shown above the services list,
+/// instead of its own tab — tap the header to expand/collapse.
+class _IncludedDropdown extends StatelessWidget {
+  const _IncludedDropdown({
+    required this.service,
+    required this.expanded,
+    required this.onToggle,
+  });
+  final ServiceItem service;
+  final bool expanded;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        decoration: BoxDecoration(
+          color: context.scheme.surfaceContainerHigh,
+          borderRadius: Radii.rMd,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Pressable(
+              onTap: onToggle,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text("What's included",
+                          style: const TextStyle(
+                              fontSize: 12.5, fontWeight: FontWeight.w700)),
+                    ),
+                    AnimatedRotation(
+                      turns: expanded ? 0.5 : 0,
+                      duration: Motion.press,
+                      child: Icon(Icons.expand_more, size: 20, color: context.care.inkMuted),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            AnimatedCrossFade(
+              firstChild: const SizedBox(width: double.infinity),
+              secondChild: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Divider(height: 1),
+                    const SizedBox(height: 12),
+                    for (final t in service.included)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(children: [
+                          Icon(Icons.check, size: 15, color: context.care.success),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(t, style: context.type.bodySmall)),
+                        ]),
+                      ),
+                    if (service.notIncluded.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text('Not included',
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: context.scheme.error)),
+                      const SizedBox(height: 5),
+                      Text(service.notIncluded, style: context.type.bodySmall),
+                    ],
+                  ],
+                ),
+              ),
+              crossFadeState:
+                  expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+              duration: Motion.screen,
+              sizeCurve: Motion.ease,
+            ),
+          ],
+        ),
+      );
+}
+
+/// The appliance illustration shown at the top of its service-detail
+/// screen — a soft gradient card with the pictogram centered on a glossy
+/// badge. Deliberately simple/static (no floating overlays that could
+/// clip or overflow at odd screen sizes): a fixed-size illustration
+/// centered in a fixed-height card, nothing positioned outside its bounds.
+class _ApplianceHero extends StatelessWidget {
+  const _ApplianceHero({required this.appliance});
+  final Appliance appliance;
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = context.scheme.primary;
+    return Container(
+      height: 150,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        borderRadius: Radii.rLg,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [context.scheme.primaryContainer, context.scheme.surfaceContainerHigh],
+        ),
+      ),
+      child: Container(
+        width: 108,
+        height: 108,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            center: const Alignment(-0.3, -0.35),
+            radius: 0.95,
+            colors: [Color.lerp(primary, Colors.white, 0.45)!, primary],
+          ),
+          boxShadow: [
+            BoxShadow(
+                color: primary.withValues(alpha: 0.35),
+                blurRadius: 18,
+                offset: const Offset(0, 8)),
+          ],
+        ),
+        child: ApplianceIllustration(appliance: appliance, size: 62, color: Colors.white),
+      ),
+    );
+  }
+}
+
 // ============================================================ COMING SOON
 class _ComingSoonScreen extends StatelessWidget {
   const _ComingSoonScreen({required this.appliance, required this.detail});
@@ -363,14 +460,7 @@ class _ComingSoonScreen extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
             child: Column(
               children: [
-                Container(
-                  height: 150,
-                  decoration: BoxDecoration(
-                      color: context.scheme.surfaceContainerHigh, borderRadius: Radii.rLg),
-                  alignment: Alignment.center,
-                  child: Text(appliance.glyph,
-                      style: TextStyle(fontSize: 64, color: context.scheme.primary)),
-                ),
+                _ApplianceHero(appliance: appliance),
                 const SizedBox(height: 16),
                 const StatusChip('Coming soon', height: 28),
                 const SizedBox(height: 16),

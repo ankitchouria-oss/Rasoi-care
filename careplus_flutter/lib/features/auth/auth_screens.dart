@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
 import '../../state/auth_providers.dart';
+import '../../state/firestore_providers.dart';
 import '../../data/firebase/mock_auth_service.dart';
 
 // ============================================================ SPLASH
@@ -205,11 +206,27 @@ class PhoneScreen extends ConsumerStatefulWidget {
 
 class _PhoneScreenState extends ConsumerState<PhoneScreen> {
   final _phoneCtrl = TextEditingController(text: '9822041537');
+  bool _googleBusy = false;
 
   @override
   void dispose() {
     _phoneCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _continueWithGoogle() async {
+    setState(() => _googleBusy = true);
+    final ok = await ref.read(authFlowProvider.notifier).signInWithGoogle();
+    if (!mounted) return;
+    setState(() => _googleBusy = false);
+    if (ok) {
+      context.go('/register');
+    } else {
+      final err = ref.read(authFlowProvider).error;
+      if (err != null && err != 'Sign-in cancelled.') {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+      }
+    }
   }
 
   Future<void> _send() async {
@@ -292,13 +309,21 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton(
-                    onPressed: () {}, child: const Text('Continue with Google')),
+                  onPressed: _googleBusy ? null : _continueWithGoogle,
+                  child: _googleBusy
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Continue with Google'),
+                ),
               ),
               const SizedBox(height: 10),
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton(
-                    onPressed: () {}, child: const Text('Continue with Apple')),
+                    onPressed: () => context.push('/login/email'),
+                    child: const Text('Continue with email')),
               ),
               const SizedBox(height: 22),
               Center(
@@ -318,6 +343,119 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================ EMAIL
+class EmailAuthScreen extends ConsumerStatefulWidget {
+  const EmailAuthScreen({super.key});
+  @override
+  ConsumerState<EmailAuthScreen> createState() => _EmailAuthScreenState();
+}
+
+class _EmailAuthScreenState extends ConsumerState<EmailAuthScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _emailCtrl = TextEditingController();
+  final _passwordCtrl = TextEditingController();
+  bool _creatingAccount = false;
+  bool _obscure = true;
+
+  @override
+  void dispose() {
+    _emailCtrl.dispose();
+    _passwordCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    final email = _emailCtrl.text.trim();
+    final password = _passwordCtrl.text;
+    final vm = ref.read(authFlowProvider.notifier);
+    final ok = _creatingAccount
+        ? await vm.registerWithEmail(email, password)
+        : await vm.signInWithEmail(email, password);
+    if (!mounted) return;
+    if (ok) {
+      context.go('/register');
+    } else {
+      final err = ref.read(authFlowProvider).error ?? 'Something went wrong.';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final submitting = ref.watch(authFlowProvider.select((s) => s.submitting));
+    return Scaffold(
+      appBar: AppBar(leading: BackButton(onPressed: context.pop)),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 30),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(_creatingAccount ? 'Create an account' : 'Sign in with email',
+                    style: context.type.headlineLarge),
+                const SizedBox(height: 10),
+                Text(
+                    _creatingAccount
+                        ? 'Set an email and password — you can add your name and appliances next.'
+                        : 'Enter the email and password you signed up with.',
+                    style: context.type.bodyMedium),
+                const SizedBox(height: 30),
+                CareField('Email',
+                    controller: _emailCtrl,
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (v) => (v == null || !v.contains('@'))
+                        ? 'Enter a valid email address'
+                        : null),
+                const SizedBox(height: 13),
+                CareField('Password',
+                    controller: _passwordCtrl,
+                    obscureText: _obscure,
+                    suffix: IconButton(
+                      icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                      onPressed: () => setState(() => _obscure = !_obscure),
+                    ),
+                    validator: (v) => (v == null || v.length < 6)
+                        ? 'Password must be at least 6 characters'
+                        : null),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: submitting ? null : _submit,
+                    child: submitting
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : Text(_creatingAccount ? 'Create account' : 'Sign in'),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Center(
+                  child: GestureDetector(
+                    onTap: () => setState(() => _creatingAccount = !_creatingAccount),
+                    child: Text(
+                        _creatingAccount
+                            ? 'Already have an account? Sign in'
+                            : "New here? Create an account",
+                        style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: context.scheme.primary)),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -521,11 +659,40 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
 }
 
 // ============================================================ REGISTER
-class RegisterScreen extends StatelessWidget {
+class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
   @override
+  ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
+}
+
+class _RegisterScreenState extends ConsumerState<RegisterScreen> {
+  final _nameCtrl = TextEditingController(text: 'Rohan Deshpande');
+  final _emailCtrl = TextEditingController(text: 'rohan.d@gmail.com');
+  Set<String> _owned = {'Chimney', 'Hob', 'Refrigerator', 'Water purifier'};
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _emailCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    // Fire-and-forget — see UserProfileService. Never blocks getting into
+    // the app, even if Firestore is slow, unreachable, or not set up yet.
+    unawaited(ref.read(userProfileServiceProvider).saveProfile(
+          name: _nameCtrl.text.trim(),
+          email: _emailCtrl.text.trim(),
+          ownedAppliances: _owned,
+        ));
+    if (!mounted) return;
+    context.go('/');
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final owned = {'Chimney', 'Hob', 'Refrigerator', 'Water purifier'};
     return Scaffold(
       appBar: AppBar(
         leading: BackButton(onPressed: context.pop),
@@ -544,17 +711,16 @@ class RegisterScreen extends StatelessWidget {
                     const SizedBox(height: 7),
                     Mono('Step 2 of 3 — about you', color: context.care.inkMuted),
                     const SizedBox(height: 22),
-                    const CareField('Full name', initial: 'Rohan Deshpande'),
+                    CareField('Full name', controller: _nameCtrl),
                     const SizedBox(height: 13),
-                    const CareField('Email',
-                        initial: 'rohan.d@gmail.com',
-                        keyboardType: TextInputType.emailAddress),
+                    CareField('Email',
+                        controller: _emailCtrl, keyboardType: TextInputType.emailAddress),
                     const SizedBox(height: 13),
                     const CareField('Referral code (optional)'),
                     const SizedBox(height: 20),
                     Eyebrow('Which appliances do you own?'),
                     const SizedBox(height: 10),
-                    _OwnedChips(owned: owned),
+                    _OwnedChips(owned: _owned, onChanged: (s) => _owned = s),
                   ],
                 ),
               ),
@@ -563,8 +729,14 @@ class RegisterScreen extends StatelessWidget {
               child: SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                    onPressed: () => context.go('/'),
-                    child: const Text('Save and continue')),
+                  onPressed: _saving ? null : _save,
+                  child: _saving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Save and continue'),
+                ),
               ),
             ),
           ],
@@ -575,8 +747,9 @@ class RegisterScreen extends StatelessWidget {
 }
 
 class _OwnedChips extends StatefulWidget {
-  const _OwnedChips({required this.owned});
+  const _OwnedChips({required this.owned, required this.onChanged});
   final Set<String> owned;
+  final ValueChanged<Set<String>> onChanged;
   @override
   State<_OwnedChips> createState() => _OwnedChipsState();
 }
@@ -595,8 +768,10 @@ class _OwnedChipsState extends State<_OwnedChips> {
           for (final a in _all)
             ChoiceTag(a,
                 selected: _sel.contains(a),
-                onTap: () => setState(
-                    () => _sel.contains(a) ? _sel.remove(a) : _sel.add(a))),
+                onTap: () => setState(() {
+                      _sel.contains(a) ? _sel.remove(a) : _sel.add(a);
+                      widget.onChanged(_sel);
+                    })),
         ],
       );
 }

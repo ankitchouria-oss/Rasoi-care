@@ -9,13 +9,7 @@ final router = GoRouter(
   initialLocation: '/splash',
   routes: [
     GoRoute(path: '/splash', builder: (_, __) => const SplashScreen()),
-    GoRoute(
-      path: '/login',
-      builder: (_, __) => const PhoneScreen(),
-      routes: [
-        GoRoute(path: 'otp', builder: (_, __) => const OtpScreen()),
-      ],
-    ),
+    GoRoute(path: '/login', builder: (_, __) => const EmailAuthScreen()),
 
     GoRoute(path: '/tech/jobs', builder: (_, __) => const TechJobsScreen()),
     GoRoute(

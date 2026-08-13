@@ -1,11 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 import 'core/theme/care_plus_theme.dart';
 import 'state/providers.dart';
 import 'app/router.dart';
+import 'firebase_options.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  } catch (e) {
+    // Expected until you run `flutterfire configure` with a real project —
+    // see lib/firebase_options.dart. The app falls back to MockAuthService
+    // (lib/state/auth_providers.dart) so everything still runs.
+    debugPrint('Firebase not configured — using mock auth. ($e)');
+  }
   runApp(const ProviderScope(child: RasoiCareAdminApp()));
 }
 

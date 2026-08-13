@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'auth_service.dart';
+import 'firebase_config.dart';
 
 /// Real phone-OTP auth via Firebase. Only ever constructed after
 /// `Firebase.initializeApp()` has succeeded — see main.dart.
@@ -61,7 +63,60 @@ class FirebaseAuthService implements AuthService {
   }
 
   @override
-  Future<void> signOut() => _auth.signOut();
+  Future<void> registerWithEmail({required String email, required String password}) async {
+    try {
+      await _auth.createUserWithEmailAndPassword(email: email, password: password);
+    } on FirebaseAuthException catch (e) {
+      throw AuthException(_friendly(e));
+    }
+  }
+
+  @override
+  Future<void> signInWithEmail({required String email, required String password}) async {
+    try {
+      await _auth.signInWithEmailAndPassword(email: email, password: password);
+    } on FirebaseAuthException catch (e) {
+      throw AuthException(_friendly(e));
+    }
+  }
+
+  // A fresh instance per call rather than a field: GoogleSignIn holds on to
+  // session state, and this keeps the sign-out path (below) simple — nothing
+  // else in this class needs to reach it between calls.
+  @override
+  Future<void> signInWithGoogle() async {
+    try {
+      final googleSignIn = GoogleSignIn(
+        // Only needed if you're also verifying Google identity on a backend
+        // server; leave unset for client-only Firebase Auth. See
+        // lib/data/firebase/firebase_config.dart.
+        serverClientId: FirebaseConfig.googleServerClientId,
+      );
+      final account = await googleSignIn.signIn();
+      if (account == null) {
+        // Person closed the account picker — not an error, just cancelled.
+        throw const AuthException('Sign-in cancelled.');
+      }
+      final googleAuth = await account.authentication;
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+      await _auth.signInWithCredential(credential);
+    } on FirebaseAuthException catch (e) {
+      throw AuthException(_friendly(e));
+    } on AuthException {
+      rethrow;
+    } catch (e) {
+      throw AuthException('Could not sign in with Google right now. Try again.');
+    }
+  }
+
+  @override
+  Future<void> signOut() async {
+    await _auth.signOut();
+    await GoogleSignIn().signOut();
+  }
 
   String _friendly(Object e) {
     if (e is FirebaseAuthException) {
@@ -70,9 +125,16 @@ class FirebaseAuthService implements AuthService {
         'invalid-phone-number' => 'That doesn\'t look like a valid phone number.',
         'too-many-requests' => 'Too many attempts — wait a bit before retrying.',
         'session-expired' => 'That code expired. Request a new one.',
-        _ => e.message ?? 'Something went wrong verifying that number.',
+        'email-already-in-use' => 'An account already exists with that email — try signing in instead.',
+        'invalid-email' => 'That doesn\'t look like a valid email address.',
+        'weak-password' => 'Choose a password with at least 6 characters.',
+        'user-not-found' => 'No account found with that email.',
+        'wrong-password' || 'invalid-credential' => 'Incorrect email or password.',
+        'account-exists-with-different-credential' =>
+          'That email is already linked to a different sign-in method.',
+        _ => e.message ?? 'Something went wrong. Try again.',
       };
     }
-    return 'Something went wrong verifying that number.';
+    return 'Something went wrong. Try again.';
   }
 }

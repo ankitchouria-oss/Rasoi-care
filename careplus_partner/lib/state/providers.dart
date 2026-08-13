@@ -4,13 +4,30 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../data/api/api_repository.dart';
 import '../data/models.dart';
 import '../data/repository.dart';
 
-/// Swap `MockPartnerRepository()` for a real implementation here — nothing
-/// else moves.
-final repositoryProvider =
-    Provider<PartnerRepository>((ref) => MockPartnerRepository());
+/// Live-backend-backed repository. It falls back to
+/// [MockPartnerRepository]-shaped data internally for anything the server
+/// doesn't have and for any failed request — see ApiRepository's header
+/// comment. A single instance lives for the app's lifetime so its request
+/// cache survives screen rebuilds; watch [jobsFeedTickProvider] to rebuild
+/// after its async methods complete.
+final repositoryProvider = Provider<PartnerRepository>((ref) => ApiRepository());
+
+/// Bumped by the UI after every real fetch/action against
+/// [repositoryProvider] (cast to [ApiRepository]) completes. The repository
+/// interface itself stays synchronous, so this is the signal that tells
+/// screens watching it to rebuild and re-read the (mutated in place) cache
+/// — see tech_jobs_screen.dart / tech_job_screen.dart.
+final jobsFeedTickProvider = NotifierProvider<JobsFeedTickVM, int>(JobsFeedTickVM.new);
+
+class JobsFeedTickVM extends Notifier<int> {
+  @override
+  int build() => 0;
+  void bump() => state++;
+}
 
 /// App-wide light/dark toggle. Persist to shared_preferences in production.
 final themeModeProvider = NotifierProvider<ThemeModeVM, ThemeMode>(ThemeModeVM.new);
