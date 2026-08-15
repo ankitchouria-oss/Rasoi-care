@@ -63,6 +63,28 @@ already right — just click Deploy.
 **Railway** and **Fly.io** work the same way (both read `Procfile` /
 auto-detect Flask). Pick whichever you already have an account with.
 
+### Persistent data (important once real customers use it)
+
+Render's **free** web services use ephemeral disk — the SQLite file
+above gets wiped on every redeploy, taking any real bookings/accounts
+with it. To fix that, point the backend at a real Postgres database
+instead (nothing else changes; `database.py` auto-detects it):
+
+1. Get a free Postgres database — [Neon](https://neon.tech) has a
+   generous free tier and takes under a minute to provision.
+2. Copy its connection string (looks like
+   `postgresql://user:password@host/dbname?sslmode=require`).
+3. In the Render dashboard, open the `rasoicare-backend` service →
+   **Environment** → add a variable named `DATABASE_URL` with that
+   connection string as the value → save (Render redeploys
+   automatically).
+4. That's it — `database.py` creates the tables and seeds demo data on
+   Postgres exactly like it does on SQLite, and every booking/account
+   from then on survives redeploys.
+
+Without `DATABASE_URL` set, the backend keeps working exactly as
+before (SQLite, zero setup) — this is purely additive.
+
 ### Important: SQLite + free hosting tiers
 
 Free web-service tiers on Render/Railway typically use an **ephemeral
