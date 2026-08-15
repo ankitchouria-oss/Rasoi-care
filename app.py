@@ -100,6 +100,8 @@ def booking_row_to_dict(row):
         "service_id": row["service_id"] if "service_id" in keys else None,
         "total_amount": row["total_amount"] if "total_amount" in keys else row["price"],
         "area": row["area"] if "area" in keys else None,
+        "lat": row["lat"] if "lat" in keys else None,
+        "lng": row["lng"] if "lng" in keys else None,
     }
 
 
@@ -917,6 +919,10 @@ def create_booking():
     bachat_slot = data.get("bachatSlot")
     area = (data.get("area") or "").strip() or None
     technician_id = data.get("technicianId")
+    lat = data.get("lat")
+    lng = data.get("lng")
+    lat = float(lat) if isinstance(lat, (int, float)) else None
+    lng = float(lng) if isinstance(lng, (int, float)) else None
 
     if service_id:
         conn = get_db()
@@ -970,11 +976,11 @@ def create_booking():
     conn.execute(
         "INSERT INTO bookings (id, category, service, price, technician_id, customer_name, "
         "status, bachat_slot, service_rating, tech_rating, area, created_at, updated_at, "
-        "user_id, service_id, total_amount) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "user_id, service_id, total_amount, lat, lng) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (booking_id, category, service, price, technician_id, request.user["name"],
          "Requested", bachat_slot, None, None, area, ts, ts,
-         request.user["id"], service_id, total_amount),
+         request.user["id"], service_id, total_amount, lat, lng),
     )
     conn.commit()
     row = conn.execute("SELECT * FROM bookings WHERE id = ?", (booking_id,)).fetchone()
