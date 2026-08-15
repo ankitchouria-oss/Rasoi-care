@@ -2,10 +2,13 @@
     <!-- Backend calls (mock today, Firebase/Razorpay later) -->
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- Live technician tracking on the booking screen -->
+    <!-- Live technician tracking on the booking screen, and "use my current
+         location" in the address picker -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <!-- Tracking is simulated today (no real GPS fix yet), so don't block install
+    <!-- Real GPS tracking is wired in (Firestore-backed), but gated behind
+         MapsConfig.isConfigured until a Maps API key exists — see
+         lib/core/config/maps_config.dart. Either way, don't block install
          on devices without a location radio. -->
     <uses-feature android:name="android.hardware.location" android:required="false" />
 
@@ -50,6 +53,15 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- Google Maps API key, sourced from android/local.properties via the
+             ${mapsApiKey} placeholder in build.gradle.kts — defaults to an
+             empty string so the app never crashes from a missing manifest
+             entry even before a key exists. See lib/core/config/maps_config.dart
+             for the full setup steps and the MAPS_CONFIGURED dart-define that
+             actually turns the map UI on. -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${mapsApiKey}" />
     </application>
 
     <!-- Lets the "Call technician" button and any external-link taps resolve -->

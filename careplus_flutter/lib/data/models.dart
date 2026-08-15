@@ -94,11 +94,19 @@ class ApplianceDetail {
 }
 
 class SavedAddress {
-  const SavedAddress(this.id, this.label, this.line, this.glyph);
+  /// [lat]/[lng] are null for the canned demo addresses (label-only, no
+  /// real geocoding behind them) and for anything entered through the
+  /// manual-entry fallback form when Maps isn't configured. They're set
+  /// only when an address is confirmed through the real map picker — see
+  /// AddressPickerScreen in lib/features/booking/address_picker_screen.dart.
+  const SavedAddress(this.id, this.label, this.line, this.glyph,
+      [this.lat, this.lng]);
   final String id;
   final String label;
   final String line;
   final String glyph;
+  final double? lat;
+  final double? lng;
 }
 
 class PaymentMethod {
@@ -151,6 +159,10 @@ class Booking {
     required this.totalPaise,
     this.technician,
     this.stars,
+    this.technicianId,
+    this.technicianFirebaseUid,
+    this.lat,
+    this.lng,
   });
 
   final String id;
@@ -162,6 +174,28 @@ class Booking {
   final int totalPaise;
   final Technician? technician;
   final int? stars;
+
+  /// The assigned technician's raw id, straight off the backend's
+  /// `technicianId` field — unlike [technician] (a full profile, always
+  /// null for API-sourced bookings, see ApiRepository) this is just the id,
+  /// enough to look up their live location. See TechnicianLocationService
+  /// in lib/data/firebase/technician_location_service.dart.
+  final String? technicianId;
+
+  /// The assigned technician's Firebase Auth uid — NOT the same value as
+  /// [technicianId] above (that's the backend's own `technicians.id`
+  /// primary key). This is the id the Partner app actually keys its live
+  /// Firestore location document by (`technician_locations/{firebaseUid}`),
+  /// so live tracking must watch this one, not [technicianId]. Null for
+  /// mock/demo bookings, or a real booking assigned to a seed technician
+  /// that's never bootstrapped through the Partner app.
+  final String? technicianFirebaseUid;
+
+  /// The service address's coordinates, when known — set from the
+  /// backend's `lat`/`lng` fields on bookings created through the real map
+  /// picker. Null for anything booked with a label-only address.
+  final double? lat;
+  final double? lng;
 }
 
 /// A timeline entry on the tracking screen.

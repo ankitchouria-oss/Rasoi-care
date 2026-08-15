@@ -396,6 +396,10 @@ def migrate_bookings_columns(conn):
         conn.execute("UPDATE bookings SET total_amount = price WHERE total_amount IS NULL")
     if "area" not in cols:
         conn.execute("ALTER TABLE bookings ADD COLUMN area TEXT")
+    if "lat" not in cols:
+        conn.execute("ALTER TABLE bookings ADD COLUMN lat REAL")
+    if "lng" not in cols:
+        conn.execute("ALTER TABLE bookings ADD COLUMN lng REAL")
     conn.commit()
 
 

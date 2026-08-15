@@ -313,6 +313,14 @@ class AddressScreen extends ConsumerWidget {
     final repo = ref.watch(repositoryProvider);
     final draft = ref.watch(bookingDraftProvider);
     final vm = ref.read(bookingDraftProvider.notifier);
+    // A newly map-picked address (see AddressPickerScreen) isn't part of
+    // repo.addresses()'s canned list, so it's appended here — the same
+    // selection UI (radio dot compared against draft.addressId) handles it
+    // unchanged.
+    final addresses = [
+      ...repo.addresses(),
+      if (draft.pickedAddress != null) draft.pickedAddress!,
+    ];
     return _StepScaffold(
       title: 'Where should we come?',
       progress: 0.75,
@@ -334,7 +342,7 @@ class AddressScreen extends ConsumerWidget {
             child: Icon(Icons.location_on, size: 40, color: context.scheme.primary),
           ),
           const SizedBox(height: 16),
-          for (final ad in repo.addresses()) ...[
+          for (final ad in addresses) ...[
             CareCard(
               onTap: () => vm.setAddress(ad.id),
               borderColor: draft.addressId == ad.id ? context.scheme.primary : null,
@@ -367,7 +375,11 @@ class AddressScreen extends ConsumerWidget {
           SizedBox(
             width: double.infinity,
             child: OutlinedButton(
-                onPressed: () {}, child: const Text('+ Add a new address')),
+                onPressed: () async {
+                  final picked = await context.push<SavedAddress>('/book/address/pick');
+                  if (picked != null) vm.setPickedAddress(picked);
+                },
+                child: const Text('+ Add a new address')),
           ),
           const SizedBox(height: 16),
           const CareField('Directions for the technician',
@@ -408,10 +420,13 @@ class PaymentScreen extends ConsumerWidget {
             // to the booking doc for payment.status before advancing.
             final service = draft.service;
             if (service != null) {
-              String? addressLabel;
-              for (final a in repo.addresses()) {
+              SavedAddress? selected;
+              for (final a in [
+                ...repo.addresses(),
+                if (draft.pickedAddress != null) draft.pickedAddress!,
+              ]) {
                 if (a.id == draft.addressId) {
-                  addressLabel = a.label;
+                  selected = a;
                   break;
                 }
               }
@@ -421,7 +436,9 @@ class PaymentScreen extends ConsumerWidget {
               // Firestore profile write in firestore_user_profile_service.dart.
               unawaited(ref.read(apiRepositoryProvider).createBooking(
                     service: service,
-                    areaLabel: addressLabel,
+                    areaLabel: selected?.label,
+                    lat: selected?.lat,
+                    lng: selected?.lng,
                   ));
             }
             context.go('/booking/CP-2481-NSK/confirmed');

@@ -59,6 +59,7 @@ class BookingDraft {
     this.day = 'Sat 25 Jul',
     this.slot = '10:00 – 11:00 am',
     this.addressId = 'a_home',
+    this.pickedAddress,
     this.paymentId = 'upi',
     this.couponApplied = true,
     this.useCoins = false,
@@ -70,6 +71,14 @@ class BookingDraft {
   final String day;
   final String slot;
   final String addressId;
+
+  /// A one-off address confirmed through the map picker
+  /// (AddressPickerScreen), carrying real lat/lng — not part of
+  /// `repo.addresses()`'s canned list, so it's threaded through the draft
+  /// directly instead. [addressId] is set to match its id whenever this is
+  /// set, so the existing "which card is selected" comparisons in
+  /// AddressScreen keep working unchanged.
+  final SavedAddress? pickedAddress;
   final String paymentId;
   final bool couponApplied;
   final bool useCoins;
@@ -90,6 +99,7 @@ class BookingDraft {
     String? day,
     String? slot,
     String? addressId,
+    SavedAddress? pickedAddress,
     String? paymentId,
     bool? couponApplied,
     bool? useCoins,
@@ -101,6 +111,7 @@ class BookingDraft {
         day: day ?? this.day,
         slot: slot ?? this.slot,
         addressId: addressId ?? this.addressId,
+        pickedAddress: pickedAddress ?? this.pickedAddress,
         paymentId: paymentId ?? this.paymentId,
         couponApplied: couponApplied ?? this.couponApplied,
         useCoins: useCoins ?? this.useCoins,
@@ -129,6 +140,12 @@ class BookingDraftVM extends Notifier<BookingDraft> {
   void setSlot(String day, String slot) =>
       state = state.copyWith(day: day, slot: slot);
   void setAddress(String id) => state = state.copyWith(addressId: id);
+
+  /// Called when the map picker (or its no-Maps-configured fallback form)
+  /// confirms a new address — selects it immediately, same as tapping an
+  /// existing `repo.addresses()` card.
+  void setPickedAddress(SavedAddress address) =>
+      state = state.copyWith(addressId: address.id, pickedAddress: address);
   void setPayment(String id) => state = state.copyWith(paymentId: id);
   void toggleCoupon() =>
       state = state.copyWith(couponApplied: !state.couponApplied);

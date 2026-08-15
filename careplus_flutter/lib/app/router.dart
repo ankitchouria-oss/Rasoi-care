@@ -7,6 +7,7 @@ import '../features/auth/auth_screens.dart';
 import '../features/home/home_screen.dart';
 import '../features/catalog/catalog_screens.dart';
 import '../features/booking/booking_screens.dart';
+import '../features/booking/address_picker_screen.dart';
 import '../features/tracking/tracking_screen.dart';
 import '../features/invoice/invoice_rate_screens.dart';
 import '../features/account/account_screens.dart';
@@ -69,6 +70,10 @@ final router = GoRouter(
         path: '/book/address',
         parentNavigatorKey: _rootKey,
         pageBuilder: (_, __) => _slideUp(const AddressScreen())),
+    GoRoute(
+        path: '/book/address/pick',
+        parentNavigatorKey: _rootKey,
+        pageBuilder: (_, __) => _slideUp(const AddressPickerScreen())),
     GoRoute(
         path: '/book/payment',
         parentNavigatorKey: _rootKey,

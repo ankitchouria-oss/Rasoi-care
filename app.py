@@ -78,6 +78,20 @@ def cors_preflight(_any):
 
 
 # ---------------------------------------------------------------- helpers
+# Joins in the technician's firebase_uid alongside every bookings.* column —
+# the Customer app needs this (not the technician's backend id) to watch
+# their live location, since that's how the Partner app keys the Firestore
+# document it writes to (technician_locations/{firebase_uid}, not
+# technician_locations/{TECH-xxxx}). Query call sites that only ever fetch
+# a `bookings` row should use this instead of "SELECT * FROM bookings" —
+# row["technician_firebase_uid"] is None for legacy/seed technicians that
+# have never bootstrapped through the Partner app, which is expected.
+BOOKING_SELECT = (
+    "SELECT bookings.*, technicians.firebase_uid AS technician_firebase_uid "
+    "FROM bookings LEFT JOIN technicians ON technicians.id = bookings.technician_id"
+)
+
+
 def booking_row_to_dict(row):
     keys = row.keys()
     return {
@@ -86,6 +100,9 @@ def booking_row_to_dict(row):
         "service": row["service"],
         "price": row["price"],
         "technicianId": row["technician_id"],
+        "technicianFirebaseUid": row["technician_firebase_uid"]
+        if "technician_firebase_uid" in keys
+        else None,
         "customerName": row["customer_name"],
         "status": row["status"],
         "bachatSlot": row["bachat_slot"],
@@ -100,6 +117,8 @@ def booking_row_to_dict(row):
         "service_id": row["service_id"] if "service_id" in keys else None,
         "total_amount": row["total_amount"] if "total_amount" in keys else row["price"],
         "area": row["area"] if "area" in keys else None,
+        "lat": row["lat"] if "lat" in keys else None,
+        "lng": row["lng"] if "lng" in keys else None,
     }
 
 
@@ -825,7 +844,7 @@ def update_booking_health(booking_id):
     value_pct = max(0, min(100, value_pct))
 
     conn = get_db()
-    booking = conn.execute("SELECT * FROM bookings WHERE id = ?", (booking_id,)).fetchone()
+    booking = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
     if not booking:
         conn.close()
         return jsonify({"error": "not found"}), 404
@@ -880,10 +899,10 @@ def list_bookings():
     conn = get_db()
     if user:
         rows = conn.execute(
-            "SELECT * FROM bookings WHERE user_id = ? ORDER BY created_at DESC", (user["id"],)
+            BOOKING_SELECT + " WHERE user_id = ? ORDER BY created_at DESC", (user["id"],)
         ).fetchall()
     else:
-        rows = conn.execute("SELECT * FROM bookings ORDER BY created_at DESC").fetchall()
+        rows = conn.execute(BOOKING_SELECT + " ORDER BY created_at DESC").fetchall()
     conn.close()
     return jsonify([booking_row_to_dict(r) for r in rows])
 
@@ -895,7 +914,7 @@ def get_booking(booking_id):
     avoid confirming other ids exist); without one, unrestricted."""
     user = get_current_user_optional()
     conn = get_db()
-    row = conn.execute("SELECT * FROM bookings WHERE id = ?", (booking_id,)).fetchone()
+    row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
     conn.close()
     if not row:
         return jsonify({"error": "not found"}), 404
@@ -917,6 +936,10 @@ def create_booking():
     bachat_slot = data.get("bachatSlot")
     area = (data.get("area") or "").strip() or None
     technician_id = data.get("technicianId")
+    lat = data.get("lat")
+    lng = data.get("lng")
+    lat = float(lat) if isinstance(lat, (int, float)) else None
+    lng = float(lng) if isinstance(lng, (int, float)) else None
 
     if service_id:
         conn = get_db()
@@ -970,14 +993,14 @@ def create_booking():
     conn.execute(
         "INSERT INTO bookings (id, category, service, price, technician_id, customer_name, "
         "status, bachat_slot, service_rating, tech_rating, area, created_at, updated_at, "
-        "user_id, service_id, total_amount) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "user_id, service_id, total_amount, lat, lng) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (booking_id, category, service, price, technician_id, request.user["name"],
          "Requested", bachat_slot, None, None, area, ts, ts,
-         request.user["id"], service_id, total_amount),
+         request.user["id"], service_id, total_amount, lat, lng),
     )
     conn.commit()
-    row = conn.execute("SELECT * FROM bookings WHERE id = ?", (booking_id,)).fetchone()
+    row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
     conn.close()
     return jsonify(booking_row_to_dict(row)), 201
 
@@ -986,7 +1009,7 @@ def create_booking():
 def advance_booking(booking_id):
     """Called by the Technician app to move a job to its next status."""
     conn = get_db()
-    row = conn.execute("SELECT * FROM bookings WHERE id = ?", (booking_id,)).fetchone()
+    row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
     if not row:
         conn.close()
         return jsonify({"error": "not found"}), 404
@@ -1007,7 +1030,7 @@ def advance_booking(booking_id):
             (row["technician_id"],),
         )
     conn.commit()
-    row = conn.execute("SELECT * FROM bookings WHERE id = ?", (booking_id,)).fetchone()
+    row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
     conn.close()
     return jsonify(booking_row_to_dict(row))
 
@@ -1023,7 +1046,7 @@ def assign_technician(booking_id):
         return jsonify({"error": "technician_id is required"}), 400
 
     conn = get_db()
-    booking = conn.execute("SELECT * FROM bookings WHERE id = ?", (booking_id,)).fetchone()
+    booking = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
     if not booking:
         conn.close()
         return jsonify({"error": "not found"}), 404
@@ -1038,7 +1061,7 @@ def assign_technician(booking_id):
         (technician_id, new_status, now(), booking_id),
     )
     conn.commit()
-    row = conn.execute("SELECT * FROM bookings WHERE id = ?", (booking_id,)).fetchone()
+    row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
     conn.close()
     return jsonify(booking_row_to_dict(row))
 
@@ -1055,7 +1078,7 @@ def rate_booking(booking_id):
     complaint_text = data.get("complaintText") or "Customer flagged this service as unsatisfactory."
 
     conn = get_db()
-    booking = conn.execute("SELECT * FROM bookings WHERE id = ?", (booking_id,)).fetchone()
+    booking = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
     if not booking:
         conn.close()
         return jsonify({"error": "not found"}), 404
@@ -1088,7 +1111,7 @@ def rate_booking(booking_id):
                      "status": "New", "response": None, "createdAt": ts}
 
     conn.commit()
-    row = conn.execute("SELECT * FROM bookings WHERE id = ?", (booking_id,)).fetchone()
+    row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
     conn.close()
     return jsonify({"booking": booking_row_to_dict(row), "complaint": complaint})
 
@@ -1247,7 +1270,7 @@ def technician_my_bookings():
     supplied id (so one technician can't read another's job list)."""
     conn = get_db()
     rows = conn.execute(
-        "SELECT * FROM bookings WHERE technician_id = ? ORDER BY created_at DESC",
+        BOOKING_SELECT + " WHERE technician_id = ? ORDER BY created_at DESC",
         (request.technician["id"],),
     ).fetchall()
     conn.close()
@@ -1355,7 +1378,7 @@ def stats_reports():
 
     conn = get_db()
     bookings = conn.execute(
-        "SELECT * FROM bookings WHERE created_at >= ? ORDER BY created_at", (cutoff,)
+        BOOKING_SELECT + " WHERE created_at >= ? ORDER BY created_at", (cutoff,)
     ).fetchall()
     complaints = conn.execute(
         "SELECT * FROM complaints WHERE created_at >= ?", (cutoff,)
