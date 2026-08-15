@@ -1,4 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Live GPS reporting to Firestore while on duty and working a job, so
+         the Customer app's tracking screen can show this technician on a
+         map — see lib/state/technician_location_reporter.dart. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- Don't block install on devices without a location radio — reporting
+         just stays off (permission/service check fails gracefully). -->
+    <uses-feature android:name="android.hardware.location" android:required="false" />
+
     <application
         android:label="Rasoi Care Partner"
         android:name="${applicationName}"

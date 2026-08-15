@@ -9,6 +9,7 @@ import '../../data/api/api_repository.dart';
 import '../../data/models.dart';
 import '../../state/providers.dart';
 import '../../state/auth_providers.dart';
+import '../../state/technician_location_reporter.dart';
 
 class TechJobsScreen extends ConsumerStatefulWidget {
   const TechJobsScreen({super.key});
@@ -83,6 +84,12 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
   @override
   Widget build(BuildContext context) {
     ref.watch(jobsFeedTickProvider); // rebuild once a real fetch/action lands
+    // Keeps live GPS reporting alive for as long as this screen is in the
+    // widget tree — which is the whole /tech/jobs stack, since job
+    // detail/close are pushed on top rather than replacing this route. It
+    // self-starts/stops on on-duty + active-job changes; nothing else to do
+    // with the value here.
+    ref.watch(technicianLocationReporterProvider);
     final repo = ref.watch(repositoryProvider);
     final stats = repo.techStats();
     final request = _requestOpen ? repo.incomingRequest() : null;

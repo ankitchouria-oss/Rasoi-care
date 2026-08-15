@@ -257,6 +257,15 @@ class ApiRepository implements PartnerRepository {
     return match.isEmpty ? null : match.first.status;
   }
 
+  /// True if any of this technician's real bookings from the last
+  /// `/technician/bookings` fetch is assigned and not yet completed
+  /// (`Accepted`, `On the way`, or `In Progress`). Used to gate live GPS
+  /// reporting — see `technician_location_reporter.dart`. Unlike
+  /// [routeToday], this deliberately does NOT fall back to Mock data before
+  /// the first fetch: reporting should only ever start for a real job.
+  bool hasActiveJob() => _bookings.any((b) =>
+      b.status == 'Accepted' || b.status == 'On the way' || b.status == 'In Progress');
+
   // ------------------------------------------------------------- helpers
 
   String _clockTime(DateTime? dt) {
