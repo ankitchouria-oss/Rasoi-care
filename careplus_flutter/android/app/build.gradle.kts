@@ -8,6 +8,14 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// android/local.properties already exists (gitignored) for sdk.dir/flutter.sdk
+// — MAPS_API_KEY lives in the same file. See lib/core/config/maps_config.dart.
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(FileInputStream(localPropertiesFile))
+}
+
 android {
     namespace = "com.careplus.care_plus"
     compileSdk = flutter.compileSdkVersion
@@ -40,6 +48,15 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // Google Maps API key → AndroidManifest.xml's com.google.android.geo.API_KEY
+        // meta-data, via the ${mapsApiKey} manifest placeholder — same wiring
+        // mechanism as Flutter's own ${applicationName} placeholder already used
+        // in that manifest. Empty string until android/local.properties has a
+        // MAPS_API_KEY=... line, so builds never fail for its absence. See
+        // lib/core/config/maps_config.dart for the full setup steps.
+        manifestPlaceholders["mapsApiKey"] =
+            localProperties.getProperty("MAPS_API_KEY", "")
     }
 
     signingConfigs {

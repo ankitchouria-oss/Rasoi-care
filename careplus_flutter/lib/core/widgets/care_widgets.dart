@@ -149,7 +149,8 @@ class CareField extends StatelessWidget {
       this.prefix,
       this.obscureText = false,
       this.suffix,
-      this.validator});
+      this.validator,
+      this.onChanged});
   final String label;
   final String? initial;
   final TextEditingController? controller;
@@ -159,6 +160,7 @@ class CareField extends StatelessWidget {
   final bool obscureText;
   final Widget? suffix;
   final String? Function(String?)? validator;
+  final void Function(String)? onChanged;
 
   @override
   Widget build(BuildContext context) => TextFormField(
@@ -168,6 +170,7 @@ class CareField extends StatelessWidget {
         maxLines: obscureText ? 1 : maxLines,
         obscureText: obscureText,
         validator: validator,
+        onChanged: onChanged,
         autovalidateMode: validator == null ? null : AutovalidateMode.onUserInteraction,
         style: context.type.bodyLarge!.copyWith(fontWeight: FontWeight.w600),
         decoration: InputDecoration(labelText: label, prefixIcon: prefix, suffixIcon: suffix),

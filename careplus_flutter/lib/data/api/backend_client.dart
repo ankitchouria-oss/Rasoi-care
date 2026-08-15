@@ -47,6 +47,8 @@ class BackendClient {
     required String service,
     required int price,
     String? area,
+    double? lat,
+    double? lng,
   }) async {
     try {
       final res = await http
@@ -58,6 +60,8 @@ class BackendClient {
               'service': service,
               'price': price,
               if (area != null && area.isNotEmpty) 'area': area,
+              if (lat != null) 'lat': lat,
+              if (lng != null) 'lng': lng,
             }),
           )
           .timeout(_timeout);

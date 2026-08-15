@@ -67,6 +67,8 @@ class ApiRepository implements CareRepository {
   Future<Booking?> createBooking({
     required ServiceItem service,
     String? areaLabel,
+    double? lat,
+    double? lng,
   }) async {
     final token = await _idToken();
     if (token == null) return null;
@@ -77,6 +79,8 @@ class ApiRepository implements CareRepository {
       service: service.title,
       price: service.pricePaise ~/ 100, // backend stores whole rupees
       area: areaLabel,
+      lat: lat,
+      lng: lng,
     );
     if (json == null) return null;
     final booking = _bookingFromJson(json);
@@ -104,6 +108,15 @@ class ApiRepository implements CareRepository {
       // pass, see the build brief.
       technician: null,
       stars: null,
+      // Raw id + coordinates the backend does send — enough for the
+      // tracking screen's live map without a second fetch. See
+      // TechnicianLocationService.
+      technicianId: json['technicianId'] as String?,
+      // Firestore key for live location — NOT the same as technicianId
+      // above, see Booking.technicianFirebaseUid's doc comment.
+      technicianFirebaseUid: json['technicianFirebaseUid'] as String?,
+      lat: (json['lat'] as num?)?.toDouble(),
+      lng: (json['lng'] as num?)?.toDouble(),
     );
   }
 
@@ -154,9 +167,12 @@ class ApiRepository implements CareRepository {
   @override
   Stream<int> etaStream(String bookingId) => _mock.etaStream(bookingId);
 
+  List<Booking> get _allBookings =>
+      _realBookings ?? [..._mock.bookings(), ..._mock.bookings(completed: true)];
+
   @override
   List<Booking> bookings({BookingStatus? status, bool completed = false}) {
-    final all = _realBookings ?? [..._mock.bookings(), ..._mock.bookings(completed: true)];
+    final all = _allBookings;
     if (completed) {
       return all.where((b) => b.status == BookingStatus.completed).toList();
     }
@@ -164,5 +180,13 @@ class ApiRepository implements CareRepository {
         .where((b) => b.status != BookingStatus.completed)
         .where((b) => status == null || b.status == status)
         .toList();
+  }
+
+  @override
+  Booking? bookingById(String id) {
+    for (final b in _allBookings) {
+      if (b.id == id) return b;
+    }
+    return null;
   }
 }

@@ -16,6 +16,12 @@ abstract interface class CareRepository {
   List<SavedAddress> addresses();
   List<PaymentMethod> paymentMethods();
   List<Booking> bookings({BookingStatus? status, bool completed = false});
+
+  /// Look up a single booking (active or completed) by id, or null if it
+  /// isn't in the currently loaded set. Used by the tracking screen to
+  /// resolve the assigned technician's id for live location lookups — see
+  /// TrackingScreen in lib/features/tracking/tracking_screen.dart.
+  Booking? bookingById(String id);
   Technician get preferredTechnician;
 
   /// Simulated tracking feed. Emits an ETA (minutes) that counts down, so the
@@ -652,6 +658,14 @@ class MockRepository implements CareRepository {
         .where((b) => b.status != BookingStatus.completed)
         .where((b) => status == null || b.status == status)
         .toList();
+  }
+
+  @override
+  Booking? bookingById(String id) {
+    for (final b in [...bookings(), ...bookings(completed: true)]) {
+      if (b.id == id) return b;
+    }
+    return null;
   }
 
   @override
