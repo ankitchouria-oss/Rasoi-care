@@ -1,22 +1,33 @@
 """
 RasoiCare backend — database layer.
 
-Real SQLite database (a single file on disk: rasoicare.db). SQLite is a
-genuine SQL database — not a mock — it just happens to need zero setup,
-which makes it the right choice for a first real backend. For a
-production deployment serving real traffic at scale, swap this for
-Postgres (e.g. via Render/Railway/Supabase's managed Postgres) by
-changing only this file — the Flask routes in app.py don't need to
-change, since they all go through the helper functions defined here.
+Two modes, chosen by whether DATABASE_URL is set:
+
+- Unset (default): SQLite, a single file on disk (rasoicare.db). Zero
+  setup, which makes it the right choice for local development — but
+  Render's free web services have ephemeral disk, so anything written
+  here is wiped on every redeploy.
+- Set to a Postgres connection string (e.g. a free Neon/Render/Railway/
+  Supabase database): every real booking, account, and stock change
+  survives redeploys.
+
+app.py's routes never touch this distinction — they all call
+conn.execute(...)/.fetchone()/.fetchall() with `?` placeholders and
+dict-style row access (row["col"]) exactly as sqlite3.Row provides.
+When DATABASE_URL is set, get_db() returns a thin wrapper around a real
+psycopg2/Postgres connection that accepts the same calling convention,
+so nothing outside this file needs to change.
 """
 
 import sqlite3
 import os
+import re
 import json
 import uuid
 from datetime import datetime
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rasoicare.db")
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS technicians (
@@ -235,11 +246,86 @@ INVENTORY_SEED = [
 ]
 
 
+class _PgRow(dict):
+    """Postgres rows come back as plain dicts (via RealDictCursor) — this
+    just adds sqlite3.Row's attribute-style access isn't needed, but
+    dict already supports row["col"] and "col" in row.keys(), which is
+    every access pattern app.py actually uses."""
+
+
+class _PgCursor:
+    """Wraps a psycopg2 cursor so callers written for sqlite3 don't need
+    to change: fetchone()/fetchall() return dict-like rows."""
+
+    def __init__(self, cur):
+        self._cur = cur
+
+    def fetchone(self):
+        row = self._cur.fetchone()
+        return _PgRow(row) if row is not None else None
+
+    def fetchall(self):
+        return [_PgRow(r) for r in self._cur.fetchall()]
+
+    def close(self):
+        self._cur.close()
+
+
+_QMARK_RE = re.compile(r"\?")
+
+
+class _PgConnection:
+    """Wraps a psycopg2 connection so app.py's sqlite3-style calls
+    (`?` placeholders, conn.execute(...).fetchone()/.fetchall(),
+    conn.executescript(...)) work unchanged against Postgres."""
+
+    def __init__(self, pg_conn):
+        self._conn = pg_conn
+
+    def execute(self, sql, params=()):
+        import psycopg2.extras
+
+        cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(_QMARK_RE.sub("%s", sql), params)
+        return _PgCursor(cur)
+
+    def executescript(self, sql):
+        cur = self._conn.cursor()
+        cur.execute(sql)
+        cur.close()
+
+    def commit(self):
+        self._conn.commit()
+
+    def close(self):
+        self._conn.close()
+
+
 def get_db():
+    if DATABASE_URL:
+        import psycopg2
+
+        pg_conn = psycopg2.connect(DATABASE_URL)
+        return _PgConnection(pg_conn)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
+
+
+def _table_columns(conn, table_name):
+    """Column names for `table_name` — works against either backend, so
+    the three migrate_* functions below don't need to know which one
+    they're running against."""
+    if DATABASE_URL:
+        rows = conn.execute(
+            "SELECT column_name AS name FROM information_schema.columns "
+            "WHERE table_name = ?",
+            (table_name,),
+        ).fetchall()
+    else:
+        rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+    return {row["name"] for row in rows}
 
 
 def now():
@@ -300,7 +386,7 @@ def migrate_bookings_columns(conn):
     these columns. SQLite's ALTER TABLE ADD COLUMN is safe to run on an
     existing table with data, so this upgrades in place instead of
     requiring a manual db reset."""
-    cols = {row["name"] for row in conn.execute("PRAGMA table_info(bookings)").fetchall()}
+    cols = _table_columns(conn, "bookings")
     if "user_id" not in cols:
         conn.execute("ALTER TABLE bookings ADD COLUMN user_id TEXT")
     if "service_id" not in cols:
@@ -315,7 +401,7 @@ def migrate_bookings_columns(conn):
 
 def migrate_technicians_columns(conn):
     """Older rasoicare.db files predate the area/verification work."""
-    cols = {row["name"] for row in conn.execute("PRAGMA table_info(technicians)").fetchall()}
+    cols = _table_columns(conn, "technicians")
     if "area" not in cols:
         conn.execute("ALTER TABLE technicians ADD COLUMN area TEXT NOT NULL DEFAULT ''")
     if "verified" not in cols:
@@ -340,7 +426,7 @@ def migrate_firebase_columns(conn):
     onto this backend without disturbing the existing password/PIN auth
     the web apps use — each table just gains an optional firebase_uid to
     key off once a native app calls its bootstrap endpoint."""
-    user_cols = {row["name"] for row in conn.execute("PRAGMA table_info(users)").fetchall()}
+    user_cols = _table_columns(conn, "users")
     if "firebase_uid" not in user_cols:
         conn.execute("ALTER TABLE users ADD COLUMN firebase_uid TEXT")
         conn.execute(
@@ -348,7 +434,7 @@ def migrate_firebase_columns(conn):
             "ON users(firebase_uid) WHERE firebase_uid IS NOT NULL"
         )
 
-    staff_cols = {row["name"] for row in conn.execute("PRAGMA table_info(staff)").fetchall()}
+    staff_cols = _table_columns(conn, "staff")
     if "email" not in staff_cols:
         conn.execute("ALTER TABLE staff ADD COLUMN email TEXT")
     if "firebase_uid" not in staff_cols:
