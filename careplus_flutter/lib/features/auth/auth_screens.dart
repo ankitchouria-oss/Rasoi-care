@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smart_auth/smart_auth.dart';
 
 import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
@@ -471,7 +472,9 @@ class OtpScreen extends ConsumerStatefulWidget {
 }
 
 class _OtpScreenState extends ConsumerState<OtpScreen> {
-  final _shown = <String>['', '', '', ''];
+  // Firebase's real SMS codes are 6 digits; the mock demo code is 4.
+  late final int _length = ref.read(authFlowProvider.notifier).isMock ? 4 : 6;
+  late final _shown = List<String>.filled(_length, '');
   int _secs = 24;
   Timer? _t;
   bool _verifying = false;
@@ -483,21 +486,41 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       if (_secs == 0) return;
       setState(() => _secs--);
     });
-    // Only simulate SMS auto-read when there's no real backend to wait for.
+    // Mock mode fakes SMS auto-read on a timer; live mode listens for the
+    // real SMS via Android's User Consent API (no manifest permission
+    // needed — the OS shows its own one-time "allow?" dialog).
     if (ref.read(authFlowProvider.notifier).isMock) {
       const code = MockAuthService.demoCode;
-      for (var i = 0; i < 4; i++) {
+      for (var i = 0; i < _length; i++) {
         Timer(Duration(milliseconds: 420 + i * 230), () {
           if (mounted) setState(() => _shown[i] = code[i]);
-          if (i == 3) _submit();
+          if (i == _length - 1) _submit();
         });
       }
+    } else {
+      _listenForSms();
     }
+  }
+
+  Future<void> _listenForSms() async {
+    final result = await SmartAuth.instance.getSmsWithUserConsentApi();
+    if (!mounted) return;
+    final code = result.data?.code;
+    if (code == null || code.length != _length) return;
+    setState(() {
+      for (var i = 0; i < _length; i++) {
+        _shown[i] = code[i];
+      }
+    });
+    _submit();
   }
 
   @override
   void dispose() {
     _t?.cancel();
+    if (!ref.read(authFlowProvider.notifier).isMock) {
+      SmartAuth.instance.removeUserConsentApiListener();
+    }
     super.dispose();
   }
 
@@ -551,13 +574,13 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                     const SizedBox(height: 10),
                     Text(
                         phone.isEmpty
-                            ? 'Enter the 4-digit code we sent.'
+                            ? 'Enter the $_length-digit code we sent.'
                             : 'Sent to +91 $phone.',
                         style: context.type.bodyMedium),
                     const SizedBox(height: 34),
                     Row(
                       children: [
-                        for (var i = 0; i < 4; i++) ...[
+                        for (var i = 0; i < _length; i++) ...[
                           Expanded(
                             child: AnimatedContainer(
                               duration: Motion.press,
@@ -591,7 +614,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                                     ),
                             ),
                           ),
-                          if (i != 3) const SizedBox(width: 11),
+                          if (i != _length - 1) const SizedBox(width: 11),
                         ],
                       ],
                     ),
