@@ -689,8 +689,15 @@ class RegisterScreen extends ConsumerStatefulWidget {
 }
 
 class _RegisterScreenState extends ConsumerState<RegisterScreen> {
-  final _nameCtrl = TextEditingController(text: 'Rohan Deshpande');
-  final _emailCtrl = TextEditingController(text: 'rohan.d@gmail.com');
+  // Google sign-in gives us a real name/email — prefill from that. Phone
+  // OTP carries no profile info, so it's blank there; mock mode keeps the
+  // original demo values so the flow still reads naturally without Firebase.
+  late final _nameCtrl = TextEditingController(
+      text: ref.read(authServiceProvider).currentDisplayName ??
+          (ref.read(authFlowProvider.notifier).isMock ? 'Rohan Deshpande' : ''));
+  late final _emailCtrl = TextEditingController(
+      text: ref.read(authServiceProvider).currentEmail ??
+          (ref.read(authFlowProvider.notifier).isMock ? 'rohan.d@gmail.com' : ''));
   Set<String> _owned = {'Chimney', 'Hob', 'Refrigerator', 'Water purifier'};
   bool _saving = false;
 
