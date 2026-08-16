@@ -67,6 +67,21 @@ class MockRepository implements CareRepository {
                   'extensions beyond 6 ft. Quoted in the app before work starts.',
             ),
             ServiceItem(
+              id: '${a.name}_filter_clean',
+              appliance: a,
+              title: 'Normal filter clean',
+              blurb: 'Baffle or mesh filters degreased and refitted · 30 min',
+              pricePaise: 89900,
+              durationMin: 30,
+              included: const [
+                'Baffle or mesh filters removed and degreased',
+                'Filters rinsed, dried and refitted',
+                'Quick suction check after refitting',
+              ],
+              notIncluded: 'Motor, blower, duct and oil-collector cleaning — see Deep clean '
+                  'for the full service.',
+            ),
+            ServiceItem(
               id: '${a.name}_repair',
               appliance: a,
               title: 'Repair visit and diagnosis',

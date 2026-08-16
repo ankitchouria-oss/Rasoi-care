@@ -145,7 +145,10 @@ class _MapPickerBodyState extends State<_MapPickerBody> {
   @override
   void initState() {
     super.initState();
-    _reverseGeocode(_center);
+    // Auto-locate on open instead of sitting on the fallback city center —
+    // silent because a permission prompt or GPS miss on first load
+    // shouldn't greet the person with an error before they've done anything.
+    _useCurrentLocation(silent: true);
   }
 
   @override
@@ -255,7 +258,12 @@ class _MapPickerBodyState extends State<_MapPickerBody> {
     }
   }
 
-  Future<void> _useCurrentLocation() async {
+  // [silent] is used for the automatic on-open attempt: permission prompts
+  // still happen (so it can actually succeed), but a denial/failure just
+  // quietly falls back to resolving an address for the default center
+  // instead of greeting the person with an error before they've done
+  // anything. An explicit tap on the location button always reports back.
+  Future<void> _useCurrentLocation({bool silent = false}) async {
     setState(() => _locating = true);
     try {
       var permission = await Geolocator.checkPermission();
@@ -264,18 +272,20 @@ class _MapPickerBodyState extends State<_MapPickerBody> {
       }
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
-        if (mounted) {
+        if (!silent && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
               content: Text('Location permission denied — pan the map to place the pin instead.')));
         }
+        if (silent) await _reverseGeocode(_center);
         return;
       }
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        if (mounted) {
+        if (!silent && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
               content: Text('Turn on location services, or pan the map to place the pin.')));
         }
+        if (silent) await _reverseGeocode(_center);
         return;
       }
       final position = await Geolocator.getCurrentPosition().timeout(_timeout);
@@ -285,10 +295,11 @@ class _MapPickerBodyState extends State<_MapPickerBody> {
       await _reverseGeocode(point);
     } catch (_) {
       // Degrade to manual pin placement — never dead-end the flow.
-      if (mounted) {
+      if (!silent && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('Couldn\'t get your location — pan the map to place the pin instead.')));
       }
+      if (silent) await _reverseGeocode(_center);
     } finally {
       if (mounted) setState(() => _locating = false);
     }
@@ -365,6 +376,21 @@ class _MapPickerBodyState extends State<_MapPickerBody> {
                 IgnorePointer(
                   child: Icon(Icons.location_on, size: 42, color: context.scheme.primary,
                       shadows: const [Shadow(blurRadius: 6, color: Colors.black38)]),
+                ),
+                // A second, clearly-labelled way to re-center on GPS — the
+                // search bar's icon is easy to miss, this one isn't.
+                Positioned(
+                  right: 14,
+                  bottom: 14,
+                  child: FloatingActionButton.small(
+                    heroTag: 'address-picker-locate-me',
+                    onPressed: _locating ? null : () => _useCurrentLocation(),
+                    tooltip: 'Use my current location',
+                    child: _locating
+                        ? const SizedBox(
+                            width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.my_location),
+                  ),
                 ),
               ],
             ),

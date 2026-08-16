@@ -298,17 +298,17 @@ class _HeroBanner extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               Row(children: [
-                Text('₹899',
+                Text('₹1,199',
                     style: CareType.mono(context.scheme.onPrimary,
                         size: 19, w: FontWeight.w600)),
                 const SizedBox(width: 10),
-                Text('₹1,299',
+                Text('₹1,599',
                     style: CareType.mono(
                             context.scheme.onPrimary.withValues(alpha: 0.55),
                             size: 12)
                         .copyWith(decoration: TextDecoration.lineThrough)),
                 const SizedBox(width: 10),
-                const StatusChip('Save 30%', tone: ChipTone.warning, height: 26),
+                const StatusChip('Save 25%', tone: ChipTone.warning, height: 26),
               ]),
             ],
           ),
