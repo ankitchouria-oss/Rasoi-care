@@ -7,6 +7,7 @@ import '../../core/theme/care_plus_theme.dart';
 import '../../data/models.dart';
 import '../../state/providers.dart';
 import '../../state/auth_providers.dart';
+import '../../state/firestore_providers.dart';
 
 // ============================================================ BOOKINGS
 class BookingsScreen extends ConsumerStatefulWidget {
@@ -148,6 +149,15 @@ class AccountScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(themeModeProvider);
+    final profile = ref.watch(userProfileStreamProvider).valueOrNull;
+    final isMock = ref.read(authFlowProvider.notifier).isMock;
+    final name = (profile?.name.isNotEmpty ?? false)
+        ? profile!.name
+        : (isMock ? 'Rohan Deshpande' : 'Your name');
+    final phone = (profile?.phone.isNotEmpty ?? false)
+        ? _formatIndianPhone(profile!.phone)
+        : (isMock ? '+91 98220 41537' : '');
+    final address = profile?.address ?? '';
     return Scaffold(
       appBar: AppBar(
         title: const Text('Account'),
@@ -160,16 +170,23 @@ class AccountScreen extends ConsumerWidget {
           children: [
             CareCard(
               child: Row(children: [
-                Blob('RD', size: 56, bg: context.scheme.primary, fg: context.scheme.onPrimary),
+                Blob(_initialsOf(name),
+                    size: 56, bg: context.scheme.primary, fg: context.scheme.onPrimary),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Rohan Deshpande',
+                      Text(name,
                           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 3),
-                      Text('+91 98220 41537', style: context.type.bodySmall),
+                      if (phone.isNotEmpty) ...[
+                        const SizedBox(height: 3),
+                        Text(phone, style: context.type.bodySmall),
+                      ],
+                      if (address.isNotEmpty) ...[
+                        const SizedBox(height: 3),
+                        Text(address, style: context.type.bodySmall, maxLines: 2),
+                      ],
                       const SizedBox(height: 7),
                       const StatusChip('Silver member', tone: ChipTone.warning, height: 22),
                     ],
@@ -243,6 +260,23 @@ class AccountScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// "Rohan Deshpande" -> "RD"; falls back to a single "?" for an empty name.
+String _initialsOf(String name) {
+  final words = name.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+  if (words.isEmpty) return '?';
+  final first = words.first[0];
+  final last = words.length > 1 ? words.last[0] : '';
+  return (first + last).toUpperCase();
+}
+
+/// "+919822041537" -> "+91 98220 41537". Anything that doesn't match the
+/// expected +91-and-10-digits shape is shown as-is rather than mangled.
+String _formatIndianPhone(String raw) {
+  final match = RegExp(r'^\+91(\d{5})(\d{5})$').firstMatch(raw);
+  if (match == null) return raw;
+  return '+91 ${match.group(1)} ${match.group(2)}';
 }
 
 class _MiniStat extends StatelessWidget {
