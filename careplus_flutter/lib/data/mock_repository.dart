@@ -606,13 +606,12 @@ class MockRepository implements CareRepository {
           ),
       };
 
+  // No canned demo addresses — a real customer's saved addresses come from
+  // their profile (the one collected at signup) and whatever they've picked
+  // on the map during booking. See savedAddressesProvider in
+  // lib/state/providers.dart, which is what screens actually watch.
   @override
-  List<SavedAddress> addresses() => const [
-        SavedAddress('a_home', 'Home',
-            'B-704, Ashwin Residency, Gangapur Rd, Nashik 422013', '🏠'),
-        SavedAddress('a_parents', 'Parents',
-            '12, Shivneri Colony, College Rd, Nashik 422005', '🏢'),
-      ];
+  List<SavedAddress> addresses() => const [];
 
   @override
   List<PaymentMethod> paymentMethods() => const [

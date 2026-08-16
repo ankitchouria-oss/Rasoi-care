@@ -12,11 +12,15 @@ class UserProfile {
     required this.phone,
     required this.email,
     required this.address,
+    this.lat,
+    this.lng,
   });
   final String name;
   final String phone;
   final String email;
   final String address;
+  final double? lat;
+  final double? lng;
 }
 
 /// Best-effort profile write-through to Firestore, called once right after
@@ -49,6 +53,8 @@ class UserProfileService {
             ? data!['email'] as String
             : (user.email ?? ''),
         address: (data?['address'] as String?) ?? '',
+        lat: (data?['addressLat'] as num?)?.toDouble(),
+        lng: (data?['addressLng'] as num?)?.toDouble(),
       );
     });
   }
@@ -57,6 +63,8 @@ class UserProfileService {
     required String name,
     required String email,
     required String address,
+    double? lat,
+    double? lng,
     required Set<String> ownedAppliances,
   }) async {
     if (Firebase.apps.isEmpty) return; // mock mode — nothing to write to
@@ -67,6 +75,8 @@ class UserProfileService {
         'name': name,
         'email': email,
         'address': address,
+        'addressLat': lat,
+        'addressLng': lng,
         'phone': user.phoneNumber,
         'ownedAppliances': ownedAppliances.toList(),
         'updatedAt': FieldValue.serverTimestamp(),

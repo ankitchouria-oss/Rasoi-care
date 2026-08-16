@@ -10,6 +10,7 @@ import '../../state/auth_providers.dart';
 import '../../state/firestore_providers.dart';
 import '../../data/firebase/mock_auth_service.dart';
 import '../../data/local/recent_phone_store.dart';
+import '../../data/models.dart';
 
 // ============================================================ SPLASH
 class SplashScreen extends ConsumerStatefulWidget {
@@ -713,7 +714,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   late final _emailCtrl = TextEditingController(
       text: ref.read(authServiceProvider).currentEmail ??
           (ref.read(authFlowProvider.notifier).isMock ? 'rohan.d@gmail.com' : ''));
-  final _addressCtrl = TextEditingController();
+  // Picked via the real map (or the plain-text fallback when no Maps key is
+  // configured — see AddressPickerScreen), so this carries accurate
+  // lat/lng, not just a typed line.
+  SavedAddress? _pickedAddress;
   Set<String> _owned = {'Chimney', 'Hob', 'Refrigerator', 'Water purifier'};
   bool _saving = false;
 
@@ -721,18 +725,29 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   void dispose() {
     _nameCtrl.dispose();
     _emailCtrl.dispose();
-    _addressCtrl.dispose();
     super.dispose();
   }
 
+  Future<void> _pickAddress() async {
+    final picked = await context.push<SavedAddress>('/book/address/pick');
+    if (picked != null && mounted) setState(() => _pickedAddress = picked);
+  }
+
   Future<void> _save() async {
+    if (_pickedAddress == null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Add your address to continue.')));
+      return;
+    }
     setState(() => _saving = true);
     // Fire-and-forget — see UserProfileService. Never blocks getting into
     // the app, even if Firestore is slow, unreachable, or not set up yet.
     unawaited(ref.read(userProfileServiceProvider).saveProfile(
           name: _nameCtrl.text.trim(),
           email: _emailCtrl.text.trim(),
-          address: _addressCtrl.text.trim(),
+          address: _pickedAddress!.line,
+          lat: _pickedAddress!.lat,
+          lng: _pickedAddress!.lng,
           ownedAppliances: _owned,
         ));
     if (!mounted) return;
@@ -764,7 +779,24 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     CareField('Email',
                         controller: _emailCtrl, keyboardType: TextInputType.emailAddress),
                     const SizedBox(height: 13),
-                    CareField('Address', controller: _addressCtrl, maxLines: 2),
+                    Eyebrow('Your address'),
+                    const SizedBox(height: 8),
+                    CareCard(
+                      onTap: _pickAddress,
+                      child: Row(children: [
+                        Icon(Icons.location_on_outlined, color: context.scheme.primary),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            _pickedAddress?.line ?? 'Pin your address on the map',
+                            style: _pickedAddress == null
+                                ? context.type.bodyMedium
+                                : context.type.bodyMedium!.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        Icon(Icons.chevron_right, color: context.care.inkMuted),
+                      ]),
+                    ),
                     const SizedBox(height: 13),
                     const CareField('Referral code (optional)'),
                     const SizedBox(height: 20),

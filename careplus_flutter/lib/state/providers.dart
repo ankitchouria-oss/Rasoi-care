@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/models.dart';
 import '../data/mock_repository.dart';
 import '../data/api/api_repository.dart';
+import 'firestore_providers.dart';
 
 /// Bumped every time [ApiRepository]'s real-booking cache changes (initial
 /// fetch lands, or a new booking is created), so screens that read
@@ -29,6 +30,19 @@ final apiRepositoryProvider = Provider<ApiRepository>((ref) {
 /// which come from the real Flask+SQLite backend — see lib/data/api.
 final repositoryProvider =
     Provider<CareRepository>((ref) => ref.watch(apiRepositoryProvider));
+
+/// The addresses screens actually show: the real one collected at signup
+/// (if any) first, followed by `repo.addresses()` — which is always empty
+/// today, but kept as the seam for a future multi-address feature. No more
+/// hardcoded demo "Home"/"Parents" entries for every customer.
+final savedAddressesProvider = Provider<List<SavedAddress>>((ref) {
+  final repo = ref.watch(repositoryProvider);
+  final profile = ref.watch(userProfileStreamProvider).valueOrNull;
+  final signupAddress = (profile != null && profile.address.isNotEmpty)
+      ? [SavedAddress('a_signup', 'Home', profile.address, '🏠', profile.lat, profile.lng)]
+      : const <SavedAddress>[];
+  return [...signupAddress, ...repo.addresses()];
+});
 
 /// App-wide light/dark toggle. Persist to shared_preferences in production.
 final themeModeProvider = NotifierProvider<ThemeModeVM, ThemeMode>(ThemeModeVM.new);

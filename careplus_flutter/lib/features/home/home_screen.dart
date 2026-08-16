@@ -229,7 +229,7 @@ class HomeScreen extends ConsumerWidget {
       context.push('/services/${a.name}');
 
   void _locationSheet(BuildContext context, WidgetRef ref) {
-    final repo = ref.read(repositoryProvider);
+    final addresses = ref.read(savedAddressesProvider);
     showModalBottomSheet<void>(
       context: context,
       builder: (_) => Padding(
@@ -240,7 +240,7 @@ class HomeScreen extends ConsumerWidget {
           children: [
             Text('Choose a location', style: context.type.titleMedium),
             const SizedBox(height: 14),
-            for (final ad in repo.addresses()) ...[
+            for (final ad in addresses) ...[
               CareCard(
                 onTap: () => Navigator.pop(context),
                 child: Row(children: [
