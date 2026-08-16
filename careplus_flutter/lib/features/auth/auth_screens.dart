@@ -9,20 +9,26 @@ import '../../core/theme/care_plus_theme.dart';
 import '../../state/auth_providers.dart';
 import '../../state/firestore_providers.dart';
 import '../../data/firebase/mock_auth_service.dart';
+import '../../data/local/recent_phone_store.dart';
 
 // ============================================================ SPLASH
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   void initState() {
     super.initState();
     Timer(const Duration(milliseconds: 2100), () {
-      if (mounted) context.go('/onboarding');
+      if (!mounted) return;
+      // Already signed in from a previous session (Firebase persists this
+      // across app restarts) — skip straight past onboarding/login instead
+      // of making a returning customer sit through them again.
+      final alreadySignedIn = ref.read(authServiceProvider).isSignedIn;
+      context.go(alreadySignedIn ? '/' : '/onboarding');
     });
   }
 
@@ -206,8 +212,16 @@ class PhoneScreen extends ConsumerStatefulWidget {
 }
 
 class _PhoneScreenState extends ConsumerState<PhoneScreen> {
-  final _phoneCtrl = TextEditingController(text: '9822041537');
+  final _phoneCtrl = TextEditingController();
   bool _googleBusy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    RecentPhoneStore().read().then((saved) {
+      if (mounted && saved != null) _phoneCtrl.text = saved;
+    });
+  }
 
   @override
   void dispose() {
@@ -240,6 +254,7 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
     final ok = await ref.read(authFlowProvider.notifier).sendOtp(digits);
     if (!mounted) return;
     if (ok) {
+      unawaited(RecentPhoneStore().save(digits));
       context.push('/login/otp');
     } else {
       final err = ref.read(authFlowProvider).error ?? 'Could not send a code.';
@@ -698,6 +713,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   late final _emailCtrl = TextEditingController(
       text: ref.read(authServiceProvider).currentEmail ??
           (ref.read(authFlowProvider.notifier).isMock ? 'rohan.d@gmail.com' : ''));
+  final _addressCtrl = TextEditingController();
   Set<String> _owned = {'Chimney', 'Hob', 'Refrigerator', 'Water purifier'};
   bool _saving = false;
 
@@ -705,6 +721,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   void dispose() {
     _nameCtrl.dispose();
     _emailCtrl.dispose();
+    _addressCtrl.dispose();
     super.dispose();
   }
 
@@ -715,6 +732,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     unawaited(ref.read(userProfileServiceProvider).saveProfile(
           name: _nameCtrl.text.trim(),
           email: _emailCtrl.text.trim(),
+          address: _addressCtrl.text.trim(),
           ownedAppliances: _owned,
         ));
     if (!mounted) return;
@@ -745,6 +763,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     const SizedBox(height: 13),
                     CareField('Email',
                         controller: _emailCtrl, keyboardType: TextInputType.emailAddress),
+                    const SizedBox(height: 13),
+                    CareField('Address', controller: _addressCtrl, maxLines: 2),
                     const SizedBox(height: 13),
                     const CareField('Referral code (optional)'),
                     const SizedBox(height: 20),

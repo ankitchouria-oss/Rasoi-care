@@ -11,6 +11,7 @@ class UserProfileService {
   Future<void> saveProfile({
     required String name,
     required String email,
+    required String address,
     required Set<String> ownedAppliances,
   }) async {
     if (Firebase.apps.isEmpty) return; // mock mode — nothing to write to
@@ -20,6 +21,7 @@ class UserProfileService {
       await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
         'name': name,
         'email': email,
+        'address': address,
         'phone': user.phoneNumber,
         'ownedAppliances': ownedAppliances.toList(),
         'updatedAt': FieldValue.serverTimestamp(),
