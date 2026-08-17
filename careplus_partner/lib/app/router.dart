@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../features/auth/auth_screens.dart';
 import '../features/apply/tech_apply_screen.dart';
 import '../features/apply/tech_pending_screen.dart';
+import '../features/apply/tech_profile_screen.dart';
 import '../features/jobs/tech_jobs_screen.dart';
 import '../features/jobs/tech_job_screen.dart';
 import '../features/jobs/tech_close_screen.dart';
@@ -23,6 +24,7 @@ final router = GoRouter(
     GoRoute(path: '/tech/apply', builder: (_, __) => const TechApplyScreen()),
     GoRoute(path: '/tech/pending', builder: (_, __) => const TechPendingScreen()),
     GoRoute(path: '/tech/jobs', builder: (_, __) => const TechJobsScreen()),
+    GoRoute(path: '/tech/profile', builder: (_, __) => const TechProfileScreen()),
     GoRoute(
         path: '/tech/job/:id',
         builder: (_, s) => TechJobScreen(jobId: s.pathParameters['id']!)),

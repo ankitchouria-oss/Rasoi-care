@@ -27,6 +27,13 @@ final technicianProfileServiceProvider =
 final technicianUploadServiceProvider =
     Provider<TechnicianUploadService>((ref) => TechnicianUploadService());
 
+/// The signed-in technician's own record — see [fetchTechnicianMe].
+/// Populated by TechJobsScreen's initial refresh and re-populated by
+/// TechProfileScreen's pull-to-refresh; null in mock mode or before the
+/// first successful fetch, which callers treat as "nothing to show yet"
+/// rather than fabricating a name.
+final technicianMeProvider = StateProvider<Map<String, dynamic>?>((ref) => null);
+
 /// Where the signed-in technician should land — decided from the real
 /// backend record (`applicationSubmitted`/`verified`, see app.py's
 /// technician_row_to_dict), modelled on Urban Company's partner flow: fill

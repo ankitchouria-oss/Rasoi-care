@@ -14,6 +14,12 @@ abstract interface class AdminRepository {
   List<AdminStockItem> stock();
   List<StaffAccount> staffAccounts();
   ReportBundle report(ReportRange range);
+
+  /// Approves a self-signed-up technician's application (see
+  /// careplus_partner's TechApplyScreen) — flips them verified/online so
+  /// they start appearing in auto-routing and their own job feed. No-op on
+  /// [MockAdminRepository] (nothing real to verify against).
+  Future<bool> verifyTechnician(String technicianId);
 }
 
 class MockAdminRepository implements AdminRepository {
@@ -115,6 +121,9 @@ class MockAdminRepository implements AdminRepository {
           duty: DutyStatus.offDuty,
         ),
       ];
+
+  @override
+  Future<bool> verifyTechnician(String technicianId) async => false;
 
   @override
   List<AdminStockItem> stock() => const [

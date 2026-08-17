@@ -20,6 +20,8 @@ class TeamScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final team = ref.watch(repositoryProvider).team();
     final onDuty = team.where((t) => t.duty != DutyStatus.offDuty).length;
+    final pendingReview =
+        team.where((t) => t.applicationSubmitted && !t.verified).length;
 
     return Scaffold(
       body: SafeArea(
@@ -35,14 +37,17 @@ class TeamScreen extends ConsumerWidget {
                     Expanded(
                         child: _Kpi(label: 'On duty', value: '$onDuty / ${team.length}')),
                     const SizedBox(width: 10),
-                    Expanded(child: _Kpi(label: 'Avg jobs/tech', value: '6.2')),
+                    Expanded(
+                        child: _Kpi(
+                            label: 'Awaiting review',
+                            value: '$pendingReview',
+                            warn: pendingReview > 0)),
                   ]),
                   const SizedBox(height: 12),
                   Stagger(children: [
                     for (final t in team)
                       CareCard(
-                        onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('${t.name} — roster and payouts'))),
+                        onTap: () => _openDetail(context, ref, t),
                         child: Row(children: [
                           Blob(t.initials, size: 40),
                           const SizedBox(width: 12),
@@ -62,9 +67,7 @@ class TeamScreen extends ConsumerWidget {
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
-                              Text('★ ${t.rating}',
-                                  style: CareType.mono(context.scheme.secondary,
-                                      size: 12.5, w: FontWeight.w600)),
+                              _StatusBadge(t),
                               const SizedBox(height: 4),
                               Text(_dutyLabel(t.duty),
                                   style: TextStyle(fontSize: 11, color: context.care.inkMuted)),
@@ -81,11 +84,37 @@ class TeamScreen extends ConsumerWidget {
       ),
     );
   }
+
+  void _openDetail(BuildContext context, WidgetRef ref, AdminTeamMember t) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _TechnicianDetailSheet(member: t),
+    );
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  const _StatusBadge(this.member);
+  final AdminTeamMember member;
+  @override
+  Widget build(BuildContext context) {
+    if (member.verified) {
+      return Text('★ ${member.rating}',
+          style: CareType.mono(context.scheme.secondary, size: 12.5, w: FontWeight.w600));
+    }
+    return StatusChip(
+      member.applicationSubmitted ? 'Awaiting review' : 'Applying',
+      tone: ChipTone.warning,
+      height: 22,
+    );
+  }
 }
 
 class _Kpi extends StatelessWidget {
-  const _Kpi({required this.label, required this.value});
+  const _Kpi({required this.label, required this.value, this.warn = false});
   final String label, value;
+  final bool warn;
   @override
   Widget build(BuildContext context) => CareCard(
         padding: const EdgeInsets.all(14),
@@ -95,7 +124,141 @@ class _Kpi extends StatelessWidget {
             Eyebrow(label),
             const SizedBox(height: 6),
             Text(value,
-                style: CareType.mono(context.scheme.onSurface, size: 21, w: FontWeight.w600)),
+                style: CareType.mono(
+                    warn ? context.scheme.secondary : context.scheme.onSurface,
+                    size: 21,
+                    w: FontWeight.w600)),
+          ],
+        ),
+      );
+}
+
+/// Full KYC application review — everything TechApplyScreen (careplus_partner)
+/// collected: profile photo, category/area, experience, ID document, bank
+/// payout details — plus the Verify action once an admin's checked it all,
+/// mirroring Urban Company's partner-approval flow.
+class _TechnicianDetailSheet extends ConsumerStatefulWidget {
+  const _TechnicianDetailSheet({required this.member});
+  final AdminTeamMember member;
+  @override
+  ConsumerState<_TechnicianDetailSheet> createState() => _TechnicianDetailSheetState();
+}
+
+class _TechnicianDetailSheetState extends ConsumerState<_TechnicianDetailSheet> {
+  bool _verifying = false;
+
+  Future<void> _verify() async {
+    final id = widget.member.id;
+    if (id == null) return;
+    setState(() => _verifying = true);
+    final ok = await ref.read(repositoryProvider).verifyTechnician(id);
+    if (!mounted) return;
+    setState(() => _verifying = false);
+    if (ok) {
+      Navigator.of(context).pop();
+    } else {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Could not verify — check connection.')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.member;
+    return DraggableScrollableSheet(
+      initialChildSize: 0.75,
+      minChildSize: 0.4,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (_, scrollController) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+        child: ListView(
+          controller: scrollController,
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                    color: context.care.hairline, borderRadius: Radii.pill),
+              ),
+            ),
+            Row(children: [
+              t.photoUrl != null
+                  ? CircleAvatar(radius: 28, backgroundImage: NetworkImage(t.photoUrl!))
+                  : Blob(t.initials, size: 56),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(t.name,
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 3),
+                    Text(t.specialties, style: context.type.bodySmall),
+                  ],
+                ),
+              ),
+              _StatusBadge(t),
+            ]),
+            const Divider(height: 30),
+            _row(context, 'Service area', t.area?.isNotEmpty == true ? t.area! : '—'),
+            _row(context, 'Experience',
+                t.experienceYears != null ? '${t.experienceYears} years' : '—'),
+            _row(context, 'Rating', '★ ${t.rating}'),
+            _row(context, 'Jobs completed', t.statsLabel),
+            const SizedBox(height: 10),
+            Eyebrow('ID document'),
+            const SizedBox(height: 8),
+            if (t.idDocumentUrl == null)
+              Text('Not uploaded', style: context.type.bodySmall)
+            else
+              ClipRRect(
+                borderRadius: Radii.rMd,
+                child: Image.network(t.idDocumentUrl!, height: 160, fit: BoxFit.cover),
+              ),
+            const SizedBox(height: 18),
+            Eyebrow('Payout bank details'),
+            const SizedBox(height: 8),
+            _row(context, 'Account holder',
+                t.bankAccountName?.isNotEmpty == true ? t.bankAccountName! : '—'),
+            _row(context, 'Account number',
+                t.bankAccountNumber?.isNotEmpty == true ? t.bankAccountNumber! : '—'),
+            _row(context, 'IFSC', t.bankIfsc?.isNotEmpty == true ? t.bankIfsc! : '—'),
+            const SizedBox(height: 20),
+            if (t.id != null && !t.verified)
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: _verifying ? null : _verify,
+                  child: _verifying
+                      ? const SizedBox(
+                          width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Verify technician'),
+                ),
+              )
+            else if (t.verified)
+              Center(
+                child: Text('Already verified', style: context.type.bodySmall),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _row(BuildContext context, String label, String value) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: context.type.bodySmall),
+            Flexible(
+              child: Text(value,
+                  textAlign: TextAlign.end,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            ),
           ],
         ),
       );

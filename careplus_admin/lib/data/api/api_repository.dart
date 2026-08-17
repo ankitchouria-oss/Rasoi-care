@@ -170,15 +170,25 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
     final name = (t['name'] as String?) ?? 'Technician';
     final online = t['online'] == true;
     return AdminTeamMember(
+      id: t['id'] as String?,
       name: name,
       initials: _initials(name),
       specialties: (t['category'] as String?) ?? '—',
+      area: t['area'] as String?,
       statsLabel: '${_asInt(t['jobsCompleted'])} jobs',
       rating: _asDouble(t['rating']),
       // The payload can't distinguish "actively on a job" from "idle but
       // online" — online maps to idle, offline to offDuty. onJob is never
       // emitted for API-sourced rows.
       duty: online ? DutyStatus.idle : DutyStatus.offDuty,
+      verified: t['verified'] == true,
+      applicationSubmitted: t['applicationSubmitted'] == true,
+      photoUrl: t['photoUrl'] as String?,
+      experienceYears: t['experienceYears'] == null ? null : _asInt(t['experienceYears']),
+      idDocumentUrl: t['idDocumentUrl'] as String?,
+      bankAccountName: t['bankAccountName'] as String?,
+      bankAccountNumber: t['bankAccountNumber'] as String?,
+      bankIfsc: t['bankIfsc'] as String?,
     );
   }
 
@@ -192,6 +202,22 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
       notifyListeners();
     } catch (_) {
       // keep serving Mock
+    }
+  }
+
+  @override
+  Future<bool> verifyTechnician(String technicianId) async {
+    try {
+      final res = await _client
+          .patch(Uri.parse('${ApiConfig.baseUrl}/api/technicians/$technicianId/verify'))
+          .timeout(_timeout);
+      if (res.statusCode != 200) return false;
+      // Refresh the cache so the Team screen reflects the change immediately
+      // without waiting for the next natural refetch.
+      await _fetchTechnicians();
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 
