@@ -293,14 +293,18 @@ class _TopBar extends StatelessWidget {
               border: Border.all(color: CareColors.porcelain.withValues(alpha: 0.18)),
             ),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text('Job #$jobId',
                     style: CareType.mono(CareColors.porcelain.withValues(alpha: 0.85),
                         size: 12.5)),
-                Text('$customerName · $customerArea',
-                    style: CareType.mono(CareColors.porcelain, size: 12.5,
-                        w: FontWeight.w600)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text('$customerName · $customerArea',
+                      textAlign: TextAlign.end,
+                      overflow: TextOverflow.ellipsis,
+                      style: CareType.mono(CareColors.porcelain, size: 12.5,
+                          w: FontWeight.w600)),
+                ),
               ],
             ),
           ),
@@ -445,59 +449,74 @@ class _ReadingCard extends StatelessWidget {
   final Color accent;
   final ValueChanged<String> onChanged;
 
+  // A rounded card with a colored accent bar down the left edge. Flutter's
+  // Border doesn't support per-side colors together with a borderRadius (it
+  // asserts at paint time), so the accent is a separate strip inside a
+  // ClipRRect rather than a fourth BorderSide.
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: context.scheme.surface,
-        borderRadius: Radii.rMd,
-        border: Border(
-          top: BorderSide(color: context.care.hairline),
-          right: BorderSide(color: context.care.hairline),
-          bottom: BorderSide(color: context.care.hairline),
-          left: BorderSide(color: accent, width: 3),
+    return ClipRRect(
+      borderRadius: Radii.rMd,
+      child: Container(
+        decoration: BoxDecoration(
+          color: context.scheme.surface,
+          border: Border.all(color: context.care.hairline),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Eyebrow(label),
-          const SizedBox(height: 10),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Container(width: 3, color: accent),
               Expanded(
-                child: TextField(
-                  controller: controller,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  onChanged: onChanged,
-                  style: CareType.mono(context.scheme.onSurface, size: 24, w: FontWeight.w600),
-                  decoration: const InputDecoration(
-                    isDense: true,
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.zero,
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Eyebrow(label),
+                      const SizedBox(height: 10),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: controller,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              onChanged: onChanged,
+                              style: CareType.mono(context.scheme.onSurface,
+                                  size: 24, w: FontWeight.w600),
+                              decoration: const InputDecoration(
+                                isDense: true,
+                                border: InputBorder.none,
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            ),
+                          ),
+                          Text('m/s', style: context.type.bodySmall),
+                        ],
+                      ),
+                      Divider(height: 18, color: context.care.hairline, thickness: 1.4),
+                      Text.rich(
+                        TextSpan(
+                          text: 'CFM: ',
+                          style: context.type.bodySmall!.copyWith(fontSize: 10.5),
+                          children: [
+                            TextSpan(
+                              text: cfmLabel,
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w700, color: context.scheme.onSurface),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-              Text('m/s', style: context.type.bodySmall),
             ],
           ),
-          Divider(height: 18, color: context.care.hairline, thickness: 1.4),
-          Text.rich(
-            TextSpan(
-              text: 'CFM: ',
-              style: context.type.bodySmall!.copyWith(fontSize: 10.5),
-              children: [
-                TextSpan(
-                  text: cfmLabel,
-                  style: TextStyle(fontWeight: FontWeight.w700, color: context.scheme.onSurface),
-                ),
-              ],
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
