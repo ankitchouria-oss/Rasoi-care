@@ -11,15 +11,20 @@ pubspec.lock
 
 # Android — keep the project, ignore local/generated artifacts only
 android/local.properties
-android/key.properties
 android/**/build/
 android/.gradle/
 android/.kotlin/
 android/gradle/wrapper/gradle-wrapper.jar
 android/captures/
 android/gradlew.log
-*.jks
-*.keystore
+# android/key.properties and the release keystore ARE committed
+# deliberately — see android/key.properties. This environment is
+# ephemeral and has no persistent storage outside the git repo, so a
+# gitignored keystore/debug key gets silently regenerated on every
+# reset, invalidating every SHA fingerprint registered in Firebase
+# Console and breaking phone-auth SMS delivery across all three apps.
+# Committing a fixed release keystore is the tradeoff that keeps
+# signing (and Firebase Phone Auth) stable across resets.
 
 # iOS/macOS (not scaffolded yet)
 ios/
