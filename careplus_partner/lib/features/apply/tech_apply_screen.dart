@@ -61,6 +61,12 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
       TextEditingController(text: widget.existing?['bankIfsc'] as String? ?? '');
   late final _panCtrl =
       TextEditingController(text: widget.existing?['panNumber'] as String? ?? '');
+  late final _gstCtrl =
+      TextEditingController(text: widget.existing?['gstNumber'] as String? ?? '');
+  late final _aadharCtrl =
+      TextEditingController(text: widget.existing?['aadharNumber'] as String? ?? '');
+  late final _dobCtrl =
+      TextEditingController(text: widget.existing?['dateOfBirth'] as String? ?? '');
   late String? _category = widget.existing?['category'] as String?;
   late String? _city = _cities.contains(widget.existing?['area'])
       ? widget.existing!['area'] as String
@@ -82,7 +88,25 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
     _bankAccountCtrl.dispose();
     _bankIfscCtrl.dispose();
     _panCtrl.dispose();
+    _gstCtrl.dispose();
+    _aadharCtrl.dispose();
+    _dobCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickDob() async {
+    final now = DateTime.now();
+    final initial = DateTime.tryParse(_dobCtrl.text) ?? DateTime(now.year - 25);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(now.year - 80),
+      lastDate: DateTime(now.year - 18, now.month, now.day),
+    );
+    if (picked != null) {
+      setState(() => _dobCtrl.text =
+          '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}');
+    }
   }
 
   Future<void> _pickPhoto() async {
@@ -139,6 +163,9 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
         'bankAccountNumber': _bankAccountCtrl.text.trim(),
         'bankIfsc': _bankIfscCtrl.text.trim(),
         'panNumber': _panCtrl.text.trim().toUpperCase(),
+        'gstNumber': _gstCtrl.text.trim().toUpperCase(),
+        'aadharNumber': _aadharCtrl.text.trim(),
+        'dateOfBirth': _dobCtrl.text.trim(),
         'submit': true,
       });
       if (!mounted) return;
@@ -273,6 +300,8 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
                     const SizedBox(height: 22),
                     Eyebrow('Financial details'),
                     const SizedBox(height: 10),
+                    CareField('GST number (optional)', controller: _gstCtrl),
+                    const SizedBox(height: 13),
                     CareField('PAN number', controller: _panCtrl),
                     const SizedBox(height: 13),
                     CareField('Account holder name', controller: _bankNameCtrl),
@@ -281,6 +310,18 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
                         controller: _bankAccountCtrl, keyboardType: TextInputType.number),
                     const SizedBox(height: 13),
                     CareField('IFSC code', controller: _bankIfscCtrl),
+                    const SizedBox(height: 22),
+                    Eyebrow('Personal details'),
+                    const SizedBox(height: 10),
+                    CareField('Aadhaar number (optional)',
+                        controller: _aadharCtrl, keyboardType: TextInputType.number),
+                    const SizedBox(height: 13),
+                    GestureDetector(
+                      onTap: _pickDob,
+                      child: AbsorbPointer(
+                        child: CareField('Date of birth (optional)', controller: _dobCtrl),
+                      ),
+                    ),
                     if (!_isEditing) ...[
                       const SizedBox(height: 22),
                       CareCard(

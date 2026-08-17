@@ -464,6 +464,15 @@ def migrate_technicians_columns(conn):
         # already live and taking real jobs — treat their application as
         # already-submitted rather than sending them back through signup.
         conn.execute("UPDATE technicians SET application_submitted = 1")
+    # Personal/financial details matching Urban Company's "Financial
+    # details" screen (GST, PAN, Bank, Personal Details incl. DOB and
+    # Aadhaar) — all optional, self-reported by the technician.
+    if "aadhar_number" not in cols:
+        conn.execute("ALTER TABLE technicians ADD COLUMN aadhar_number TEXT")
+    if "date_of_birth" not in cols:
+        conn.execute("ALTER TABLE technicians ADD COLUMN date_of_birth TEXT")
+    if "gst_number" not in cols:
+        conn.execute("ALTER TABLE technicians ADD COLUMN gst_number TEXT")
     conn.commit()
 
 
