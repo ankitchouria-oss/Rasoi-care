@@ -56,17 +56,68 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
       context.push('/tech/job/${widget.jobId}/close');
       return;
     }
-    await _advanceStatus();
+    // Completing the job — this is the one real chance to record suction
+    // readings for the customer's invoice, so ask before advancing.
+    (int?, int?) suction = (null, null);
+    if (liveStatus == 'In Progress') {
+      suction = await _askSuctionReadings();
+    }
+    await _advanceStatus(suctionBefore: suction.$1, suctionAfter: suction.$2);
     if (liveStatus == 'In Progress' && mounted) {
       context.push('/tech/job/${widget.jobId}/close');
     }
   }
 
-  Future<void> _advanceStatus() async {
+  Future<(int?, int?)> _askSuctionReadings() async {
+    final beforeCtrl = TextEditingController();
+    final afterCtrl = TextEditingController();
+    final result = await showDialog<(int?, int?)>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Suction readings'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Optional — shown on the customer\'s invoice.',
+                style: Theme.of(dialogContext).textTheme.bodySmall),
+            const SizedBox(height: 14),
+            TextField(
+              controller: beforeCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Before (m³/hr)'),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: afterCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'After (m³/hr)'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop((null, null)),
+            child: const Text('Skip'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop((
+              int.tryParse(beforeCtrl.text),
+              int.tryParse(afterCtrl.text),
+            )),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    return result ?? (null, null);
+  }
+
+  Future<void> _advanceStatus({int? suctionBefore, int? suctionAfter}) async {
     setState(() => _advancing = true);
     final repo = ref.read(repositoryProvider);
     if (repo is ApiRepository) {
-      final ok = await repo.advanceJob(widget.jobId);
+      final ok = await repo.advanceJob(widget.jobId,
+          suctionBefore: suctionBefore, suctionAfter: suctionAfter);
       if (ok) {
         ref.read(jobsFeedTickProvider.notifier).bump();
       } else if (mounted) {

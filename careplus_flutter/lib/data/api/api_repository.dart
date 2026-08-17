@@ -117,6 +117,9 @@ class ApiRepository implements CareRepository {
       technicianFirebaseUid: json['technicianFirebaseUid'] as String?,
       lat: (json['lat'] as num?)?.toDouble(),
       lng: (json['lng'] as num?)?.toDouble(),
+      suctionBefore: (json['suctionBefore'] as num?)?.toInt(),
+      suctionAfter: (json['suctionAfter'] as num?)?.toInt(),
+      timeOnSiteMin: (json['timeOnSiteMin'] as num?)?.toInt(),
     );
   }
 

@@ -80,16 +80,21 @@ class InvoiceScreen extends ConsumerWidget {
                       children: [
                         Eyebrow('Work log'),
                         const SizedBox(height: 12),
-                        Row(children: [
-                          Expanded(child: _LogImage(label: 'Before')),
-                          const SizedBox(width: 10),
-                          Expanded(child: _LogImage(label: 'After', good: true)),
-                        ]),
-                        const Divider(height: 24),
-                        _line(context, 'Suction before', '480 m³/hr'),
-                        _line(context, 'Suction after', '1,180 m³/hr',
-                            color: context.care.success),
-                        _line(context, 'Time on site', '1 hr 24 min'),
+                        if (booking?.suctionBefore == null &&
+                            booking?.suctionAfter == null &&
+                            booking?.timeOnSiteMin == null)
+                          Text('Not recorded for this visit.',
+                              style: context.type.bodySmall)
+                        else ...[
+                          if (booking?.suctionBefore != null)
+                            _line(context, 'Suction before', '${booking!.suctionBefore} m³/hr'),
+                          if (booking?.suctionAfter != null)
+                            _line(context, 'Suction after', '${booking!.suctionAfter} m³/hr',
+                                color: context.care.success),
+                          if (booking?.timeOnSiteMin != null)
+                            _line(context, 'Time on site',
+                                _formatMinutes(booking!.timeOnSiteMin!)),
+                        ],
                       ],
                     ),
                   ),
@@ -132,6 +137,13 @@ class InvoiceScreen extends ConsumerWidget {
       );
 }
 
+String _formatMinutes(int minutes) {
+  final hrs = minutes ~/ 60;
+  final mins = minutes % 60;
+  if (hrs == 0) return '$mins min';
+  return '$hrs hr${mins == 0 ? '' : ' $mins min'}';
+}
+
 class _PaidStamp extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Transform.rotate(
@@ -146,33 +158,6 @@ class _PaidStamp extends StatelessWidget {
               style: CareType.mono(context.care.success, size: 11, w: FontWeight.w600)
                   .copyWith(letterSpacing: 3)),
         ),
-      );
-}
-
-class _LogImage extends StatelessWidget {
-  const _LogImage({required this.label, this.good = false});
-  final String label;
-  final bool good;
-  @override
-  Widget build(BuildContext context) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: context.type.bodySmall),
-          const SizedBox(height: 6),
-          AspectRatio(
-            aspectRatio: 1.4,
-            child: Container(
-              decoration: BoxDecoration(
-                color: good
-                    ? context.scheme.primaryContainer
-                    : context.scheme.surfaceContainerHigh,
-                borderRadius: Radii.rMd,
-              ),
-              child: Icon(Icons.image_outlined,
-                  color: good ? context.scheme.primary : context.care.inkFaint),
-            ),
-          ),
-        ],
       );
 }
 

@@ -119,6 +119,13 @@ def booking_row_to_dict(row):
         "area": row["area"] if "area" in keys else None,
         "lat": row["lat"] if "lat" in keys else None,
         "lng": row["lng"] if "lng" in keys else None,
+        # Real work-log data, filled in as the technician actually advances
+        # the job — see advance_booking. None until that's happened, which
+        # the Customer app's invoice treats as "not recorded" rather than
+        # showing an invented reading.
+        "suctionBefore": row["suction_before"] if "suction_before" in keys else None,
+        "suctionAfter": row["suction_after"] if "suction_after" in keys else None,
+        "timeOnSiteMin": row["time_on_site_min"] if "time_on_site_min" in keys else None,
     }
 
 
@@ -1008,6 +1015,7 @@ def create_booking():
 @app.route("/api/bookings/<booking_id>/advance", methods=["PATCH"])
 def advance_booking(booking_id):
     """Called by the Technician app to move a job to its next status."""
+    data = request.get_json(force=True, silent=True) or {}
     conn = get_db()
     row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
     if not row:
@@ -1020,15 +1028,34 @@ def advance_booking(booking_id):
         return jsonify(booking_row_to_dict(row))
 
     new_status = STATUS_ORDER[idx + 1]
+    ts = now()
     conn.execute(
         "UPDATE bookings SET status = ?, updated_at = ? WHERE id = ?",
-        (new_status, now(), booking_id),
+        (new_status, ts, booking_id),
     )
+    if new_status == "In Progress":
+        # Real start-of-work marker — used below to compute a genuine
+        # time-on-site instead of a made-up figure.
+        conn.execute("UPDATE bookings SET in_progress_at = ? WHERE id = ?", (ts, booking_id))
     if new_status == "Completed":
         conn.execute(
             "UPDATE technicians SET jobs_completed = jobs_completed + 1 WHERE id = ?",
             (row["technician_id"],),
         )
+        suction_before = data.get("suctionBefore")
+        suction_after = data.get("suctionAfter")
+        if suction_before is not None or suction_after is not None:
+            conn.execute(
+                "UPDATE bookings SET suction_before = ?, suction_after = ? WHERE id = ?",
+                (suction_before, suction_after, booking_id),
+            )
+        if row["in_progress_at"]:
+            started = datetime.fromisoformat(row["in_progress_at"].rstrip("Z"))
+            finished = datetime.fromisoformat(ts.rstrip("Z"))
+            minutes = max(1, round((finished - started).total_seconds() / 60))
+            conn.execute(
+                "UPDATE bookings SET time_on_site_min = ? WHERE id = ?", (minutes, booking_id)
+            )
     conn.commit()
     row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
     conn.close()
