@@ -188,18 +188,53 @@ class ApiRepository implements PartnerRepository {
   TechStats techStats() {
     final mock = _mock.techStats();
     final online = _online;
-    return online == null
-        ? mock
-        : TechStats(
-            earningsTodayPaise: mock.earningsTodayPaise,
-            jobsDone: mock.jobsDone,
-            jobsTotal: mock.jobsTotal,
-            tipsPaise: mock.tipsPaise,
-            rating: mock.rating,
-            firstTimeFixPct: mock.firstTimeFixPct,
-            onDuty: online,
-          );
+    if (!_bookingsFetched) {
+      return online == null ? mock : _withOnDuty(mock, online);
+    }
+    final today = DateTime.now();
+    bool isToday(DateTime? dt) =>
+        dt != null && dt.year == today.year && dt.month == today.month && dt.day == today.day;
+    final completedToday =
+        _bookings.where((b) => b.status == 'Completed' && isToday(b.updatedAt));
+    final touchedToday = _bookings.where((b) => isToday(b.createdAt) || isToday(b.updatedAt));
+    final earningsTodayPaise =
+        completedToday.fold<int>(0, (sum, b) => sum + b.totalAmountPaise);
+    // No real per-job rating or tip data from the backend yet — those two
+    // stay on Mock's figures; everything else here is real.
+    return TechStats(
+      earningsTodayPaise: earningsTodayPaise,
+      jobsDone: completedToday.length,
+      // touchedToday is a superset of completedToday by construction
+      // (completed-today implies updated-today), so this is always >= jobsDone.
+      jobsTotal: touchedToday.length,
+      tipsPaise: mock.tipsPaise,
+      rating: mock.rating,
+      firstTimeFixPct: mock.firstTimeFixPct,
+      onDuty: online ?? mock.onDuty,
+    );
   }
+
+  TechStats _withOnDuty(TechStats s, bool onDuty) => TechStats(
+        earningsTodayPaise: s.earningsTodayPaise,
+        jobsDone: s.jobsDone,
+        jobsTotal: s.jobsTotal,
+        tipsPaise: s.tipsPaise,
+        rating: s.rating,
+        firstTimeFixPct: s.firstTimeFixPct,
+        onDuty: onDuty,
+      );
+
+  /// Every completed booking, most recent first — the real data behind the
+  /// earnings/reports screen. Empty (not Mock) once bookings have actually
+  /// been fetched, same "don't fabricate" rule as [hasActiveJob].
+  List<BookingDto> completedBookings() {
+    final list = _bookings.where((b) => b.status == 'Completed').toList();
+    list.sort((a, b) => (b.updatedAt ?? b.createdAt ?? DateTime(0))
+        .compareTo(a.updatedAt ?? a.createdAt ?? DateTime(0)));
+    return list;
+  }
+
+  bool get bookingsFetched => _bookingsFetched;
 
   @override
   JobRequest? incomingRequest() {
@@ -249,6 +284,8 @@ class ApiRepository implements PartnerRepository {
       reportedQuote: base.reportedQuote,
       checklist: base.checklist,
       parts: base.parts,
+      lat: b.lat,
+      lng: b.lng,
     );
   }
 

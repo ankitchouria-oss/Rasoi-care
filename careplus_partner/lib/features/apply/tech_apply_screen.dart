@@ -3,6 +3,12 @@
 // document, and payout bank details, all reviewed by an admin before the
 // technician is verified and starts appearing in the real job feed. See
 // TechPendingScreen for what happens right after submitting.
+//
+// Also reused for editing an already-submitted application (see
+// TechProfileScreen's "Edit" action) — [existing] prefills every field from
+// the technician's current record, and a re-picked photo/ID document is the
+// only thing that overwrites what's already on file; everything else is
+// just a normal field update via the same PATCH /api/technician/me call.
 
 import 'dart:io';
 
@@ -24,23 +30,34 @@ const _categories = [
 ];
 
 class TechApplyScreen extends ConsumerStatefulWidget {
-  const TechApplyScreen({super.key});
+  const TechApplyScreen({super.key, this.existing});
+  final Map<String, dynamic>? existing;
   @override
   ConsumerState<TechApplyScreen> createState() => _TechApplyScreenState();
 }
 
 class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _nameCtrl = TextEditingController();
-  final _areaCtrl = TextEditingController();
-  final _experienceCtrl = TextEditingController();
-  final _bankNameCtrl = TextEditingController();
-  final _bankAccountCtrl = TextEditingController();
-  final _bankIfscCtrl = TextEditingController();
-  String? _category;
+  late final _nameCtrl = TextEditingController(text: widget.existing?['name'] as String? ?? '');
+  late final _areaCtrl = TextEditingController(text: widget.existing?['area'] as String? ?? '');
+  late final _experienceCtrl = TextEditingController(
+      text: widget.existing?['experienceYears'] != null
+          ? '${widget.existing!['experienceYears']}'
+          : '');
+  late final _bankNameCtrl =
+      TextEditingController(text: widget.existing?['bankAccountName'] as String? ?? '');
+  late final _bankAccountCtrl =
+      TextEditingController(text: widget.existing?['bankAccountNumber'] as String? ?? '');
+  late final _bankIfscCtrl =
+      TextEditingController(text: widget.existing?['bankIfsc'] as String? ?? '');
+  late String? _category = widget.existing?['category'] as String?;
+  late final String? _existingPhotoUrl = widget.existing?['photoUrl'] as String?;
+  late final String? _existingIdDocumentUrl = widget.existing?['idDocumentUrl'] as String?;
   File? _photo;
   File? _idDocument;
   bool _submitting = false;
+
+  bool get _isEditing => widget.existing != null;
 
   @override
   void dispose() {
@@ -70,7 +87,7 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
           .showSnackBar(const SnackBar(content: Text('Pick a service category.')));
       return;
     }
-    if (_idDocument == null) {
+    if (_idDocument == null && _existingIdDocumentUrl == null) {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('Upload an ID document.')));
       return;
@@ -78,9 +95,14 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
     setState(() => _submitting = true);
     try {
       final uploadService = ref.read(technicianUploadServiceProvider);
+      // Only re-upload what was actually re-picked — omitting a key from the
+      // PATCH body leaves that field (and whatever's already on file)
+      // untouched, see app.py's update_technician_me.
       final photoUrl =
           _photo == null ? null : await uploadService.upload(_photo!, kind: 'photo');
-      final idDocumentUrl = await uploadService.upload(_idDocument!, kind: 'id_document');
+      final idDocumentUrl = _idDocument == null
+          ? null
+          : await uploadService.upload(_idDocument!, kind: 'id_document');
       final result = await submitTechnicianApplication({
         'name': _nameCtrl.text.trim(),
         'category': _category,
@@ -94,7 +116,12 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
         'submit': true,
       });
       if (!mounted) return;
-      routeToStage(context, stageFromTechnicianJson(result));
+      ref.read(technicianMeProvider.notifier).state = result;
+      if (_isEditing) {
+        Navigator.of(context).pop();
+      } else {
+        routeToStage(context, stageFromTechnicianJson(result));
+      }
     } on AuthException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
@@ -107,7 +134,7 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Complete your application')),
+      appBar: AppBar(title: Text(_isEditing ? 'Edit profile' : 'Complete your application')),
       body: SafeArea(
         top: false,
         child: Form(
@@ -118,18 +145,23 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
                   children: [
-                    Text(
-                        'A few details so we can verify you and get you routed real jobs — same as Urban Company\'s partner review.',
-                        style: context.type.bodyMedium),
-                    const SizedBox(height: 20),
+                    if (!_isEditing)
+                      Text(
+                          'A few details so we can verify you and get you routed real jobs — same as Urban Company\'s partner review.',
+                          style: context.type.bodyMedium),
+                    if (!_isEditing) const SizedBox(height: 20),
                     Center(
                       child: GestureDetector(
                         onTap: _pickPhoto,
                         child: CircleAvatar(
                           radius: 44,
                           backgroundColor: context.scheme.surfaceContainerHigh,
-                          backgroundImage: _photo != null ? FileImage(_photo!) : null,
-                          child: _photo == null
+                          backgroundImage: _photo != null
+                              ? FileImage(_photo!)
+                              : (_existingPhotoUrl != null
+                                  ? NetworkImage(_existingPhotoUrl)
+                                  : null) as ImageProvider?,
+                          child: _photo == null && _existingPhotoUrl == null
                               ? Icon(Icons.add_a_photo_outlined,
                                   color: context.care.inkFaint, size: 28)
                               : null,
@@ -138,7 +170,7 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
                     ),
                     const SizedBox(height: 6),
                     Center(
-                        child: Text('Profile photo', style: context.type.bodySmall)),
+                        child: Text('Profile photo — tap to change', style: context.type.bodySmall)),
                     const SizedBox(height: 22),
                     CareField('Full name',
                         controller: _nameCtrl,
@@ -181,9 +213,11 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                              _idDocument == null
-                                  ? 'Upload Aadhaar, PAN or other government ID'
-                                  : _idDocument!.path.split('/').last,
+                              _idDocument != null
+                                  ? _idDocument!.path.split('/').last
+                                  : (_existingIdDocumentUrl != null
+                                      ? 'Uploaded — tap to replace'
+                                      : 'Upload Aadhaar, PAN or other government ID'),
                               style: context.type.bodyMedium),
                         ),
                         Icon(Icons.chevron_right, color: context.care.inkMuted),
@@ -211,7 +245,7 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
                             width: 18,
                             height: 18,
                             child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Text('Submit application'),
+                        : Text(_isEditing ? 'Save changes' : 'Submit application'),
                   ),
                 ),
               ),

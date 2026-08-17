@@ -1,8 +1,8 @@
 // The technician's own view of what they submitted at signup — Urban
 // Company's Partner app has the same "My Profile" surface showing category,
 // area, experience, documents and payout details back to the professional,
-// not just to ops. Read-only for now; re-submitting through TechApplyScreen
-// (PATCH /api/technician/me) is the seam for an "Edit" action later.
+// not just to ops. "Edit profile" reopens TechApplyScreen pre-filled with
+// this data (PATCH /api/technician/me), same submit path as first signup.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -129,6 +129,18 @@ class _TechProfileScreenState extends ConsumerState<TechProfileScreen> {
                                 : '—',
                             last: true),
                       ],
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: () async {
+                        await context.push('/tech/apply', extra: me);
+                        // Applying may have updated technicianMeProvider —
+                        // nothing else to do, the watch above picks it up.
+                      },
+                      child: const Text('Edit profile'),
                     ),
                   ),
                 ],

@@ -145,6 +145,7 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
                   CareCard(
                     color: CareColors.pine,
                     borderColor: Colors.transparent,
+                    onTap: () => context.push('/tech/earnings'),
                     child: Row(
                       children: [
                         Expanded(

@@ -11,6 +11,9 @@ class BookingDto {
     required this.totalAmountPaise,
     required this.area,
     required this.createdAt,
+    this.updatedAt,
+    this.lat,
+    this.lng,
   });
 
   final String id;
@@ -20,6 +23,13 @@ class BookingDto {
   final int totalAmountPaise;
   final String? area;
   final DateTime? createdAt;
+  /// Last status-transition time — for a Completed booking, this is when it
+  /// was actually finished, which the earnings screen uses to bucket a job
+  /// into "today"/"this week" rather than its (possibly much earlier)
+  /// creation time.
+  final DateTime? updatedAt;
+  final double? lat;
+  final double? lng;
 
   factory BookingDto.fromJson(Map<String, dynamic> json) {
     // total_amount arrives in rupees (see app.py) — this app stores money in
@@ -38,6 +48,9 @@ class BookingDto {
       totalAmountPaise: (rupees * 100).round(),
       area: json['area'] as String?,
       createdAt: DateTime.tryParse('${json['createdAt'] ?? ''}'),
+      updatedAt: DateTime.tryParse('${json['updatedAt'] ?? ''}'),
+      lat: (json['lat'] as num?)?.toDouble(),
+      lng: (json['lng'] as num?)?.toDouble(),
     );
   }
 
@@ -49,6 +62,9 @@ class BookingDto {
         totalAmountPaise: totalAmountPaise,
         area: area,
         createdAt: createdAt,
+        updatedAt: updatedAt,
+        lat: lat,
+        lng: lng,
       );
 }
 

@@ -12,6 +12,13 @@
         android:label="Rasoi Care Partner"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <!-- Job-tracking map (TechJobScreen) — key sourced from the
+             ${mapsApiKey} placeholder in build.gradle.kts, defaults to an
+             empty string so the build never fails for its absence. See
+             lib/core/config/maps_config.dart. -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${mapsApiKey}" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -49,6 +56,17 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- url_launcher (TechJobScreen's Navigate action) needs these
+             declared for Android 11+ package visibility, or it can't find
+             Google Maps / a browser to hand the URL to. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="google.navigation" />
         </intent>
     </queries>
 </manifest>

@@ -33,6 +33,19 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // Native GoogleMap widget (job-tracking screen) reads its key from
+        // this manifest placeholder — same wiring as careplus_flutter's
+        // build.gradle.kts. MAPS_API_KEY lives in local.properties
+        // (gitignored, not committed); defaults to empty so the build never
+        // fails for its absence — see lib/core/config/maps_config.dart.
+        val localProperties = Properties()
+        val localPropertiesFile = rootProject.file("local.properties")
+        if (localPropertiesFile.exists()) {
+            localProperties.load(FileInputStream(localPropertiesFile))
+        }
+        manifestPlaceholders["mapsApiKey"] =
+            localProperties.getProperty("MAPS_API_KEY", "")
     }
 
     signingConfigs {

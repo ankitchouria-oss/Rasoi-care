@@ -1,8 +1,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/config/maps_config.dart';
 import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
 import '../../data/api/api_repository.dart';
@@ -21,18 +25,80 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
   Timer? _t;
   bool _advancing = false;
 
+  // ---- job-tracking map (only ever used when MapsConfig.isConfigured) ----
+  GoogleMapController? _mapController;
+  LatLng? _myLocation;
+  Timer? _locationTimer;
+
   @override
   void initState() {
     super.initState();
     _t = Timer.periodic(const Duration(seconds: 1), (_) {
       setState(() => _elapsedSecs++);
     });
+    if (MapsConfig.isConfigured) {
+      _refreshMyLocation();
+      _locationTimer =
+          Timer.periodic(const Duration(seconds: 15), (_) => _refreshMyLocation());
+    }
   }
 
   @override
   void dispose() {
     _t?.cancel();
+    _locationTimer?.cancel();
     super.dispose();
+  }
+
+  Future<void> _refreshMyLocation() async {
+    try {
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return;
+      }
+      final pos = await Geolocator.getCurrentPosition().timeout(const Duration(seconds: 8));
+      if (!mounted) return;
+      final point = LatLng(pos.latitude, pos.longitude);
+      setState(() => _myLocation = point);
+      await _mapController?.animateCamera(CameraUpdate.newLatLng(point));
+    } catch (_) {
+      // Best-effort — the map just shows the destination alone.
+    }
+  }
+
+  /// Opens the phone's own Google Maps app for turn-by-turn directions
+  /// (falls back to a plain maps search URL if that's not available, or if
+  /// this booking has no real coordinates — only a label-only address).
+  Future<void> _openNavigation(JobDetail job) async {
+    var launched = false;
+    if (job.lat != null && job.lng != null) {
+      try {
+        launched = await launchUrl(
+          Uri.parse('google.navigation:q=${job.lat},${job.lng}&mode=d'),
+          mode: LaunchMode.externalApplication,
+        );
+      } catch (_) {
+        launched = false;
+      }
+    }
+    if (!launched) {
+      final query = (job.lat != null && job.lng != null)
+          ? '${job.lat},${job.lng}'
+          : Uri.encodeComponent(job.addressLine);
+      try {
+        launched = await launchUrl(
+          Uri.parse('https://www.google.com/maps/search/?api=1&query=$query'),
+          mode: LaunchMode.externalApplication,
+        );
+      } catch (_) {
+        launched = false;
+      }
+    }
+    if (!launched && mounted) _toast(context, 'Could not open navigation.');
   }
 
   String get _clock {
@@ -180,6 +246,37 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
                       ],
                     ),
                   ),
+                  if (MapsConfig.isConfigured && job.lat != null && job.lng != null) ...[
+                    const SizedBox(height: 10),
+                    ClipRRect(
+                      borderRadius: Radii.rMd,
+                      child: SizedBox(
+                        height: 160,
+                        child: GoogleMap(
+                          initialCameraPosition: CameraPosition(
+                              target: _myLocation ?? LatLng(job.lat!, job.lng!), zoom: 14),
+                          onMapCreated: (c) => _mapController = c,
+                          markers: {
+                            Marker(
+                              markerId: const MarkerId('destination'),
+                              position: LatLng(job.lat!, job.lng!),
+                              infoWindow: InfoWindow(title: job.customerName),
+                            ),
+                            if (_myLocation != null)
+                              Marker(
+                                markerId: const MarkerId('me'),
+                                position: _myLocation!,
+                                icon: BitmapDescriptor.defaultMarkerWithHue(
+                                    BitmapDescriptor.hueAzure),
+                                infoWindow: const InfoWindow(title: 'You'),
+                              ),
+                          },
+                          myLocationButtonEnabled: false,
+                          zoomControlsEnabled: false,
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 10),
                   GridView.count(
                     crossAxisCount: 4,
@@ -192,7 +289,7 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
                       _ActionTile(
                           glyph: '🧭',
                           label: 'Navigate',
-                          onTap: () => _toast(context, 'Opening Google Maps')),
+                          onTap: () => _openNavigation(job)),
                       _ActionTile(
                           glyph: '📞',
                           label: 'Call',
