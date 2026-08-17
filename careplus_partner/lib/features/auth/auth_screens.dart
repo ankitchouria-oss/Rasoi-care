@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smart_auth/smart_auth.dart';
 
 import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
@@ -65,6 +66,13 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 }
 
 // ============================================================ PHONE
+//
+// Single login path: mobile number + OTP is the only way in, and it's also
+// the only way to create an account — a new number just gets bootstrapped a
+// technician record on OTP verify (see bootstrapTechnicianBackend) and is
+// routed to TechApplyScreen. The toggle below only changes the copy/button
+// label to make that "new partner? enter your number to create an account"
+// path visible on the starting page — both modes do the exact same OTP send.
 class PhoneScreen extends ConsumerStatefulWidget {
   const PhoneScreen({super.key});
   @override
@@ -73,27 +81,12 @@ class PhoneScreen extends ConsumerStatefulWidget {
 
 class _PhoneScreenState extends ConsumerState<PhoneScreen> {
   final _phoneCtrl = TextEditingController();
-  bool _googleBusy = false;
+  bool _creatingAccount = false;
 
   @override
   void dispose() {
     _phoneCtrl.dispose();
     super.dispose();
-  }
-
-  Future<void> _continueWithGoogle() async {
-    setState(() => _googleBusy = true);
-    final ok = await ref.read(authFlowProvider.notifier).signInWithGoogle();
-    if (!mounted) return;
-    setState(() => _googleBusy = false);
-    if (ok) {
-      routeToStage(context, ref.read(authFlowProvider).stage);
-    } else {
-      final err = ref.read(authFlowProvider).error;
-      if (err != null && err != 'Sign-in cancelled.') {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
-      }
-    }
   }
 
   Future<void> _send() async {
@@ -131,10 +124,13 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                 child: Icon(Icons.build_outlined, color: context.scheme.primary, size: 22),
               ),
               const SizedBox(height: 26),
-              Text('Rasoi Care Partner', style: context.type.headlineLarge),
+              Text(_creatingAccount ? 'Become a Rasoi Care partner' : 'Rasoi Care Partner',
+                  style: context.type.headlineLarge),
               const SizedBox(height: 10),
               Text(
-                  "Sign in with your mobile number. We'll text you a one-time code.",
+                  _creatingAccount
+                      ? "Enter your mobile number to create your account. We'll text you a one-time code, then walk you through your profile."
+                      : "Sign in with your mobile number. We'll text you a one-time code.",
                   style: context.type.bodyMedium),
               const SizedBox(height: 30),
               Row(
@@ -161,179 +157,24 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                           width: 18,
                           height: 18,
                           child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Send code'),
+                      : Text(_creatingAccount ? 'Create account' : 'Send code'),
                 ),
               ),
-              const SizedBox(height: 26),
-              Row(children: [
-                const Expanded(child: Divider()),
-                Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Mono('OR', color: context.care.inkMuted)),
-                const Expanded(child: Divider()),
-              ]),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: _googleBusy ? null : _continueWithGoogle,
-                  child: _googleBusy
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Continue with Google'),
+              const SizedBox(height: 18),
+              Center(
+                child: GestureDetector(
+                  onTap: () => setState(() => _creatingAccount = !_creatingAccount),
+                  child: Text(
+                      _creatingAccount
+                          ? 'Already a partner? Sign in'
+                          : 'New here? Create an account',
+                      style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: context.scheme.primary)),
                 ),
-              ),
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                    onPressed: () => context.push('/login/email'),
-                    child: const Text('Continue with email')),
-              ),
-              const SizedBox(height: 22),
-              CareCard(
-                color: context.scheme.surfaceContainerHigh,
-                borderColor: Colors.transparent,
-                child: Row(children: [
-                  const Text('🛠️', style: TextStyle(fontSize: 17)),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                        'Not on the team yet? Ask your area manager for an invite — Partner accounts are provisioned by ops.',
-                        style: context.type.bodySmall),
-                  ),
-                ]),
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ============================================================ EMAIL
-class EmailAuthScreen extends ConsumerStatefulWidget {
-  const EmailAuthScreen({super.key});
-  @override
-  ConsumerState<EmailAuthScreen> createState() => _EmailAuthScreenState();
-}
-
-class _EmailAuthScreenState extends ConsumerState<EmailAuthScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _emailCtrl = TextEditingController();
-  final _passwordCtrl = TextEditingController();
-  bool _creatingAccount = false;
-  bool _obscure = true;
-
-  @override
-  void dispose() {
-    _emailCtrl.dispose();
-    _passwordCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submit() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
-    final email = _emailCtrl.text.trim();
-    final password = _passwordCtrl.text;
-    final vm = ref.read(authFlowProvider.notifier);
-    final ok = _creatingAccount
-        ? await vm.registerWithEmail(email, password)
-        : await vm.signInWithEmail(email, password);
-    if (!mounted) return;
-    if (ok) {
-      routeToStage(context, ref.read(authFlowProvider).stage);
-    } else {
-      final err = ref.read(authFlowProvider).error ?? 'Something went wrong.';
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final submitting = ref.watch(authFlowProvider.select((s) => s.submitting));
-    return Scaffold(
-      appBar: AppBar(leading: BackButton(onPressed: context.pop)),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 30),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(_creatingAccount ? 'Create an account' : 'Rasoi Care Partner',
-                    style: context.type.headlineLarge),
-                const SizedBox(height: 10),
-                Text(
-                    _creatingAccount
-                        ? 'Set an email and password for your Partner account.'
-                        : 'Sign in with your Partner account email and password.',
-                    style: context.type.bodyMedium),
-                const SizedBox(height: 30),
-                CareField('Email',
-                    controller: _emailCtrl,
-                    keyboardType: TextInputType.emailAddress,
-                    validator: (v) => (v == null || !v.contains('@'))
-                        ? 'Enter a valid email address'
-                        : null),
-                const SizedBox(height: 13),
-                CareField('Password',
-                    controller: _passwordCtrl,
-                    obscureText: _obscure,
-                    suffix: IconButton(
-                      icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                      onPressed: () => setState(() => _obscure = !_obscure),
-                    ),
-                    validator: (v) => (v == null || v.length < 6)
-                        ? 'Password must be at least 6 characters'
-                        : null),
-                const SizedBox(height: 22),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: submitting ? null : _submit,
-                    child: submitting
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2))
-                        : Text(_creatingAccount ? 'Create account' : 'Sign in'),
-                  ),
-                ),
-                const SizedBox(height: 18),
-                Center(
-                  child: GestureDetector(
-                    onTap: () => setState(() => _creatingAccount = !_creatingAccount),
-                    child: Text(
-                        _creatingAccount
-                            ? 'Already have an account? Sign in'
-                            : "New here? Create an account",
-                        style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w700,
-                            color: context.scheme.primary)),
-                  ),
-                ),
-                const SizedBox(height: 22),
-                CareCard(
-                  color: context.scheme.surfaceContainerHigh,
-                  borderColor: Colors.transparent,
-                  child: Row(children: [
-                    const Text('🛠️', style: TextStyle(fontSize: 17)),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                          'Not on the team yet? Ask your area manager for an invite — Partner accounts are provisioned by ops.',
-                          style: context.type.bodySmall),
-                    ),
-                  ]),
-                ),
-              ],
-            ),
           ),
         ),
       ),
@@ -349,7 +190,9 @@ class OtpScreen extends ConsumerStatefulWidget {
 }
 
 class _OtpScreenState extends ConsumerState<OtpScreen> {
-  final _shown = <String>['', '', '', ''];
+  // Firebase's real SMS codes are 6 digits; the mock demo code is 4.
+  late final int _length = ref.read(authFlowProvider.notifier).isMock ? 4 : 6;
+  late final _shown = List<String>.filled(_length, '');
   int _secs = 24;
   Timer? _t;
   bool _verifying = false;
@@ -361,21 +204,41 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       if (_secs == 0) return;
       setState(() => _secs--);
     });
-    // Only simulate SMS auto-read when there's no real backend to wait for.
+    // Mock mode fakes SMS auto-read on a timer; live mode listens for the
+    // real SMS via Android's User Consent API (no manifest permission
+    // needed — the OS shows its own one-time "allow?" dialog).
     if (ref.read(authFlowProvider.notifier).isMock) {
       const code = MockAuthService.demoCode;
-      for (var i = 0; i < 4; i++) {
+      for (var i = 0; i < _length; i++) {
         Timer(Duration(milliseconds: 420 + i * 230), () {
           if (mounted) setState(() => _shown[i] = code[i]);
-          if (i == 3) _submit();
+          if (i == _length - 1) _submit();
         });
       }
+    } else {
+      _listenForSms();
     }
+  }
+
+  Future<void> _listenForSms() async {
+    final result = await SmartAuth.instance.getSmsWithUserConsentApi();
+    if (!mounted) return;
+    final code = result.data?.code;
+    if (code == null || code.length != _length) return;
+    setState(() {
+      for (var i = 0; i < _length; i++) {
+        _shown[i] = code[i];
+      }
+    });
+    _submit();
   }
 
   @override
   void dispose() {
     _t?.cancel();
+    if (!ref.read(authFlowProvider.notifier).isMock) {
+      SmartAuth.instance.removeUserConsentApiListener();
+    }
     super.dispose();
   }
 
@@ -429,13 +292,13 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                     const SizedBox(height: 10),
                     Text(
                         phone.isEmpty
-                            ? 'Enter the 4-digit code we sent.'
+                            ? 'Enter the $_length-digit code we sent.'
                             : 'Sent to +91 $phone.',
                         style: context.type.bodyMedium),
                     const SizedBox(height: 34),
                     Row(
                       children: [
-                        for (var i = 0; i < 4; i++) ...[
+                        for (var i = 0; i < _length; i++) ...[
                           Expanded(
                             child: AnimatedContainer(
                               duration: Motion.press,
@@ -469,7 +332,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                                     ),
                             ),
                           ),
-                          if (i != 3) const SizedBox(width: 11),
+                          if (i != _length - 1) const SizedBox(width: 11),
                         ],
                       ],
                     ),

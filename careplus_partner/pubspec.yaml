@@ -46,6 +46,7 @@ dependencies:
   image_picker: ^1.2.3
   google_maps_flutter: ^2.18.0
   url_launcher: ^6.3.2
+  smart_auth: ^3.2.0          # real SMS auto-read on the OTP screen (User Consent API)
 
 dev_dependencies:
   flutter_test:
