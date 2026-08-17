@@ -160,6 +160,9 @@ def technician_row_to_dict(row):
         "bankAccountNumber": row["bank_account_number"] if "bank_account_number" in keys else None,
         "bankIfsc": row["bank_ifsc"] if "bank_ifsc" in keys else None,
         "panNumber": row["pan_number"] if "pan_number" in keys else None,
+        "aadharNumber": row["aadhar_number"] if "aadhar_number" in keys else None,
+        "dateOfBirth": row["date_of_birth"] if "date_of_birth" in keys else None,
+        "gstNumber": row["gst_number"] if "gst_number" in keys else None,
         "applicationSubmitted": bool(row["application_submitted"])
         if "application_submitted" in keys
         else True,
@@ -1311,6 +1314,9 @@ def update_technician_me():
         "bank_account_number": data.get("bankAccountNumber"),
         "bank_ifsc": data.get("bankIfsc"),
         "pan_number": data.get("panNumber"),
+        "aadhar_number": data.get("aadharNumber"),
+        "date_of_birth": data.get("dateOfBirth"),
+        "gst_number": data.get("gstNumber"),
     }
     conn = get_db()
     for column, value in fields.items():

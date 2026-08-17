@@ -58,6 +58,24 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
     final totalPaise = inPeriod.fold<int>(0, (sum, b) => sum + b.totalAmountPaise);
     final avgPaise = inPeriod.isEmpty ? 0 : totalPaise ~/ inPeriod.length;
 
+    // Real per-month totals for the last 6 months, from the same completed
+    // bookings — never invented, just a different slice of the same data.
+    final now = DateTime.now();
+    final monthTotals = <int>[];
+    final monthLabels = <String>[];
+    for (var i = 5; i >= 0; i--) {
+      final m = DateTime(now.year, now.month - i, 1);
+      monthLabels.add(DateFormat('MMM').format(m));
+      final total = completed
+          .where((b) {
+            final d = (b.updatedAt ?? b.createdAt)?.toLocal();
+            return d != null && d.year == m.year && d.month == m.month;
+          })
+          .fold<int>(0, (sum, b) => sum + b.totalAmountPaise);
+      monthTotals.add(total);
+    }
+    final maxMonthTotal = monthTotals.fold<int>(0, (a, b) => a > b ? a : b);
+
     return Scaffold(
       appBar: AppBar(
         leading: BackButton(onPressed: context.pop),
@@ -115,6 +133,59 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
               const SizedBox(width: 10),
               Expanded(child: _Stat(label: 'Avg per job', value: Money.rupees(avgPaise))),
             ]),
+            const SectionHeader('Earnings by month'),
+            CareCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    height: 104,
+                    child: maxMonthTotal == 0
+                        ? Center(
+                            child: Text('No completed jobs yet.', style: context.type.bodySmall))
+                        : Row(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              for (var i = 0; i < monthTotals.length; i++) ...[
+                                Expanded(
+                                  child: _Bar(
+                                      heightPct: monthTotals[i] / maxMonthTotal,
+                                      emphasize: i == monthTotals.length - 1,
+                                      delay: Duration(milliseconds: i * 60)),
+                                ),
+                                if (i != monthTotals.length - 1) const SizedBox(width: 9),
+                              ],
+                            ],
+                          ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      for (var i = 0; i < monthLabels.length; i++) ...[
+                        Expanded(
+                          child: Text(monthLabels[i],
+                              textAlign: TextAlign.center,
+                              style: CareType.mono(context.care.inkMuted, size: 10.5)),
+                        ),
+                        if (i != monthLabels.length - 1) const SizedBox(width: 9),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SectionHeader('Explore more'),
+            CareCard(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                children: [
+                  _menuRow(context, Icons.currency_rupee, 'Loans',
+                      onTap: () => context.push('/tech/soon', extra: 'Loans')),
+                  _menuRow(context, Icons.history, 'Recoveries',
+                      onTap: () => context.push('/tech/soon', extra: 'Recoveries'), last: true),
+                ],
+              ),
+            ),
             const SectionHeader('Job history'),
             if (!fetched)
               Padding(
@@ -175,6 +246,56 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
       return '—';
     }
   }
+
+  Widget _menuRow(BuildContext context, IconData icon, String label,
+      {required VoidCallback onTap, bool last = false}) {
+    return InkWell(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 13),
+            child: Row(
+              children: [
+                Icon(icon, size: 20, color: context.care.inkFaint),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Text(label,
+                      style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+                ),
+                Icon(Icons.chevron_right, size: 18, color: context.care.inkFaint),
+              ],
+            ),
+          ),
+          if (!last) Divider(height: 1, color: context.care.hairline),
+        ],
+      ),
+    );
+  }
+}
+
+class _Bar extends StatelessWidget {
+  const _Bar({required this.heightPct, required this.emphasize, required this.delay});
+  final double heightPct;
+  final bool emphasize;
+  final Duration delay;
+  @override
+  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0, end: heightPct),
+        duration: const Duration(milliseconds: 600),
+        curve: Motion.ease,
+        builder: (_, v, __) => FractionallySizedBox(
+          alignment: Alignment.bottomCenter,
+          heightFactor: v,
+          child: Container(
+            decoration: BoxDecoration(
+              color: emphasize ? context.scheme.secondary : context.scheme.primary,
+              borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(7), bottom: Radius.circular(3)),
+            ),
+          ),
+        ),
+      );
 }
 
 class _Stat extends StatelessWidget {

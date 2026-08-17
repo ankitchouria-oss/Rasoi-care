@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/widgets/care_widgets.dart';
-import '../../core/theme/care_plus_theme.dart';
 import '../../state/auth_providers.dart';
 
 /// Shown once the application's submitted but an admin hasn't verified the
@@ -56,6 +55,28 @@ class _TechPendingScreenState extends ConsumerState<TechPendingScreen> {
                     textAlign: TextAlign.center,
                     style: context.type.bodyMedium),
                 const SizedBox(height: 26),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      StepDot(
+                        TimelineStepView('Application submitted',
+                            'Profile, documents and bank details on file', TrackState.done),
+                      ),
+                      StepDot(
+                        TimelineStepView('Under review',
+                            'Our team is checking your details', TrackState.now),
+                      ),
+                      StepDot(
+                        TimelineStepView('Approved — ready for jobs',
+                            'Go online and start getting job requests', TrackState.upcoming),
+                        last: true,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton(

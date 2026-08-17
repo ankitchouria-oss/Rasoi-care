@@ -1,7 +1,11 @@
-// Mirrors Urban Company's "Financial details" screen — payout bank account
-// and PAN, read straight from the technician's own KYC record (the same
-// fields collected in TechApplyScreen / PATCH /api/technician/me).
+// Mirrors Urban Company's "Financial details" screen — GST, PAN, payout
+// bank account and personal details (DOB, Aadhaar, email, name, phone), all
+// read straight from the technician's own KYC record (the same fields
+// collected in TechApplyScreen / PATCH /api/technician/me). Phone comes
+// live from the signed-in Firebase user, not the backend record, since
+// that's the actual source of truth for it.
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -21,6 +25,8 @@ class TechFinancialScreen extends ConsumerWidget {
       return (v?.isNotEmpty ?? false) ? v! : '—';
     }
 
+    final phone = FirebaseAuth.instance.currentUser?.phoneNumber;
+
     return Scaffold(
       appBar: AppBar(
         leading: BackButton(onPressed: context.pop),
@@ -31,6 +37,18 @@ class TechFinancialScreen extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
           children: [
+            Eyebrow('GST'),
+            const SizedBox(height: 8),
+            CareCard(
+              child: _row(context, 'GST number', val('gstNumber'), last: true),
+            ),
+            const SizedBox(height: 18),
+            Eyebrow('PAN'),
+            const SizedBox(height: 8),
+            CareCard(
+              child: _row(context, 'PAN number', val('panNumber'), last: true),
+            ),
+            const SizedBox(height: 18),
             Eyebrow('Payout bank account'),
             const SizedBox(height: 8),
             CareCard(
@@ -43,10 +61,20 @@ class TechFinancialScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 18),
-            Eyebrow('PAN'),
+            Eyebrow('Personal details'),
             const SizedBox(height: 8),
             CareCard(
-              child: _row(context, 'PAN number', val('panNumber'), last: true),
+              child: Column(
+                children: [
+                  _row(context, 'Date of birth', val('dateOfBirth')),
+                  _row(context, 'Aadhaar number', val('aadharNumber')),
+                  _row(context, 'Email', val('email')),
+                  _row(context, 'Name', (me?['name'] as String?)?.isNotEmpty == true
+                      ? me!['name'] as String
+                      : '—'),
+                  _row(context, 'Phone number', phone ?? '—', last: true),
+                ],
+              ),
             ),
             const SizedBox(height: 18),
             Eyebrow('ID document'),
