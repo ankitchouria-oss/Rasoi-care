@@ -9,6 +9,7 @@ import '../features/earnings/tech_earnings_screen.dart';
 import '../features/jobs/tech_jobs_screen.dart';
 import '../features/jobs/tech_job_screen.dart';
 import '../features/jobs/tech_close_screen.dart';
+import '../features/jobs/airflow_check_screen.dart';
 import '../features/support/coming_soon_screen.dart';
 import '../features/support/tech_help_screen.dart';
 
@@ -43,5 +44,15 @@ final router = GoRouter(
     GoRoute(
         path: '/tech/job/:id/close',
         builder: (_, s) => TechCloseScreen(jobId: s.pathParameters['id']!)),
+    GoRoute(
+        path: '/tech/job/:id/airflow',
+        builder: (_, s) {
+          final extra = s.extra as (String, String)?;
+          return AirflowCheckScreen(
+            jobId: s.pathParameters['id']!,
+            customerName: extra?.$1 ?? 'Customer',
+            customerArea: extra?.$2 ?? '',
+          );
+        }),
   ],
 );

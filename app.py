@@ -163,6 +163,16 @@ def technician_row_to_dict(row):
         "aadharNumber": row["aadhar_number"] if "aadhar_number" in keys else None,
         "dateOfBirth": row["date_of_birth"] if "date_of_birth" in keys else None,
         "gstNumber": row["gst_number"] if "gst_number" in keys else None,
+        "emergencyContactName": row["emergency_contact_name"]
+        if "emergency_contact_name" in keys
+        else None,
+        "emergencyContactPhone": row["emergency_contact_phone"]
+        if "emergency_contact_phone" in keys
+        else None,
+        "aadharDocumentUrl": row["aadhar_document_url"] if "aadhar_document_url" in keys else None,
+        "panDocumentUrl": row["pan_document_url"] if "pan_document_url" in keys else None,
+        "address": row["address"] if "address" in keys else None,
+        "upiId": row["upi_id"] if "upi_id" in keys else None,
         "applicationSubmitted": bool(row["application_submitted"])
         if "application_submitted" in keys
         else True,
@@ -1317,6 +1327,12 @@ def update_technician_me():
         "aadhar_number": data.get("aadharNumber"),
         "date_of_birth": data.get("dateOfBirth"),
         "gst_number": data.get("gstNumber"),
+        "emergency_contact_name": data.get("emergencyContactName"),
+        "emergency_contact_phone": data.get("emergencyContactPhone"),
+        "aadhar_document_url": data.get("aadharDocumentUrl"),
+        "pan_document_url": data.get("panDocumentUrl"),
+        "address": data.get("address"),
+        "upi_id": data.get("upiId"),
     }
     conn = get_db()
     for column, value in fields.items():

@@ -473,6 +473,24 @@ def migrate_technicians_columns(conn):
         conn.execute("ALTER TABLE technicians ADD COLUMN date_of_birth TEXT")
     if "gst_number" not in cols:
         conn.execute("ALTER TABLE technicians ADD COLUMN gst_number TEXT")
+    # A real safety feature (matches Swiggy's Partner app "Emergency
+    # details") — just a contact the technician sets for themselves, shown
+    # back to them; no monitored-SOS backend needed for this to be genuine.
+    if "emergency_contact_name" not in cols:
+        conn.execute("ALTER TABLE technicians ADD COLUMN emergency_contact_name TEXT")
+    if "emergency_contact_phone" not in cols:
+        conn.execute("ALTER TABLE technicians ADD COLUMN emergency_contact_phone TEXT")
+    # Dedicated Aadhaar/PAN card photo uploads (separate from the older
+    # generic id_document_url) plus home address and UPI payout ID — the
+    # signup flow now collects these as their own real fields/uploads.
+    if "aadhar_document_url" not in cols:
+        conn.execute("ALTER TABLE technicians ADD COLUMN aadhar_document_url TEXT")
+    if "pan_document_url" not in cols:
+        conn.execute("ALTER TABLE technicians ADD COLUMN pan_document_url TEXT")
+    if "address" not in cols:
+        conn.execute("ALTER TABLE technicians ADD COLUMN address TEXT")
+    if "upi_id" not in cols:
+        conn.execute("ALTER TABLE technicians ADD COLUMN upi_id TEXT")
     conn.commit()
 
 

@@ -9,6 +9,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
@@ -56,7 +57,8 @@ class TechFinancialScreen extends ConsumerWidget {
                 children: [
                   _row(context, 'Account holder', val('bankAccountName')),
                   _row(context, 'Account number', val('bankAccountNumber')),
-                  _row(context, 'IFSC', val('bankIfsc'), last: true),
+                  _row(context, 'IFSC', val('bankIfsc')),
+                  _row(context, 'UPI ID', val('upiId'), last: true),
                 ],
               ),
             ),
@@ -77,15 +79,45 @@ class TechFinancialScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 18),
-            Eyebrow('ID document'),
+            Eyebrow('Address'),
             const SizedBox(height: 8),
-            (me?['idDocumentUrl'] as String?) == null
-                ? Text('Not uploaded', style: context.type.bodySmall)
-                : ClipRRect(
-                    borderRadius: Radii.rMd,
-                    child: Image.network(me!['idDocumentUrl'] as String,
-                        height: 160, fit: BoxFit.cover),
+            CareCard(
+              child: Text(val('address'), style: context.type.bodyMedium),
+            ),
+            const SizedBox(height: 18),
+            Eyebrow('Emergency contact'),
+            const SizedBox(height: 8),
+            CareCard(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _row(context, 'Name', val('emergencyContactName')),
+                        _row(context, 'Phone', val('emergencyContactPhone'), last: true),
+                      ],
+                    ),
                   ),
+                  if ((me?['emergencyContactPhone'] as String?)?.isNotEmpty ?? false) ...[
+                    const SizedBox(width: 12),
+                    IconButton.filled(
+                      onPressed: () =>
+                          launchUrl(Uri(scheme: 'tel', path: me!['emergencyContactPhone'] as String)),
+                      icon: const Icon(Icons.call, size: 18),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            Eyebrow('Aadhaar card'),
+            const SizedBox(height: 8),
+            _docThumb(context, me?['aadharDocumentUrl'] as String?),
+            const SizedBox(height: 18),
+            Eyebrow('PAN card'),
+            const SizedBox(height: 8),
+            _docThumb(context, me?['panDocumentUrl'] as String?),
             const SizedBox(height: 22),
             SizedBox(
               width: double.infinity,
@@ -99,6 +131,13 @@ class TechFinancialScreen extends ConsumerWidget {
       ),
     );
   }
+
+  Widget _docThumb(BuildContext context, String? url) => url == null
+      ? Text('Not uploaded', style: context.type.bodySmall)
+      : ClipRRect(
+          borderRadius: Radii.rMd,
+          child: Image.network(url, height: 160, fit: BoxFit.cover),
+        );
 
   Widget _row(BuildContext context, String label, String value, {bool last = false}) => Padding(
         padding: EdgeInsets.only(bottom: last ? 0 : 10),

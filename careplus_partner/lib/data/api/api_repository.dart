@@ -301,6 +301,14 @@ class ApiRepository implements PartnerRepository {
     return match.isEmpty ? null : match.first.status;
   }
 
+  /// The appliance category code (e.g. 'RasoiAir' for chimneys) for [jobId]
+  /// if it's a known real booking, else null — used to offer the airflow
+  /// (CFM) reading screen only for chimney jobs.
+  String? categoryOf(String jobId) {
+    final match = _bookings.where((b) => b.id == jobId);
+    return match.isEmpty ? null : match.first.category;
+  }
+
   /// True if any of this technician's real bookings from the last
   /// `/technician/bookings` fetch is assigned and not yet completed
   /// (`Accepted`, `On the way`, or `In Progress`). Used to gate live GPS

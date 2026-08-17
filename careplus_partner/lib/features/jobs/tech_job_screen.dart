@@ -117,21 +117,34 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
         _ => 'Complete and invoice', // In Progress, Completed, null (mock)
       };
 
-  Future<void> _handlePrimaryAction(String? liveStatus) async {
+  Future<void> _handlePrimaryAction(String? liveStatus, JobDetail job) async {
     if (liveStatus == null || liveStatus == 'Completed') {
       context.push('/tech/job/${widget.jobId}/close');
       return;
     }
     // Completing the job — this is the one real chance to record suction
-    // readings for the customer's invoice, so ask before advancing.
+    // readings for the customer's invoice, so ask before advancing. Chimney
+    // jobs get the richer airflow (CFM) screen instead of the plain dialog.
     (int?, int?) suction = (null, null);
     if (liveStatus == 'In Progress') {
-      suction = await _askSuctionReadings();
+      final repo = ref.read(repositoryProvider);
+      final category = repo is ApiRepository ? repo.categoryOf(widget.jobId) : null;
+      suction = category == 'RasoiAir'
+          ? await _askAirflowReadings(job)
+          : await _askSuctionReadings();
     }
     await _advanceStatus(suctionBefore: suction.$1, suctionAfter: suction.$2);
     if (liveStatus == 'In Progress' && mounted) {
       context.push('/tech/job/${widget.jobId}/close');
     }
+  }
+
+  Future<(int?, int?)> _askAirflowReadings(JobDetail job) async {
+    final result = await context.push<(int, int)>(
+      '/tech/job/${widget.jobId}/airflow',
+      extra: (job.customerName, job.addressLine),
+    );
+    return result ?? (null, null);
   }
 
   Future<(int?, int?)> _askSuctionReadings() async {
@@ -439,7 +452,7 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
                 width: double.infinity,
                 child: FilledButton(
                   onPressed:
-                      _advancing ? null : () => _handlePrimaryAction(liveStatus),
+                      _advancing ? null : () => _handlePrimaryAction(liveStatus, job),
                   child: _advancing
                       ? const SizedBox(
                           width: 18,
