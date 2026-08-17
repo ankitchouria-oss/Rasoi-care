@@ -42,6 +42,8 @@ dependencies:
   google_sign_in: ^6.2.2       # Google auth provider — see lib/data/auth/firebase_auth_service.dart
   cloud_firestore: ^5.6.0      # technician profile write-through on sign-in
   geolocator: ^13.0.2          # live GPS -> technician_locations while on duty + active job
+  firebase_storage: ^12.4.10
+  image_picker: ^1.2.3
 
 dev_dependencies:
   flutter_test:

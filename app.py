@@ -153,6 +153,15 @@ def technician_row_to_dict(row):
         "rating": round(row["rating"], 1),
         "ratingCount": row["rating_count"],
         "jobsCompleted": row["jobs_completed"],
+        "photoUrl": row["photo_url"] if "photo_url" in keys else None,
+        "experienceYears": row["experience_years"] if "experience_years" in keys else None,
+        "idDocumentUrl": row["id_document_url"] if "id_document_url" in keys else None,
+        "bankAccountName": row["bank_account_name"] if "bank_account_name" in keys else None,
+        "bankAccountNumber": row["bank_account_number"] if "bank_account_number" in keys else None,
+        "bankIfsc": row["bank_ifsc"] if "bank_ifsc" in keys else None,
+        "applicationSubmitted": bool(row["application_submitted"])
+        if "application_submitted" in keys
+        else True,
     }
 
 
@@ -1274,6 +1283,47 @@ def bootstrap_technician():
 @require_technician_auth
 def technician_me():
     return jsonify(technician_row_to_dict(request.technician))
+
+
+@app.route("/api/technician/me", methods=["PATCH"])
+@require_technician_auth
+def update_technician_me():
+    """Called by the Partner app's signup flow to fill in (and eventually
+    submit) the KYC application — profile, category/area, experience, ID
+    document and bank details. Anyone can update their own fields at any
+    time before verification; setting `submit: true` flips
+    application_submitted so the Admin app knows there's a completed
+    application waiting for review. Updating fields after verification is
+    still allowed (e.g. changing a bank account) but doesn't reset
+    verified — an admin would need to notice and re-check if that matters
+    for a real deployment."""
+    data = request.get_json(force=True, silent=True) or {}
+    tech = request.technician
+    fields = {
+        "name": data.get("name"),
+        "category": data.get("category"),
+        "area": data.get("area"),
+        "photo_url": data.get("photoUrl"),
+        "experience_years": data.get("experienceYears"),
+        "id_document_url": data.get("idDocumentUrl"),
+        "bank_account_name": data.get("bankAccountName"),
+        "bank_account_number": data.get("bankAccountNumber"),
+        "bank_ifsc": data.get("bankIfsc"),
+    }
+    conn = get_db()
+    for column, value in fields.items():
+        if value is not None:
+            conn.execute(
+                f"UPDATE technicians SET {column} = ? WHERE id = ?", (value, tech["id"])
+            )
+    if data.get("submit"):
+        conn.execute(
+            "UPDATE technicians SET application_submitted = 1 WHERE id = ?", (tech["id"],)
+        )
+    conn.commit()
+    row = conn.execute("SELECT * FROM technicians WHERE id = ?", (tech["id"],)).fetchone()
+    conn.close()
+    return jsonify(technician_row_to_dict(row))
 
 
 @app.route("/api/technician/online", methods=["PATCH"])
