@@ -163,6 +163,12 @@ def technician_row_to_dict(row):
         "aadharNumber": row["aadhar_number"] if "aadhar_number" in keys else None,
         "dateOfBirth": row["date_of_birth"] if "date_of_birth" in keys else None,
         "gstNumber": row["gst_number"] if "gst_number" in keys else None,
+        "emergencyContactName": row["emergency_contact_name"]
+        if "emergency_contact_name" in keys
+        else None,
+        "emergencyContactPhone": row["emergency_contact_phone"]
+        if "emergency_contact_phone" in keys
+        else None,
         "applicationSubmitted": bool(row["application_submitted"])
         if "application_submitted" in keys
         else True,
@@ -1317,6 +1323,8 @@ def update_technician_me():
         "aadhar_number": data.get("aadharNumber"),
         "date_of_birth": data.get("dateOfBirth"),
         "gst_number": data.get("gstNumber"),
+        "emergency_contact_name": data.get("emergencyContactName"),
+        "emergency_contact_phone": data.get("emergencyContactPhone"),
     }
     conn = get_db()
     for column, value in fields.items():

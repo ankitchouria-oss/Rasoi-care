@@ -67,6 +67,10 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
       TextEditingController(text: widget.existing?['aadharNumber'] as String? ?? '');
   late final _dobCtrl =
       TextEditingController(text: widget.existing?['dateOfBirth'] as String? ?? '');
+  late final _emergencyNameCtrl =
+      TextEditingController(text: widget.existing?['emergencyContactName'] as String? ?? '');
+  late final _emergencyPhoneCtrl =
+      TextEditingController(text: widget.existing?['emergencyContactPhone'] as String? ?? '');
   late String? _category = widget.existing?['category'] as String?;
   late String? _city = _cities.contains(widget.existing?['area'])
       ? widget.existing!['area'] as String
@@ -91,6 +95,8 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
     _gstCtrl.dispose();
     _aadharCtrl.dispose();
     _dobCtrl.dispose();
+    _emergencyNameCtrl.dispose();
+    _emergencyPhoneCtrl.dispose();
     super.dispose();
   }
 
@@ -166,6 +172,8 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
         'gstNumber': _gstCtrl.text.trim().toUpperCase(),
         'aadharNumber': _aadharCtrl.text.trim(),
         'dateOfBirth': _dobCtrl.text.trim(),
+        'emergencyContactName': _emergencyNameCtrl.text.trim(),
+        'emergencyContactPhone': _emergencyPhoneCtrl.text.trim(),
         'submit': true,
       });
       if (!mounted) return;
@@ -322,6 +330,13 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
                         child: CareField('Date of birth (optional)', controller: _dobCtrl),
                       ),
                     ),
+                    const SizedBox(height: 22),
+                    Eyebrow('Emergency contact (optional)'),
+                    const SizedBox(height: 10),
+                    CareField('Contact name', controller: _emergencyNameCtrl),
+                    const SizedBox(height: 13),
+                    CareField('Contact phone number',
+                        controller: _emergencyPhoneCtrl, keyboardType: TextInputType.phone),
                     if (!_isEditing) ...[
                       const SizedBox(height: 22),
                       CareCard(

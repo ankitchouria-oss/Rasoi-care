@@ -9,6 +9,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
@@ -73,6 +74,32 @@ class TechFinancialScreen extends ConsumerWidget {
                       ? me!['name'] as String
                       : '—'),
                   _row(context, 'Phone number', phone ?? '—', last: true),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            Eyebrow('Emergency contact'),
+            const SizedBox(height: 8),
+            CareCard(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _row(context, 'Name', val('emergencyContactName')),
+                        _row(context, 'Phone', val('emergencyContactPhone'), last: true),
+                      ],
+                    ),
+                  ),
+                  if ((me?['emergencyContactPhone'] as String?)?.isNotEmpty ?? false) ...[
+                    const SizedBox(width: 12),
+                    IconButton.filled(
+                      onPressed: () =>
+                          launchUrl(Uri(scheme: 'tel', path: me!['emergencyContactPhone'] as String)),
+                      icon: const Icon(Icons.call, size: 18),
+                    ),
+                  ],
                 ],
               ),
             ),

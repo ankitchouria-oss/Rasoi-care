@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
@@ -83,6 +84,17 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
     if (mounted) setState(() => _togglingDuty = false);
   }
 
+  // Dials India's national emergency number (112) directly — a real,
+  // always-working safety action that needs no backend, unlike a
+  // monitored-SOS system we don't have infrastructure to run.
+  Future<void> _callSos() async {
+    final uri = Uri(scheme: 'tel', path: '112');
+    if (!await launchUrl(uri) && mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Could not open the dialer.')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.watch(jobsFeedTickProvider); // rebuild once a real fetch/action lands
@@ -127,6 +139,8 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
                     child: StatusChip(stats.onDuty ? '● On duty' : 'Off duty',
                         tone: stats.onDuty ? ChipTone.success : ChipTone.neutral),
                   ),
+                  const SizedBox(width: 9),
+                  _RoundIcon(icon: Icons.sos_outlined, danger: true, onTap: _callSos),
                   const SizedBox(width: 9),
                   _RoundIcon(
                       icon: Icons.logout,
@@ -245,16 +259,7 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
                       ),
                     ),
                   ],
-                  SectionHeader('Route today',
-                      trailing: GestureDetector(
-                        onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Opens Google Maps'))),
-                        child: Text('Map',
-                            style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: context.scheme.primary)),
-                      )),
+                  SectionHeader('Route today'),
                   Stagger(children: [
                     for (final stop in route)
                       CareCard(
@@ -286,31 +291,6 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
                         ),
                       ),
                   ]),
-                  const SizedBox(height: 14),
-                  CareCard(
-                    color: context.scheme.errorContainer,
-                    borderColor: Colors.transparent,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Van stock running low',
-                            style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: context.scheme.error)),
-                        const SizedBox(height: 6),
-                        Text(
-                            'Elica baffle filters: 2 left. Request a top-up at the Ashok Nagar hub.',
-                            style: context.type.bodySmall),
-                        const SizedBox(height: 11),
-                        OutlinedButton(
-                          onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Stock request sent'))),
-                          child: const Text('Request stock'),
-                        ),
-                      ],
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -340,9 +320,10 @@ class _StatBox extends StatelessWidget {
 }
 
 class _RoundIcon extends StatelessWidget {
-  const _RoundIcon({required this.icon, required this.onTap});
+  const _RoundIcon({required this.icon, required this.onTap, this.danger = false});
   final IconData icon;
   final VoidCallback onTap;
+  final bool danger;
   @override
   Widget build(BuildContext context) => Pressable(
         onTap: onTap,
@@ -352,11 +333,12 @@ class _RoundIcon extends StatelessWidget {
           height: 38,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: context.scheme.surface,
+            color: danger ? context.scheme.errorContainer : context.scheme.surface,
             shape: BoxShape.circle,
-            border: Border.all(color: context.care.hairline),
+            border: Border.all(
+                color: danger ? Colors.transparent : context.care.hairline),
           ),
-          child: Icon(icon, size: 18),
+          child: Icon(icon, size: 18, color: danger ? context.scheme.error : null),
         ),
       );
 }
