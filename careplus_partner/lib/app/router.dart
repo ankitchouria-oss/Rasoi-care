@@ -21,7 +21,6 @@ final router = GoRouter(
       builder: (_, _) => const PhoneScreen(),
       routes: [
         GoRoute(path: 'otp', builder: (_, _) => const OtpScreen()),
-        GoRoute(path: 'email', builder: (_, _) => const EmailAuthScreen()),
       ],
     ),
 
