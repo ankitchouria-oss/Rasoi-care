@@ -6,6 +6,12 @@ import '../data/firebase/technician_location_service.dart';
 final userProfileServiceProvider =
     Provider<UserProfileService>((ref) => UserProfileService());
 
+/// The signed-in person's live profile — see AccountScreen, which falls
+/// back to demo data when this is null (mock mode / no profile saved yet).
+final userProfileStreamProvider = StreamProvider<UserProfile?>(
+  (ref) => ref.watch(userProfileServiceProvider).watchProfile(),
+);
+
 final technicianLocationServiceProvider =
     Provider<TechnicianLocationService>((ref) => TechnicianLocationService());
 

@@ -16,6 +16,12 @@ class FirebaseAuthService implements AuthService {
   bool get isSignedIn => _auth.currentUser != null;
 
   @override
+  String? get currentDisplayName => _auth.currentUser?.displayName;
+
+  @override
+  String? get currentEmail => _auth.currentUser?.email;
+
+  @override
   Future<OtpSent> sendOtp(String e164Phone) {
     final completer = Completer<OtpSent>();
     _auth.verifyPhoneNumber(
@@ -108,7 +114,11 @@ class FirebaseAuthService implements AuthService {
     } on AuthException {
       rethrow;
     } catch (e) {
-      throw AuthException('Could not sign in with Google right now. Try again.');
+      // Temporarily surfacing the raw error while diagnosing a real device
+      // issue — this used to be a generic, undiagnosable message here.
+      // TODO: revert to a friendly generic message once Google sign-in is
+      // confirmed working end-to-end.
+      throw AuthException('Google sign-in failed: $e');
     }
   }
 

@@ -2,26 +2,34 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smart_auth/smart_auth.dart';
 
 import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
 import '../../state/auth_providers.dart';
 import '../../state/firestore_providers.dart';
 import '../../data/firebase/mock_auth_service.dart';
+import '../../data/local/recent_phone_store.dart';
+import '../../data/models.dart';
 
 // ============================================================ SPLASH
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   void initState() {
     super.initState();
     Timer(const Duration(milliseconds: 2100), () {
-      if (mounted) context.go('/onboarding');
+      if (!mounted) return;
+      // Already signed in from a previous session (Firebase persists this
+      // across app restarts) — skip straight past onboarding/login instead
+      // of making a returning customer sit through them again.
+      final alreadySignedIn = ref.read(authServiceProvider).isSignedIn;
+      context.go(alreadySignedIn ? '/' : '/onboarding');
     });
   }
 
@@ -205,8 +213,16 @@ class PhoneScreen extends ConsumerStatefulWidget {
 }
 
 class _PhoneScreenState extends ConsumerState<PhoneScreen> {
-  final _phoneCtrl = TextEditingController(text: '9822041537');
+  final _phoneCtrl = TextEditingController();
   bool _googleBusy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    RecentPhoneStore().read().then((saved) {
+      if (mounted && saved != null) _phoneCtrl.text = saved;
+    });
+  }
 
   @override
   void dispose() {
@@ -239,6 +255,7 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
     final ok = await ref.read(authFlowProvider.notifier).sendOtp(digits);
     if (!mounted) return;
     if (ok) {
+      unawaited(RecentPhoneStore().save(digits));
       context.push('/login/otp');
     } else {
       final err = ref.read(authFlowProvider).error ?? 'Could not send a code.';
@@ -471,7 +488,9 @@ class OtpScreen extends ConsumerStatefulWidget {
 }
 
 class _OtpScreenState extends ConsumerState<OtpScreen> {
-  final _shown = <String>['', '', '', ''];
+  // Firebase's real SMS codes are 6 digits; the mock demo code is 4.
+  late final int _length = ref.read(authFlowProvider.notifier).isMock ? 4 : 6;
+  late final _shown = List<String>.filled(_length, '');
   int _secs = 24;
   Timer? _t;
   bool _verifying = false;
@@ -483,21 +502,41 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       if (_secs == 0) return;
       setState(() => _secs--);
     });
-    // Only simulate SMS auto-read when there's no real backend to wait for.
+    // Mock mode fakes SMS auto-read on a timer; live mode listens for the
+    // real SMS via Android's User Consent API (no manifest permission
+    // needed — the OS shows its own one-time "allow?" dialog).
     if (ref.read(authFlowProvider.notifier).isMock) {
       const code = MockAuthService.demoCode;
-      for (var i = 0; i < 4; i++) {
+      for (var i = 0; i < _length; i++) {
         Timer(Duration(milliseconds: 420 + i * 230), () {
           if (mounted) setState(() => _shown[i] = code[i]);
-          if (i == 3) _submit();
+          if (i == _length - 1) _submit();
         });
       }
+    } else {
+      _listenForSms();
     }
+  }
+
+  Future<void> _listenForSms() async {
+    final result = await SmartAuth.instance.getSmsWithUserConsentApi();
+    if (!mounted) return;
+    final code = result.data?.code;
+    if (code == null || code.length != _length) return;
+    setState(() {
+      for (var i = 0; i < _length; i++) {
+        _shown[i] = code[i];
+      }
+    });
+    _submit();
   }
 
   @override
   void dispose() {
     _t?.cancel();
+    if (!ref.read(authFlowProvider.notifier).isMock) {
+      SmartAuth.instance.removeUserConsentApiListener();
+    }
     super.dispose();
   }
 
@@ -551,13 +590,13 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                     const SizedBox(height: 10),
                     Text(
                         phone.isEmpty
-                            ? 'Enter the 4-digit code we sent.'
+                            ? 'Enter the $_length-digit code we sent.'
                             : 'Sent to +91 $phone.',
                         style: context.type.bodyMedium),
                     const SizedBox(height: 34),
                     Row(
                       children: [
-                        for (var i = 0; i < 4; i++) ...[
+                        for (var i = 0; i < _length; i++) ...[
                           Expanded(
                             child: AnimatedContainer(
                               duration: Motion.press,
@@ -591,7 +630,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                                     ),
                             ),
                           ),
-                          if (i != 3) const SizedBox(width: 11),
+                          if (i != _length - 1) const SizedBox(width: 11),
                         ],
                       ],
                     ),
@@ -666,8 +705,19 @@ class RegisterScreen extends ConsumerStatefulWidget {
 }
 
 class _RegisterScreenState extends ConsumerState<RegisterScreen> {
-  final _nameCtrl = TextEditingController(text: 'Rohan Deshpande');
-  final _emailCtrl = TextEditingController(text: 'rohan.d@gmail.com');
+  // Google sign-in gives us a real name/email — prefill from that. Phone
+  // OTP carries no profile info, so it's blank there; mock mode keeps the
+  // original demo values so the flow still reads naturally without Firebase.
+  late final _nameCtrl = TextEditingController(
+      text: ref.read(authServiceProvider).currentDisplayName ??
+          (ref.read(authFlowProvider.notifier).isMock ? 'Rohan Deshpande' : ''));
+  late final _emailCtrl = TextEditingController(
+      text: ref.read(authServiceProvider).currentEmail ??
+          (ref.read(authFlowProvider.notifier).isMock ? 'rohan.d@gmail.com' : ''));
+  // Picked via the real map (or the plain-text fallback when no Maps key is
+  // configured — see AddressPickerScreen), so this carries accurate
+  // lat/lng, not just a typed line.
+  SavedAddress? _pickedAddress;
   Set<String> _owned = {'Chimney', 'Hob', 'Refrigerator', 'Water purifier'};
   bool _saving = false;
 
@@ -678,13 +728,26 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     super.dispose();
   }
 
+  Future<void> _pickAddress() async {
+    final picked = await context.push<SavedAddress>('/book/address/pick');
+    if (picked != null && mounted) setState(() => _pickedAddress = picked);
+  }
+
   Future<void> _save() async {
+    if (_pickedAddress == null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Add your address to continue.')));
+      return;
+    }
     setState(() => _saving = true);
     // Fire-and-forget — see UserProfileService. Never blocks getting into
     // the app, even if Firestore is slow, unreachable, or not set up yet.
     unawaited(ref.read(userProfileServiceProvider).saveProfile(
           name: _nameCtrl.text.trim(),
           email: _emailCtrl.text.trim(),
+          address: _pickedAddress!.line,
+          lat: _pickedAddress!.lat,
+          lng: _pickedAddress!.lng,
           ownedAppliances: _owned,
         ));
     if (!mounted) return;
@@ -715,6 +778,25 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     const SizedBox(height: 13),
                     CareField('Email',
                         controller: _emailCtrl, keyboardType: TextInputType.emailAddress),
+                    const SizedBox(height: 13),
+                    Eyebrow('Your address'),
+                    const SizedBox(height: 8),
+                    CareCard(
+                      onTap: _pickAddress,
+                      child: Row(children: [
+                        Icon(Icons.location_on_outlined, color: context.scheme.primary),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            _pickedAddress?.line ?? 'Pin your address on the map',
+                            style: _pickedAddress == null
+                                ? context.type.bodyMedium
+                                : context.type.bodyMedium!.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        Icon(Icons.chevron_right, color: context.care.inkMuted),
+                      ]),
+                    ),
                     const SizedBox(height: 13),
                     const CareField('Referral code (optional)'),
                     const SizedBox(height: 20),

@@ -229,7 +229,7 @@ class HomeScreen extends ConsumerWidget {
       context.push('/services/${a.name}');
 
   void _locationSheet(BuildContext context, WidgetRef ref) {
-    final repo = ref.read(repositoryProvider);
+    final addresses = ref.read(savedAddressesProvider);
     showModalBottomSheet<void>(
       context: context,
       builder: (_) => Padding(
@@ -240,7 +240,7 @@ class HomeScreen extends ConsumerWidget {
           children: [
             Text('Choose a location', style: context.type.titleMedium),
             const SizedBox(height: 14),
-            for (final ad in repo.addresses()) ...[
+            for (final ad in addresses) ...[
               CareCard(
                 onTap: () => Navigator.pop(context),
                 child: Row(children: [
@@ -298,17 +298,17 @@ class _HeroBanner extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               Row(children: [
-                Text('₹899',
+                Text('₹1,199',
                     style: CareType.mono(context.scheme.onPrimary,
                         size: 19, w: FontWeight.w600)),
                 const SizedBox(width: 10),
-                Text('₹1,299',
+                Text('₹1,599',
                     style: CareType.mono(
                             context.scheme.onPrimary.withValues(alpha: 0.55),
                             size: 12)
                         .copyWith(decoration: TextDecoration.lineThrough)),
                 const SizedBox(width: 10),
-                const StatusChip('Save 30%', tone: ChipTone.warning, height: 26),
+                const StatusChip('Save 25%', tone: ChipTone.warning, height: 26),
               ]),
             ],
           ),

@@ -27,6 +27,8 @@ dependencies:
   google_maps_flutter: ^2.10.0 # address picker + live tracking map — gated behind
                                 # MapsConfig.isConfigured, see lib/core/config/maps_config.dart
   geolocator: ^13.0.2           # "use my current location" in the address picker
+  smart_auth: ^3.2.0
+  shared_preferences: ^2.5.5
 
   # --- Wire these in when you move the rest off mock data (see README §5) ---
   # firebase_storage: ^12.3.7

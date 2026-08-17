@@ -67,6 +67,21 @@ class MockRepository implements CareRepository {
                   'extensions beyond 6 ft. Quoted in the app before work starts.',
             ),
             ServiceItem(
+              id: '${a.name}_filter_clean',
+              appliance: a,
+              title: 'Normal filter clean',
+              blurb: 'Baffle or mesh filters degreased and refitted · 30 min',
+              pricePaise: 89900,
+              durationMin: 30,
+              included: const [
+                'Baffle or mesh filters removed and degreased',
+                'Filters rinsed, dried and refitted',
+                'Quick suction check after refitting',
+              ],
+              notIncluded: 'Motor, blower, duct and oil-collector cleaning — see Deep clean '
+                  'for the full service.',
+            ),
+            ServiceItem(
               id: '${a.name}_repair',
               appliance: a,
               title: 'Repair visit and diagnosis',
@@ -591,13 +606,12 @@ class MockRepository implements CareRepository {
           ),
       };
 
+  // No canned demo addresses — a real customer's saved addresses come from
+  // their profile (the one collected at signup) and whatever they've picked
+  // on the map during booking. See savedAddressesProvider in
+  // lib/state/providers.dart, which is what screens actually watch.
   @override
-  List<SavedAddress> addresses() => const [
-        SavedAddress('a_home', 'Home',
-            'B-704, Ashwin Residency, Gangapur Rd, Nashik 422013', '🏠'),
-        SavedAddress('a_parents', 'Parents',
-            '12, Shivneri Colony, College Rd, Nashik 422005', '🏢'),
-      ];
+  List<SavedAddress> addresses() => const [];
 
   @override
   List<PaymentMethod> paymentMethods() => const [

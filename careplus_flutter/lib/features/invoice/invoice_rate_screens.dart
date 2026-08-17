@@ -4,15 +4,23 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
+import '../../data/models.dart';
 import '../../state/providers.dart';
 
 // ============================================================ INVOICE
-class InvoiceScreen extends StatelessWidget {
+class InvoiceScreen extends ConsumerWidget {
   const InvoiceScreen({super.key, required this.bookingId});
   final String bookingId;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final booking = ref.watch(repositoryProvider).bookingById(bookingId);
+    // GST-inclusive total is all a Booking actually carries — back out the
+    // base/tax split from it rather than inventing part-level line items
+    // (filters, kits, discount codes) that never happened on this booking.
+    final total = booking?.totalPaise ?? 0;
+    final base = (total / 1.18).round();
+    final gst = total - base;
     return Scaffold(
       appBar: AppBar(
         leading: BackButton(onPressed: context.pop),
@@ -42,33 +50,26 @@ class InvoiceScreen extends StatelessWidget {
                                 const SizedBox(height: 6),
                                 Mono(bookingId, size: 12, weight: FontWeight.w600),
                                 const SizedBox(height: 5),
-                                Text('25 Jul 2026 · 11:38 am', style: context.type.bodySmall),
+                                Text(booking?.whenLabel ?? '', style: context.type.bodySmall),
                               ],
                             ),
-                            _PaidStamp(),
+                            if (booking?.status == BookingStatus.completed) _PaidStamp(),
                           ],
                         ),
                         const Divider(height: 24),
-                        _line(context, 'Chimney deep clean', '₹899'),
-                        _line(context, 'Baffle filter set (2) — Elica', '₹640'),
-                        _line(context, 'Visit and safety kit', '₹49'),
-                        _line(context, 'CARE30 discount', '−₹270',
-                            color: context.care.success),
-                        _line(context, 'GST 18%', '₹237'),
+                        _line(context, booking?.title ?? 'Service', Money.rupees(base)),
+                        _line(context, 'GST 18%', Money.rupees(gst)),
                         const Divider(height: 24),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             const Text('Total paid',
                                 style: TextStyle(fontWeight: FontWeight.w700)),
-                            Text('₹1,555',
+                            Text(Money.rupees(total),
                                 style: CareType.mono(context.scheme.onSurface,
                                     size: 18, w: FontWeight.w600)),
                           ],
                         ),
-                        const SizedBox(height: 9),
-                        Text('₹800 prepaid via UPI · ₹755 collected on site via UPI',
-                            style: context.type.bodySmall),
                       ],
                     ),
                   ),
@@ -79,41 +80,23 @@ class InvoiceScreen extends StatelessWidget {
                       children: [
                         Eyebrow('Work log'),
                         const SizedBox(height: 12),
-                        Row(children: [
-                          Expanded(child: _LogImage(label: 'Before')),
-                          const SizedBox(width: 10),
-                          Expanded(child: _LogImage(label: 'After', good: true)),
-                        ]),
-                        const Divider(height: 24),
-                        _line(context, 'Suction before', '480 m³/hr'),
-                        _line(context, 'Suction after', '1,180 m³/hr',
-                            color: context.care.success),
-                        _line(context, 'Time on site', '1 hr 24 min'),
+                        if (booking?.suctionBefore == null &&
+                            booking?.suctionAfter == null &&
+                            booking?.timeOnSiteMin == null)
+                          Text('Not recorded for this visit.',
+                              style: context.type.bodySmall)
+                        else ...[
+                          if (booking?.suctionBefore != null)
+                            _line(context, 'Suction before', '${booking!.suctionBefore} m³/hr'),
+                          if (booking?.suctionAfter != null)
+                            _line(context, 'Suction after', '${booking!.suctionAfter} m³/hr',
+                                color: context.care.success),
+                          if (booking?.timeOnSiteMin != null)
+                            _line(context, 'Time on site',
+                                _formatMinutes(booking!.timeOnSiteMin!)),
+                        ],
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  CareCard(
-                    color: context.scheme.primaryContainer,
-                    borderColor: Colors.transparent,
-                    child: Row(children: [
-                      Icon(Icons.verified_user, color: context.scheme.primary),
-                      const SizedBox(width: 11),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Warranty active until 23 Oct 2026',
-                                style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: context.scheme.primary)),
-                            Text('90 days on labour and fitted parts',
-                                style: context.type.bodySmall),
-                          ],
-                        ),
-                      ),
-                    ]),
                   ),
                 ],
               ),
@@ -154,6 +137,13 @@ class InvoiceScreen extends StatelessWidget {
       );
 }
 
+String _formatMinutes(int minutes) {
+  final hrs = minutes ~/ 60;
+  final mins = minutes % 60;
+  if (hrs == 0) return '$mins min';
+  return '$hrs hr${mins == 0 ? '' : ' $mins min'}';
+}
+
 class _PaidStamp extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Transform.rotate(
@@ -168,33 +158,6 @@ class _PaidStamp extends StatelessWidget {
               style: CareType.mono(context.care.success, size: 11, w: FontWeight.w600)
                   .copyWith(letterSpacing: 3)),
         ),
-      );
-}
-
-class _LogImage extends StatelessWidget {
-  const _LogImage({required this.label, this.good = false});
-  final String label;
-  final bool good;
-  @override
-  Widget build(BuildContext context) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: context.type.bodySmall),
-          const SizedBox(height: 6),
-          AspectRatio(
-            aspectRatio: 1.4,
-            child: Container(
-              decoration: BoxDecoration(
-                color: good
-                    ? context.scheme.primaryContainer
-                    : context.scheme.surfaceContainerHigh,
-                borderRadius: Radii.rMd,
-              ),
-              child: Icon(Icons.image_outlined,
-                  color: good ? context.scheme.primary : context.care.inkFaint),
-            ),
-          ),
-        ],
       );
 }
 
@@ -219,7 +182,8 @@ class _RateScreenState extends ConsumerState<RateScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final tech = ref.watch(repositoryProvider).preferredTechnician;
+    final booking = ref.watch(repositoryProvider).bookingById(widget.bookingId);
+    final tech = booking?.technician ?? ref.watch(repositoryProvider).preferredTechnician;
     return Scaffold(
       appBar: AppBar(
           leading: BackButton(onPressed: context.pop),
@@ -245,7 +209,11 @@ class _RateScreenState extends ConsumerState<RateScreen> {
                             style: const TextStyle(
                                 fontSize: 15, fontWeight: FontWeight.w700)),
                         const SizedBox(height: 3),
-                        Text('Chimney deep clean · 25 Jul', style: context.type.bodySmall),
+                        Text(
+                            booking != null
+                                ? '${booking.title} · ${booking.whenLabel}'
+                                : '',
+                            style: context.type.bodySmall),
                         const SizedBox(height: 18),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,

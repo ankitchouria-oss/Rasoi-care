@@ -310,15 +310,14 @@ class AddressScreen extends ConsumerWidget {
   const AddressScreen({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final repo = ref.watch(repositoryProvider);
     final draft = ref.watch(bookingDraftProvider);
     final vm = ref.read(bookingDraftProvider.notifier);
     // A newly map-picked address (see AddressPickerScreen) isn't part of
-    // repo.addresses()'s canned list, so it's appended here — the same
+    // savedAddressesProvider's list, so it's appended here — the same
     // selection UI (radio dot compared against draft.addressId) handles it
     // unchanged.
     final addresses = [
-      ...repo.addresses(),
+      ...ref.watch(savedAddressesProvider),
       if (draft.pickedAddress != null) draft.pickedAddress!,
     ];
     return _StepScaffold(
@@ -422,7 +421,7 @@ class PaymentScreen extends ConsumerWidget {
             if (service != null) {
               SavedAddress? selected;
               for (final a in [
-                ...repo.addresses(),
+                ...ref.read(savedAddressesProvider),
                 if (draft.pickedAddress != null) draft.pickedAddress!,
               ]) {
                 if (a.id == draft.addressId) {

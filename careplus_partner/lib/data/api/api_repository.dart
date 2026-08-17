@@ -116,10 +116,17 @@ class ApiRepository implements PartnerRepository {
   /// true if the call succeeded, in which case the local cache has already
   /// been advanced to match so the caller can rebuild immediately without
   /// waiting on another round trip.
-  Future<bool> advanceJob(String jobId) async {
+  Future<bool> advanceJob(String jobId, {int? suctionBefore, int? suctionAfter}) async {
     try {
       final res = await http
-          .patch(Uri.parse('${ApiConfig.baseUrl}/api/bookings/$jobId/advance'))
+          .patch(
+            Uri.parse('${ApiConfig.baseUrl}/api/bookings/$jobId/advance'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              if (suctionBefore != null) 'suctionBefore': suctionBefore,
+              if (suctionAfter != null) 'suctionAfter': suctionAfter,
+            }),
+          )
           .timeout(_timeout);
       if (res.statusCode != 200) return false;
       final data = jsonDecode(res.body);

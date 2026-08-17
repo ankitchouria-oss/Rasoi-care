@@ -15,6 +15,12 @@ class MockAuthService implements AuthService {
   bool get isSignedIn => _signedIn;
 
   @override
+  String? get currentDisplayName => null;
+
+  @override
+  String? get currentEmail => null;
+
+  @override
   Future<OtpSent> sendOtp(String e164Phone) async {
     await Future<void>.delayed(const Duration(milliseconds: 400));
     return const OtpSent('mock-verification-id');

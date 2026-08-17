@@ -17,6 +17,13 @@ abstract interface class AuthService {
   /// Whether a user is currently signed in (checked once at app start).
   bool get isSignedIn;
 
+  /// Best-effort name/email from the signed-in account — populated by
+  /// Google sign-in, null for phone OTP (which carries no profile info).
+  /// The registration screen uses these to prefill instead of asking the
+  /// person to retype what Google already told us.
+  String? get currentDisplayName;
+  String? get currentEmail;
+
   /// Sends the OTP. Throws an [AuthException] on failure.
   Future<OtpSent> sendOtp(String e164Phone);
 
