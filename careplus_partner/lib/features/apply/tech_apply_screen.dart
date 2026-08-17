@@ -1,7 +1,9 @@
-// Self-signup application — modelled on Urban Company's Partner app flow:
-// profile photo + name, service category + area, experience, an ID
-// document, and payout bank details, all reviewed by an admin before the
-// technician is verified and starts appearing in the real job feed. See
+// Self-signup application — modelled directly on Urban Company's Partner
+// app "Tell us about yourself" screen: name (validated), a work-category
+// dropdown, a city dropdown, and a terms checkbox before continuing, plus
+// (on later steps, collapsed into one screen here) an ID document and
+// payout bank + PAN details. All reviewed by an admin before the
+// technician is verified and starts appearing in the real job feed — see
 // TechPendingScreen for what happens right after submitting.
 //
 // Also reused for editing an already-submitted application (see
@@ -17,6 +19,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/widgets/care_widgets.dart';
+import '../../core/theme/care_plus_theme.dart';
 import '../../data/auth/auth_service.dart';
 import '../../state/auth_providers.dart';
 
@@ -29,6 +32,13 @@ const _categories = [
   ('RasoiPure', 'Water purifier'),
 ];
 
+// The cities Rasoi Care actually operates in today — same idea as UC's city
+// picker, just a real (short) list instead of a free-text field, so a typo
+// can't put someone in an area nobody's routing jobs for.
+const _cities = ['Nashik', 'Pune', 'Mumbai', 'Nagpur', 'Aurangabad'];
+
+final _nameCharsRe = RegExp(r'^[A-Za-z ]*$');
+
 class TechApplyScreen extends ConsumerStatefulWidget {
   const TechApplyScreen({super.key, this.existing});
   final Map<String, dynamic>? existing;
@@ -39,7 +49,6 @@ class TechApplyScreen extends ConsumerStatefulWidget {
 class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
   final _formKey = GlobalKey<FormState>();
   late final _nameCtrl = TextEditingController(text: widget.existing?['name'] as String? ?? '');
-  late final _areaCtrl = TextEditingController(text: widget.existing?['area'] as String? ?? '');
   late final _experienceCtrl = TextEditingController(
       text: widget.existing?['experienceYears'] != null
           ? '${widget.existing!['experienceYears']}'
@@ -50,11 +59,17 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
       TextEditingController(text: widget.existing?['bankAccountNumber'] as String? ?? '');
   late final _bankIfscCtrl =
       TextEditingController(text: widget.existing?['bankIfsc'] as String? ?? '');
+  late final _panCtrl =
+      TextEditingController(text: widget.existing?['panNumber'] as String? ?? '');
   late String? _category = widget.existing?['category'] as String?;
+  late String? _city = _cities.contains(widget.existing?['area'])
+      ? widget.existing!['area'] as String
+      : null;
   late final String? _existingPhotoUrl = widget.existing?['photoUrl'] as String?;
   late final String? _existingIdDocumentUrl = widget.existing?['idDocumentUrl'] as String?;
   File? _photo;
   File? _idDocument;
+  bool _agreedToTerms = false;
   bool _submitting = false;
 
   bool get _isEditing => widget.existing != null;
@@ -62,11 +77,11 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
   @override
   void dispose() {
     _nameCtrl.dispose();
-    _areaCtrl.dispose();
     _experienceCtrl.dispose();
     _bankNameCtrl.dispose();
     _bankAccountCtrl.dispose();
     _bankIfscCtrl.dispose();
+    _panCtrl.dispose();
     super.dispose();
   }
 
@@ -84,7 +99,17 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     if (_category == null) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Pick a service category.')));
+          .showSnackBar(const SnackBar(content: Text('Pick what work you do.')));
+      return;
+    }
+    if (_city == null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Pick where you live.')));
+      return;
+    }
+    if (!_isEditing && !_agreedToTerms) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Accept the Terms & conditions to continue.')));
       return;
     }
     if (_idDocument == null && _existingIdDocumentUrl == null) {
@@ -106,13 +131,14 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
       final result = await submitTechnicianApplication({
         'name': _nameCtrl.text.trim(),
         'category': _category,
-        'area': _areaCtrl.text.trim(),
+        'area': _city,
         'experienceYears': int.tryParse(_experienceCtrl.text.trim()),
         if (photoUrl != null) 'photoUrl': photoUrl,
         if (idDocumentUrl != null) 'idDocumentUrl': idDocumentUrl,
         'bankAccountName': _bankNameCtrl.text.trim(),
         'bankAccountNumber': _bankAccountCtrl.text.trim(),
         'bankIfsc': _bankIfscCtrl.text.trim(),
+        'panNumber': _panCtrl.text.trim().toUpperCase(),
         'submit': true,
       });
       if (!mounted) return;
@@ -141,15 +167,22 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
           key: _formKey,
           child: Column(
             children: [
+              if (!_isEditing)
+                Container(
+                  width: double.infinity,
+                  color: CareColors.brass.withValues(alpha: 0.16),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  child: Text('A few more steps to start getting jobs and earnings!',
+                      style: context.type.bodySmall!.copyWith(fontWeight: FontWeight.w700)),
+                ),
               Expanded(
                 child: ListView(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                   children: [
-                    if (!_isEditing)
-                      Text(
-                          'A few details so we can verify you and get you routed real jobs — same as Urban Company\'s partner review.',
-                          style: context.type.bodyMedium),
-                    if (!_isEditing) const SizedBox(height: 20),
+                    if (!_isEditing) ...[
+                      Text('Tell us about yourself!', style: context.type.headlineLarge),
+                      const SizedBox(height: 20),
+                    ],
                     Center(
                       child: GestureDetector(
                         onTap: _pickPhoto,
@@ -172,30 +205,44 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
                     Center(
                         child: Text('Profile photo — tap to change', style: context.type.bodySmall)),
                     const SizedBox(height: 22),
+                    Eyebrow("What's your name?"),
+                    const SizedBox(height: 8),
                     CareField('Full name',
                         controller: _nameCtrl,
-                        validator: (v) =>
-                            (v == null || v.trim().isEmpty) ? 'Enter your name' : null),
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) return 'Enter your name';
+                          if (!_nameCharsRe.hasMatch(v)) {
+                            return 'Special characters like !@#\$%^&*()_-+={}::;~,. are not allowed';
+                          }
+                          return null;
+                        }),
                     const SizedBox(height: 18),
-                    Eyebrow('Service category'),
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
+                    Eyebrow('What work do you do?'),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      initialValue: _category,
+                      isExpanded: true,
+                      decoration: const InputDecoration(border: OutlineInputBorder()),
+                      hint: const Text('Select your trade'),
+                      items: [
                         for (final c in _categories)
-                          ChoiceChip(
-                            label: Text(c.$2),
-                            selected: _category == c.$1,
-                            onSelected: (_) => setState(() => _category = c.$1),
-                          ),
+                          DropdownMenuItem(value: c.$1, child: Text(c.$2)),
                       ],
+                      onChanged: (v) => setState(() => _category = v),
                     ),
                     const SizedBox(height: 18),
-                    CareField('Service area — e.g. Nashik',
-                        controller: _areaCtrl,
-                        validator: (v) =>
-                            (v == null || v.trim().isEmpty) ? 'Enter your service area' : null),
+                    Eyebrow('Where do you live?'),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      initialValue: _city,
+                      isExpanded: true,
+                      decoration: const InputDecoration(border: OutlineInputBorder()),
+                      hint: const Text('Select city'),
+                      items: [
+                        for (final c in _cities) DropdownMenuItem(value: c, child: Text(c)),
+                      ],
+                      onChanged: (v) => setState(() => _city = v),
+                    ),
                     const SizedBox(height: 13),
                     CareField('Years of experience',
                         controller: _experienceCtrl,
@@ -224,14 +271,35 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
                       ]),
                     ),
                     const SizedBox(height: 22),
-                    Eyebrow('Payout bank details'),
+                    Eyebrow('Financial details'),
                     const SizedBox(height: 10),
+                    CareField('PAN number', controller: _panCtrl),
+                    const SizedBox(height: 13),
                     CareField('Account holder name', controller: _bankNameCtrl),
                     const SizedBox(height: 13),
                     CareField('Account number',
                         controller: _bankAccountCtrl, keyboardType: TextInputType.number),
                     const SizedBox(height: 13),
                     CareField('IFSC code', controller: _bankIfscCtrl),
+                    if (!_isEditing) ...[
+                      const SizedBox(height: 22),
+                      CareCard(
+                        color: context.scheme.surfaceContainerHigh,
+                        borderColor: Colors.transparent,
+                        onTap: () => setState(() => _agreedToTerms = !_agreedToTerms),
+                        child: Row(children: [
+                          Checkbox(
+                            value: _agreedToTerms,
+                            onChanged: (v) => setState(() => _agreedToTerms = v ?? false),
+                          ),
+                          Expanded(
+                            child: Text(
+                                'By proceeding, you agree to Rasoi Care\'s Terms & conditions and Privacy policy',
+                                style: context.type.bodySmall),
+                          ),
+                        ]),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -245,7 +313,7 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
                             width: 18,
                             height: 18,
                             child: CircularProgressIndicator(strokeWidth: 2))
-                        : Text(_isEditing ? 'Save changes' : 'Submit application'),
+                        : Text(_isEditing ? 'Save changes' : 'Continue'),
                   ),
                 ),
               ),
@@ -256,3 +324,4 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
     );
   }
 }
+
