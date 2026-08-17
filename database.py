@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS technicians (
     bank_account_name     TEXT,
     bank_account_number   TEXT,
     bank_ifsc             TEXT,
+    pan_number            TEXT,
     application_submitted INTEGER NOT NULL DEFAULT 0
 );
 
@@ -453,6 +454,8 @@ def migrate_technicians_columns(conn):
         conn.execute("ALTER TABLE technicians ADD COLUMN bank_account_number TEXT")
     if "bank_ifsc" not in cols:
         conn.execute("ALTER TABLE technicians ADD COLUMN bank_ifsc TEXT")
+    if "pan_number" not in cols:
+        conn.execute("ALTER TABLE technicians ADD COLUMN pan_number TEXT")
     if "application_submitted" not in cols:
         conn.execute(
             "ALTER TABLE technicians ADD COLUMN application_submitted INTEGER NOT NULL DEFAULT 0"

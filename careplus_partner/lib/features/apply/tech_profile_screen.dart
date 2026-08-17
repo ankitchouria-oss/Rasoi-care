@@ -1,15 +1,15 @@
-// The technician's own view of what they submitted at signup — Urban
-// Company's Partner app has the same "My Profile" surface showing category,
-// area, experience, documents and payout details back to the professional,
-// not just to ops. Read-only for now; re-submitting through TechApplyScreen
-// (PATCH /api/technician/me) is the seam for an "Edit" action later.
+// The technician's own view of what they submitted at signup, laid out as
+// an Urban Company-style profile menu. Real items (job history, service
+// details, financial details, help center) are fully wired to actual data;
+// Urban Company business features we have no backend for (Credits, Loans,
+// a parts shop, formal Training, referrals) are honest "Coming soon"
+// entries rather than fabricated numbers or flows.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/widgets/care_widgets.dart';
-import '../../core/theme/care_plus_theme.dart';
 import '../../state/auth_providers.dart';
 
 class TechProfileScreen extends ConsumerStatefulWidget {
@@ -80,55 +80,84 @@ class _TechProfileScreenState extends ConsumerState<TechProfileScreen> {
                       tone: verified ? ChipTone.success : ChipTone.warning,
                     ),
                   ),
-                  const SizedBox(height: 22),
+                  const SizedBox(height: 18),
                   CareCard(
+                    child: Row(
+                      children: [
+                        Expanded(child: _stat(context, '★ ${me['rating'] ?? '—'}', 'Rating')),
+                        Container(width: 1, height: 30, color: context.care.hairline),
+                        Expanded(
+                            child: _stat(context, '${me['jobsCompleted'] ?? 0}', 'Jobs done')),
+                        Container(width: 1, height: 30, color: context.care.hairline),
+                        Expanded(
+                            child: _stat(
+                                context,
+                                me['experienceYears'] != null ? '${me['experienceYears']}y' : '—',
+                                'Experience')),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: () async {
+                        await context.push('/tech/apply', extra: me);
+                      },
+                      child: const Text('Edit profile'),
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  Eyebrow('Work'),
+                  const SizedBox(height: 8),
+                  CareCard(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Column(
                       children: [
-                        _row(context, 'Category', (me['category'] as String?) ?? '—'),
-                        _row(context, 'Service area',
-                            (me['area'] as String?)?.isNotEmpty == true
-                                ? me['area'] as String
-                                : '—'),
-                        _row(context, 'Experience',
-                            me['experienceYears'] != null
-                                ? '${me['experienceYears']} years'
-                                : '—'),
-                        _row(context, 'Rating', '★ ${me['rating'] ?? '—'}'),
-                        _row(context, 'Jobs completed', '${me['jobsCompleted'] ?? 0}',
-                            last: true),
+                        _menuRow(context, Icons.history, 'Job history',
+                            onTap: () => context.push('/tech/earnings')),
+                        _menuRow(context, Icons.storefront_outlined, 'My Hub',
+                            onTap: () => _openComingSoon(context, 'My Hub')),
+                        _menuRow(context, Icons.account_balance_wallet_outlined, 'Credits',
+                            onTap: () => _openComingSoon(context, 'Credits')),
+                        _menuRow(context, Icons.currency_rupee, 'Loans',
+                            onTap: () => _openComingSoon(context, 'Loans')),
+                        _menuRow(context, Icons.school_outlined, 'Training',
+                            onTap: () => _openComingSoon(context, 'Training'), last: true),
                       ],
                     ),
                   ),
                   const SizedBox(height: 18),
-                  Eyebrow('ID document'),
-                  const SizedBox(height: 8),
-                  (me['idDocumentUrl'] as String?) == null
-                      ? Text('Not uploaded', style: context.type.bodySmall)
-                      : ClipRRect(
-                          borderRadius: Radii.rMd,
-                          child: Image.network(me['idDocumentUrl'] as String,
-                              height: 160, fit: BoxFit.cover),
-                        ),
-                  const SizedBox(height: 18),
-                  Eyebrow('Payout bank details'),
+                  Eyebrow('Account'),
                   const SizedBox(height: 8),
                   CareCard(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Column(
                       children: [
-                        _row(context, 'Account holder',
-                            (me['bankAccountName'] as String?)?.isNotEmpty == true
-                                ? me['bankAccountName'] as String
-                                : '—'),
-                        _row(context, 'Account number',
-                            (me['bankAccountNumber'] as String?)?.isNotEmpty == true
-                                ? me['bankAccountNumber'] as String
-                                : '—'),
-                        _row(context, 'IFSC',
-                            (me['bankIfsc'] as String?)?.isNotEmpty == true
-                                ? me['bankIfsc'] as String
-                                : '—',
+                        _menuRow(context, Icons.account_balance_outlined, 'Financial details',
+                            onTap: () => context.push('/tech/financial')),
+                        _menuRow(context, Icons.help_outline, 'Help Center',
+                            onTap: () => context.push('/tech/help')),
+                        _menuRow(context, Icons.person_add_alt_outlined, 'Invite a friend',
+                            onTap: () => _openComingSoon(context, 'Invite a friend')),
+                        _menuRow(context, Icons.shopping_bag_outlined, 'Rasoi Care shop',
+                            onTap: () => _openComingSoon(context, 'Rasoi Care shop')),
+                        _menuRow(context, Icons.chat_bubble_outline, 'Send WhatsApp updates',
+                            onTap: () => _openComingSoon(context, 'WhatsApp updates'),
                             last: true),
                       ],
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton(
+                      onPressed: () async {
+                        await ref.read(authServiceProvider).signOut();
+                        ref.read(authFlowProvider.notifier).reset();
+                        if (context.mounted) context.go('/login');
+                      },
+                      child: const Text('Sign out'),
                     ),
                   ),
                 ],
@@ -137,18 +166,40 @@ class _TechProfileScreenState extends ConsumerState<TechProfileScreen> {
     );
   }
 
-  Widget _row(BuildContext context, String label, String value, {bool last = false}) => Padding(
-        padding: EdgeInsets.only(bottom: last ? 0 : 10),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label, style: context.type.bodySmall),
-            Flexible(
-              child: Text(value,
-                  textAlign: TextAlign.end,
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-            ),
-          ],
-        ),
+  void _openComingSoon(BuildContext context, String title) =>
+      context.push('/tech/soon', extra: title);
+
+  Widget _stat(BuildContext context, String value, String label) => Column(
+        children: [
+          Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 3),
+          Text(label, style: context.type.bodySmall),
+        ],
       );
+
+  Widget _menuRow(BuildContext context, IconData icon, String label,
+      {required VoidCallback onTap, bool last = false}) {
+    return InkWell(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 13),
+            child: Row(
+              children: [
+                Icon(icon, size: 20, color: context.care.inkFaint),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Text(label,
+                      style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+                ),
+                Icon(Icons.chevron_right, size: 18, color: context.care.inkFaint),
+              ],
+            ),
+          ),
+          if (!last) Divider(height: 1, color: context.care.hairline),
+        ],
+      ),
+    );
+  }
 }

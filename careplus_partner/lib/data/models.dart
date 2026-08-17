@@ -114,6 +114,8 @@ class JobDetail {
     required this.reportedQuote,
     required this.checklist,
     required this.parts,
+    this.lat,
+    this.lng,
   });
   final String jobId;
   final String customerName;
@@ -124,6 +126,13 @@ class JobDetail {
   final String reportedQuote;
   final List<ChecklistItem> checklist;
   final List<PartLine> parts;
+
+  /// The service address's real coordinates, when the booking was made
+  /// through the Customer app's map picker — see BookingDto.lat/lng. Null
+  /// for label-only addresses; TechJobScreen's map and Navigate action both
+  /// fall back to a text-address search when this is missing.
+  final double? lat;
+  final double? lng;
 }
 
 enum LineTone { neutral, success }
