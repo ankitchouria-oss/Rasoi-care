@@ -5,6 +5,7 @@
 class BookingDto {
   const BookingDto({
     required this.id,
+    required this.category,
     required this.service,
     required this.status,
     required this.customerName,
@@ -17,6 +18,7 @@ class BookingDto {
   });
 
   final String id;
+  final String category;
   final String service;
   final String status;
   final String customerName;
@@ -38,6 +40,7 @@ class BookingDto {
     final rupees = (totalAmount is num) ? totalAmount : num.tryParse('$totalAmount') ?? 0;
     return BookingDto(
       id: '${json['id']}',
+      category: (json['category'] as String?) ?? '',
       service: (json['service'] as String?)?.trim().isNotEmpty == true
           ? json['service'] as String
           : 'Service visit',
@@ -56,6 +59,7 @@ class BookingDto {
 
   BookingDto copyWith({String? status}) => BookingDto(
         id: id,
+        category: category,
         service: service,
         status: status ?? this.status,
         customerName: customerName,

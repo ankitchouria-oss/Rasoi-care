@@ -169,6 +169,10 @@ def technician_row_to_dict(row):
         "emergencyContactPhone": row["emergency_contact_phone"]
         if "emergency_contact_phone" in keys
         else None,
+        "aadharDocumentUrl": row["aadhar_document_url"] if "aadhar_document_url" in keys else None,
+        "panDocumentUrl": row["pan_document_url"] if "pan_document_url" in keys else None,
+        "address": row["address"] if "address" in keys else None,
+        "upiId": row["upi_id"] if "upi_id" in keys else None,
         "applicationSubmitted": bool(row["application_submitted"])
         if "application_submitted" in keys
         else True,
@@ -1325,6 +1329,10 @@ def update_technician_me():
         "gst_number": data.get("gstNumber"),
         "emergency_contact_name": data.get("emergencyContactName"),
         "emergency_contact_phone": data.get("emergencyContactPhone"),
+        "aadhar_document_url": data.get("aadharDocumentUrl"),
+        "pan_document_url": data.get("panDocumentUrl"),
+        "address": data.get("address"),
+        "upi_id": data.get("upiId"),
     }
     conn = get_db()
     for column, value in fields.items():

@@ -71,14 +71,20 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
       TextEditingController(text: widget.existing?['emergencyContactName'] as String? ?? '');
   late final _emergencyPhoneCtrl =
       TextEditingController(text: widget.existing?['emergencyContactPhone'] as String? ?? '');
+  late final _addressCtrl =
+      TextEditingController(text: widget.existing?['address'] as String? ?? '');
+  late final _upiCtrl = TextEditingController(text: widget.existing?['upiId'] as String? ?? '');
   late String? _category = widget.existing?['category'] as String?;
   late String? _city = _cities.contains(widget.existing?['area'])
       ? widget.existing!['area'] as String
       : null;
   late final String? _existingPhotoUrl = widget.existing?['photoUrl'] as String?;
-  late final String? _existingIdDocumentUrl = widget.existing?['idDocumentUrl'] as String?;
+  late final String? _existingAadharDocumentUrl =
+      widget.existing?['aadharDocumentUrl'] as String?;
+  late final String? _existingPanDocumentUrl = widget.existing?['panDocumentUrl'] as String?;
   File? _photo;
-  File? _idDocument;
+  File? _aadharDocument;
+  File? _panDocument;
   bool _agreedToTerms = false;
   bool _submitting = false;
 
@@ -97,6 +103,8 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
     _dobCtrl.dispose();
     _emergencyNameCtrl.dispose();
     _emergencyPhoneCtrl.dispose();
+    _addressCtrl.dispose();
+    _upiCtrl.dispose();
     super.dispose();
   }
 
@@ -120,9 +128,14 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
     if (picked != null) setState(() => _photo = File(picked.path));
   }
 
-  Future<void> _pickIdDocument() async {
+  Future<void> _pickAadharDocument() async {
     final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 80);
-    if (picked != null) setState(() => _idDocument = File(picked.path));
+    if (picked != null) setState(() => _aadharDocument = File(picked.path));
+  }
+
+  Future<void> _pickPanDocument() async {
+    final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 80);
+    if (picked != null) setState(() => _panDocument = File(picked.path));
   }
 
   Future<void> _submit() async {
@@ -142,9 +155,19 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
           const SnackBar(content: Text('Accept the Terms & conditions to continue.')));
       return;
     }
-    if (_idDocument == null && _existingIdDocumentUrl == null) {
+    if (_aadharDocument == null && _existingAadharDocumentUrl == null) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Upload an ID document.')));
+          .showSnackBar(const SnackBar(content: Text('Upload a photo of your Aadhaar card.')));
+      return;
+    }
+    if (_panDocument == null && _existingPanDocumentUrl == null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Upload a photo of your PAN card.')));
+      return;
+    }
+    if (_addressCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Enter your address.')));
       return;
     }
     setState(() => _submitting = true);
@@ -155,19 +178,25 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
       // untouched, see app.py's update_technician_me.
       final photoUrl =
           _photo == null ? null : await uploadService.upload(_photo!, kind: 'photo');
-      final idDocumentUrl = _idDocument == null
+      final aadharDocumentUrl = _aadharDocument == null
           ? null
-          : await uploadService.upload(_idDocument!, kind: 'id_document');
+          : await uploadService.upload(_aadharDocument!, kind: 'aadhar_document');
+      final panDocumentUrl = _panDocument == null
+          ? null
+          : await uploadService.upload(_panDocument!, kind: 'pan_document');
       final result = await submitTechnicianApplication({
         'name': _nameCtrl.text.trim(),
         'category': _category,
         'area': _city,
+        'address': _addressCtrl.text.trim(),
         'experienceYears': int.tryParse(_experienceCtrl.text.trim()),
         if (photoUrl != null) 'photoUrl': photoUrl,
-        if (idDocumentUrl != null) 'idDocumentUrl': idDocumentUrl,
+        if (aadharDocumentUrl != null) 'aadharDocumentUrl': aadharDocumentUrl,
+        if (panDocumentUrl != null) 'panDocumentUrl': panDocumentUrl,
         'bankAccountName': _bankNameCtrl.text.trim(),
         'bankAccountNumber': _bankAccountCtrl.text.trim(),
         'bankIfsc': _bankIfscCtrl.text.trim(),
+        'upiId': _upiCtrl.text.trim(),
         'panNumber': _panCtrl.text.trim().toUpperCase(),
         'gstNumber': _gstCtrl.text.trim().toUpperCase(),
         'aadharNumber': _aadharCtrl.text.trim(),
@@ -285,45 +314,77 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
                         validator: (v) => (v == null || int.tryParse(v.trim()) == null)
                             ? 'Enter a number'
                             : null),
-                    const SizedBox(height: 22),
-                    Eyebrow('ID document'),
-                    const SizedBox(height: 10),
-                    CareCard(
-                      onTap: _pickIdDocument,
-                      child: Row(children: [
-                        Icon(Icons.badge_outlined, color: context.scheme.primary),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                              _idDocument != null
-                                  ? _idDocument!.path.split('/').last
-                                  : (_existingIdDocumentUrl != null
-                                      ? 'Uploaded — tap to replace'
-                                      : 'Upload Aadhaar, PAN or other government ID'),
-                              style: context.type.bodyMedium),
-                        ),
-                        Icon(Icons.chevron_right, color: context.care.inkMuted),
-                      ]),
+                    const SizedBox(height: 24),
+                    _SectionCard(
+                      icon: Icons.badge_outlined,
+                      title: 'Aadhaar card',
+                      child: Column(
+                        children: [
+                          CareField('Aadhaar number',
+                              controller: _aadharCtrl, keyboardType: TextInputType.number),
+                          const SizedBox(height: 13),
+                          _DocPickerRow(
+                            label: _aadharDocument != null
+                                ? _aadharDocument!.path.split('/').last
+                                : (_existingAadharDocumentUrl != null
+                                    ? 'Uploaded — tap to replace'
+                                    : 'Upload a photo of your Aadhaar card'),
+                            onTap: _pickAadharDocument,
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 22),
-                    Eyebrow('Financial details'),
-                    const SizedBox(height: 10),
-                    CareField('GST number (optional)', controller: _gstCtrl),
-                    const SizedBox(height: 13),
-                    CareField('PAN number', controller: _panCtrl),
-                    const SizedBox(height: 13),
-                    CareField('Account holder name', controller: _bankNameCtrl),
-                    const SizedBox(height: 13),
-                    CareField('Account number',
-                        controller: _bankAccountCtrl, keyboardType: TextInputType.number),
-                    const SizedBox(height: 13),
-                    CareField('IFSC code', controller: _bankIfscCtrl),
+                    const SizedBox(height: 16),
+                    _SectionCard(
+                      icon: Icons.credit_card_outlined,
+                      title: 'PAN card',
+                      child: Column(
+                        children: [
+                          CareField('PAN number', controller: _panCtrl),
+                          const SizedBox(height: 13),
+                          _DocPickerRow(
+                            label: _panDocument != null
+                                ? _panDocument!.path.split('/').last
+                                : (_existingPanDocumentUrl != null
+                                    ? 'Uploaded — tap to replace'
+                                    : 'Upload a photo of your PAN card'),
+                            onTap: _pickPanDocument,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _SectionCard(
+                      icon: Icons.home_outlined,
+                      title: 'Address',
+                      child: CareField('Full address',
+                          controller: _addressCtrl, maxLines: 3),
+                    ),
+                    const SizedBox(height: 16),
+                    _SectionCard(
+                      icon: Icons.account_balance_outlined,
+                      title: 'Bank & payout details',
+                      child: Column(
+                        children: [
+                          CareField('Account holder name', controller: _bankNameCtrl),
+                          const SizedBox(height: 13),
+                          CareField('Account number',
+                              controller: _bankAccountCtrl, keyboardType: TextInputType.number),
+                          const SizedBox(height: 13),
+                          CareField('IFSC code', controller: _bankIfscCtrl),
+                          const SizedBox(height: 13),
+                          CareField('UPI ID (optional)',
+                              controller: _upiCtrl,
+                              keyboardType: TextInputType.emailAddress,
+                              prefix: const Icon(Icons.alternate_email, size: 18)),
+                          const SizedBox(height: 13),
+                          CareField('GST number (optional)', controller: _gstCtrl),
+                        ],
+                      ),
+                    ),
                     const SizedBox(height: 22),
                     Eyebrow('Personal details'),
                     const SizedBox(height: 10),
-                    CareField('Aadhaar number (optional)',
-                        controller: _aadharCtrl, keyboardType: TextInputType.number),
-                    const SizedBox(height: 13),
                     GestureDetector(
                       onTap: _pickDob,
                       child: AbsorbPointer(
@@ -379,5 +440,60 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
       ),
     );
   }
+}
+
+/// A titled card wrapping a related group of fields — used to give the KYC
+/// document sections (Aadhaar/PAN/Address/Bank) clearer visual separation
+/// than a flat scroll of labels, without the risk of a full multi-step
+/// wizard rewrite.
+class _SectionCard extends StatelessWidget {
+  const _SectionCard({required this.icon, required this.title, required this.child});
+  final IconData icon;
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => CareCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 18, color: context.scheme.primary),
+                const SizedBox(width: 8),
+                Text(title,
+                    style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+              ],
+            ),
+            const SizedBox(height: 14),
+            child,
+          ],
+        ),
+      );
+}
+
+class _DocPickerRow extends StatelessWidget {
+  const _DocPickerRow({required this.label, required this.onTap});
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+        borderRadius: Radii.rMd,
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: Radii.rMd,
+            border: Border.all(color: context.care.hairline),
+          ),
+          child: Row(children: [
+            Icon(Icons.add_a_photo_outlined, size: 18, color: context.scheme.primary),
+            const SizedBox(width: 10),
+            Expanded(child: Text(label, style: context.type.bodySmall)),
+            Icon(Icons.chevron_right, size: 18, color: context.care.inkMuted),
+          ]),
+        ),
+      );
 }
 

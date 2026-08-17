@@ -57,7 +57,8 @@ class TechFinancialScreen extends ConsumerWidget {
                 children: [
                   _row(context, 'Account holder', val('bankAccountName')),
                   _row(context, 'Account number', val('bankAccountNumber')),
-                  _row(context, 'IFSC', val('bankIfsc'), last: true),
+                  _row(context, 'IFSC', val('bankIfsc')),
+                  _row(context, 'UPI ID', val('upiId'), last: true),
                 ],
               ),
             ),
@@ -76,6 +77,12 @@ class TechFinancialScreen extends ConsumerWidget {
                   _row(context, 'Phone number', phone ?? '—', last: true),
                 ],
               ),
+            ),
+            const SizedBox(height: 18),
+            Eyebrow('Address'),
+            const SizedBox(height: 8),
+            CareCard(
+              child: Text(val('address'), style: context.type.bodyMedium),
             ),
             const SizedBox(height: 18),
             Eyebrow('Emergency contact'),
@@ -104,15 +111,13 @@ class TechFinancialScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 18),
-            Eyebrow('ID document'),
+            Eyebrow('Aadhaar card'),
             const SizedBox(height: 8),
-            (me?['idDocumentUrl'] as String?) == null
-                ? Text('Not uploaded', style: context.type.bodySmall)
-                : ClipRRect(
-                    borderRadius: Radii.rMd,
-                    child: Image.network(me!['idDocumentUrl'] as String,
-                        height: 160, fit: BoxFit.cover),
-                  ),
+            _docThumb(context, me?['aadharDocumentUrl'] as String?),
+            const SizedBox(height: 18),
+            Eyebrow('PAN card'),
+            const SizedBox(height: 8),
+            _docThumb(context, me?['panDocumentUrl'] as String?),
             const SizedBox(height: 22),
             SizedBox(
               width: double.infinity,
@@ -126,6 +131,13 @@ class TechFinancialScreen extends ConsumerWidget {
       ),
     );
   }
+
+  Widget _docThumb(BuildContext context, String? url) => url == null
+      ? Text('Not uploaded', style: context.type.bodySmall)
+      : ClipRRect(
+          borderRadius: Radii.rMd,
+          child: Image.network(url, height: 160, fit: BoxFit.cover),
+        );
 
   Widget _row(BuildContext context, String label, String value, {bool last = false}) => Padding(
         padding: EdgeInsets.only(bottom: last ? 0 : 10),
