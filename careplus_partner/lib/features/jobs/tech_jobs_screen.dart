@@ -49,6 +49,8 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
       await repo.refreshAll();
       if (mounted) ref.read(jobsFeedTickProvider.notifier).bump();
     }
+    final me = await fetchTechnicianMe();
+    if (mounted && me != null) ref.read(technicianMeProvider.notifier).state = me;
   }
 
   Future<void> _acceptRequest(String jobId) async {
@@ -105,13 +107,19 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
               child: Row(
                 children: [
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Eyebrow('Technician'),
-                        const SizedBox(height: 3),
-                        Text('Sandeep Pawar', style: context.type.titleMedium),
-                      ],
+                    child: GestureDetector(
+                      onTap: () => context.push('/tech/profile'),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Eyebrow('Technician'),
+                          const SizedBox(height: 3),
+                          Text(
+                              (ref.watch(technicianMeProvider)?['name'] as String?) ??
+                                  'Technician',
+                              style: context.type.titleMedium),
+                        ],
+                      ),
                     ),
                   ),
                   GestureDetector(

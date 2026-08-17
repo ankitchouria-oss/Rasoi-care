@@ -31,15 +31,22 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS technicians (
-    id              TEXT PRIMARY KEY,
-    name            TEXT NOT NULL,
-    category        TEXT NOT NULL,
-    area            TEXT NOT NULL DEFAULT '',
-    verified        INTEGER NOT NULL DEFAULT 0,
-    online          INTEGER NOT NULL DEFAULT 1,
-    rating          REAL NOT NULL DEFAULT 5.0,
-    rating_count    INTEGER NOT NULL DEFAULT 0,
-    jobs_completed  INTEGER NOT NULL DEFAULT 0
+    id                    TEXT PRIMARY KEY,
+    name                  TEXT NOT NULL,
+    category              TEXT NOT NULL,
+    area                  TEXT NOT NULL DEFAULT '',
+    verified              INTEGER NOT NULL DEFAULT 0,
+    online                INTEGER NOT NULL DEFAULT 1,
+    rating                REAL NOT NULL DEFAULT 5.0,
+    rating_count          INTEGER NOT NULL DEFAULT 0,
+    jobs_completed        INTEGER NOT NULL DEFAULT 0,
+    photo_url             TEXT,
+    experience_years      INTEGER,
+    id_document_url       TEXT,
+    bank_account_name     TEXT,
+    bank_account_number   TEXT,
+    bank_ifsc             TEXT,
+    application_submitted INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS bookings (
@@ -430,6 +437,30 @@ def migrate_technicians_columns(conn):
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_technicians_firebase_uid "
             "ON technicians(firebase_uid) WHERE firebase_uid IS NOT NULL"
         )
+    # KYC application fields — modelled on Urban Company's partner
+    # onboarding (profile photo, experience, ID document, payout bank
+    # details), collected by the Partner app's self-signup flow and
+    # reviewed by the Admin app before a technician is verified.
+    if "photo_url" not in cols:
+        conn.execute("ALTER TABLE technicians ADD COLUMN photo_url TEXT")
+    if "experience_years" not in cols:
+        conn.execute("ALTER TABLE technicians ADD COLUMN experience_years INTEGER")
+    if "id_document_url" not in cols:
+        conn.execute("ALTER TABLE technicians ADD COLUMN id_document_url TEXT")
+    if "bank_account_name" not in cols:
+        conn.execute("ALTER TABLE technicians ADD COLUMN bank_account_name TEXT")
+    if "bank_account_number" not in cols:
+        conn.execute("ALTER TABLE technicians ADD COLUMN bank_account_number TEXT")
+    if "bank_ifsc" not in cols:
+        conn.execute("ALTER TABLE technicians ADD COLUMN bank_ifsc TEXT")
+    if "application_submitted" not in cols:
+        conn.execute(
+            "ALTER TABLE technicians ADD COLUMN application_submitted INTEGER NOT NULL DEFAULT 0"
+        )
+        # Technicians that already existed before this column shipped were
+        # already live and taking real jobs — treat their application as
+        # already-submitted rather than sending them back through signup.
+        conn.execute("UPDATE technicians SET application_submitted = 1")
     conn.commit()
 
 

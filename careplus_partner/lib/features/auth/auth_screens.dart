@@ -9,18 +9,26 @@ import '../../state/auth_providers.dart';
 import '../../data/auth/mock_auth_service.dart';
 
 // ============================================================ SPLASH
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    Timer(const Duration(milliseconds: 1600), () {
-      if (mounted) context.go('/login');
+    Timer(const Duration(milliseconds: 1600), () async {
+      if (!ref.read(authServiceProvider).isSignedIn) {
+        if (mounted) context.go('/login');
+        return;
+      }
+      // Already signed in from a previous session — find out where they
+      // actually belong (still applying, awaiting verification, or fully
+      // onboarded) instead of always dropping them at the job feed.
+      final tech = await fetchTechnicianMe();
+      if (mounted) routeToStage(context, stageFromTechnicianJson(tech));
     });
   }
 
@@ -79,7 +87,7 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
     if (!mounted) return;
     setState(() => _googleBusy = false);
     if (ok) {
-      context.go('/tech/jobs');
+      routeToStage(context, ref.read(authFlowProvider).stage);
     } else {
       final err = ref.read(authFlowProvider).error;
       if (err != null && err != 'Sign-in cancelled.') {
@@ -237,7 +245,7 @@ class _EmailAuthScreenState extends ConsumerState<EmailAuthScreen> {
         : await vm.signInWithEmail(email, password);
     if (!mounted) return;
     if (ok) {
-      context.go('/tech/jobs');
+      routeToStage(context, ref.read(authFlowProvider).stage);
     } else {
       final err = ref.read(authFlowProvider).error ?? 'Something went wrong.';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
@@ -383,7 +391,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     if (!mounted) return;
     setState(() => _verifying = false);
     if (ok) {
-      context.go('/tech/jobs');
+      routeToStage(context, ref.read(authFlowProvider).stage);
     } else {
       final err = ref.read(authFlowProvider).error ?? 'Verification failed.';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));

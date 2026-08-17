@@ -98,6 +98,16 @@ class AdminTeamMember {
     required this.statsLabel,
     required this.rating,
     required this.duty,
+    this.id,
+    this.area,
+    this.verified = true,
+    this.applicationSubmitted = true,
+    this.photoUrl,
+    this.experienceYears,
+    this.idDocumentUrl,
+    this.bankAccountName,
+    this.bankAccountNumber,
+    this.bankIfsc,
   });
   final String name;
   final String initials;
@@ -105,6 +115,19 @@ class AdminTeamMember {
   final String statsLabel;
   final double rating;
   final DutyStatus duty;
+
+  /// Null for mock rows (nothing to verify against a real backend) — see
+  /// TeamScreen, which hides the verify action when this is null.
+  final String? id;
+  final String? area;
+  final bool verified;
+  final bool applicationSubmitted;
+  final String? photoUrl;
+  final int? experienceYears;
+  final String? idDocumentUrl;
+  final String? bankAccountName;
+  final String? bankAccountNumber;
+  final String? bankIfsc;
 }
 
 enum StaffStatus { active, invited, suspended }
