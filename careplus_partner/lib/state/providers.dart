@@ -59,16 +59,18 @@ class TechChecklistVM extends FamilyNotifier<List<ChecklistItem>, String> {
   }
 }
 
-/// How many "after" photos the technician has captured for a job (0..2).
-/// A plain counter is enough here — the mock camera just fills a box in.
+/// The before/after photos actually captured (via the device camera) for a
+/// job — up to 2 each, local file paths. Real capture, not a fake counter:
+/// see _capturePhoto in tech_job_screen.dart.
+final techBeforePhotosProvider =
+    NotifierProvider.family<JobPhotosVM, List<String>, String>(JobPhotosVM.new);
 final techAfterPhotosProvider =
-    NotifierProvider.family<TechAfterPhotosVM, int, String>(
-        TechAfterPhotosVM.new);
+    NotifierProvider.family<JobPhotosVM, List<String>, String>(JobPhotosVM.new);
 
-class TechAfterPhotosVM extends FamilyNotifier<int, String> {
+class JobPhotosVM extends FamilyNotifier<List<String>, String> {
   @override
-  int build(String arg) => 0;
-  void capture() {
-    if (state < 2) state = state + 1;
+  List<String> build(String arg) => const [];
+  void add(String path) {
+    if (state.length < 2) state = [...state, path];
   }
 }

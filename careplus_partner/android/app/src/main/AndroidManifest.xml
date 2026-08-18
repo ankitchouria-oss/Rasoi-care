@@ -8,6 +8,11 @@
          just stays off (permission/service check fails gracefully). -->
     <uses-feature android:name="android.hardware.location" android:required="false" />
 
+    <!-- Before/after job photos (TechJobScreen) — real camera capture via
+         image_picker, not the old fake "mock camera" counter. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
     <application
         android:label="Rasoi Care Partner"
         android:name="${applicationName}"

@@ -1,15 +1,18 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/config/maps_config.dart';
 import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
 import '../../data/api/api_repository.dart';
+import '../../data/firebase/technician_upload_service.dart';
 import '../../data/models.dart';
 import '../../state/providers.dart';
 
@@ -206,6 +209,21 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
     if (mounted) setState(() => _advancing = false);
   }
 
+  // Opens the real device camera (not a fake "fills a box in" counter) and,
+  // on a successful capture, records it in the matching before/after
+  // provider and best-effort uploads it to Firebase Storage under this
+  // job — mirroring TechnicianUploadService's use during signup. Upload
+  // failure never blocks the technician; the local capture already
+  // satisfied the checklist requirement.
+  Future<void> _capturePhoto(bool isBefore) async {
+    final picked = await ImagePicker().pickImage(source: ImageSource.camera, imageQuality: 80);
+    if (picked == null || !mounted) return;
+    final vm = ref.read((isBefore ? techBeforePhotosProvider : techAfterPhotosProvider)(widget.jobId).notifier);
+    vm.add(picked.path);
+    final kind = '${isBefore ? 'before' : 'after'}_${DateTime.now().millisecondsSinceEpoch}';
+    unawaited(TechnicianUploadService().upload(File(picked.path), kind: '${widget.jobId}_$kind'));
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.watch(jobsFeedTickProvider); // rebuild once a real fetch/action lands
@@ -214,8 +232,8 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
     final liveStatus = repo is ApiRepository ? repo.statusOf(widget.jobId) : null;
     final checklist = ref.watch(techChecklistProvider(widget.jobId));
     final checklistVM = ref.read(techChecklistProvider(widget.jobId).notifier);
+    final beforePhotos = ref.watch(techBeforePhotosProvider(widget.jobId));
     final afterPhotos = ref.watch(techAfterPhotosProvider(widget.jobId));
-    final afterPhotosVM = ref.read(techAfterPhotosProvider(widget.jobId).notifier);
     final doneCount = checklist.where((c) => c.checked).length;
 
     return Scaffold(
@@ -371,26 +389,16 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
                     crossAxisSpacing: 8,
                     childAspectRatio: 1,
                     children: [
-                      _photoBox(context, label: 'Before', filled: true),
-                      _photoBox(context, label: 'Before', filled: true),
-                      _photoBox(context,
-                          label: 'After',
-                          filled: afterPhotos > 0,
-                          onTap: afterPhotos < 2
-                              ? () {
-                                  afterPhotosVM.capture();
-                                  _toast(context, 'Camera');
-                                }
-                              : null),
-                      _photoBox(context,
-                          label: 'After',
-                          filled: afterPhotos > 1,
-                          onTap: afterPhotos < 2
-                              ? () {
-                                  afterPhotosVM.capture();
-                                  _toast(context, 'Camera');
-                                }
-                              : null),
+                      for (var i = 0; i < 2; i++)
+                        _photoBox(context,
+                            label: 'Before',
+                            imagePath: i < beforePhotos.length ? beforePhotos[i] : null,
+                            onTap: i == beforePhotos.length ? () => _capturePhoto(true) : null),
+                      for (var i = 0; i < 2; i++)
+                        _photoBox(context,
+                            label: 'After',
+                            imagePath: i < afterPhotos.length ? afterPhotos[i] : null,
+                            onTap: i == afterPhotos.length ? () => _capturePhoto(false) : null),
                     ],
                   ),
                   SectionHeader('Parts used',
@@ -484,22 +492,38 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
       );
 
   Widget _photoBox(BuildContext context,
-      {required String label, required bool filled, VoidCallback? onTap}) {
-    final content = Container(
-      decoration: BoxDecoration(
-        color: filled ? context.scheme.primaryContainer : context.scheme.surfaceContainerHigh,
-        borderRadius: Radii.rMd,
-        border: Border.all(color: context.care.hairline),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(filled ? Icons.check_circle : Icons.add_a_photo_outlined,
-              size: 18,
-              color: filled ? context.scheme.primary : context.care.inkFaint),
-          const SizedBox(height: 4),
-          Text(label, style: TextStyle(fontSize: 10.5, color: context.care.inkFaint)),
-        ],
+      {required String label, String? imagePath, VoidCallback? onTap}) {
+    final filled = imagePath != null;
+    final content = ClipRRect(
+      borderRadius: Radii.rMd,
+      child: Container(
+        decoration: BoxDecoration(
+          color: filled ? context.scheme.primaryContainer : context.scheme.surfaceContainerHigh,
+          border: Border.all(color: context.care.hairline),
+        ),
+        child: filled
+            ? Stack(
+                fit: StackFit.expand,
+                children: [
+                  Image.file(File(imagePath), fit: BoxFit.cover),
+                  Positioned(
+                    right: 4,
+                    top: 4,
+                    child: Icon(Icons.check_circle,
+                        size: 16, color: context.scheme.primary, shadows: const [
+                      Shadow(color: Colors.black45, blurRadius: 3),
+                    ]),
+                  ),
+                ],
+              )
+            : Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.add_a_photo_outlined, size: 18, color: context.care.inkFaint),
+                  const SizedBox(height: 4),
+                  Text(label, style: TextStyle(fontSize: 10.5, color: context.care.inkFaint)),
+                ],
+              ),
       ),
     );
     return onTap == null ? content : Pressable(onTap: onTap, scale: 0.94, child: content);
