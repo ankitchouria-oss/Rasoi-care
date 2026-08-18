@@ -416,6 +416,10 @@ def migrate_bookings_columns(conn):
         conn.execute("ALTER TABLE bookings ADD COLUMN suction_after INTEGER")
     if "time_on_site_min" not in cols:
         conn.execute("ALTER TABLE bookings ADD COLUMN time_on_site_min INTEGER")
+    if "cancelled_at" not in cols:
+        conn.execute("ALTER TABLE bookings ADD COLUMN cancelled_at TEXT")
+    if "cancellation_fee" not in cols:
+        conn.execute("ALTER TABLE bookings ADD COLUMN cancellation_fee INTEGER")
     conn.commit()
 
 

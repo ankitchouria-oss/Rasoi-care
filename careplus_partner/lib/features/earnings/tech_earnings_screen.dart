@@ -65,6 +65,9 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
       (sum, b) => sum + b.totalAmountPaise,
     );
     final avgPaise = inPeriod.isEmpty ? 0 : totalPaise ~/ inPeriod.length;
+    final cancellationFees = repo is ApiRepository ? repo.cancellationFeeBookings() : const <BookingDto>[];
+    final cancellationFeesTotalPaise =
+        cancellationFees.fold<int>(0, (sum, b) => sum + (b.cancellationFeePaise ?? 0));
 
     // Real per-month totals for the last 6 months, from the same completed
     // bookings — never invented, just a different slice of the same data.
@@ -239,6 +242,39 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
                       ],
                     ),
                   ),
+                  if (cancellationFees.isNotEmpty) ...[
+                    SectionHeader('Cancellation fees',
+                        trailing: Text(Money.rupees(cancellationFeesTotalPaise),
+                            style: context.type.bodySmall)),
+                    Text(
+                        'Jobs a customer cancelled after you\'d already been assigned or were on the way — the fee below is credited to you, not kept by Rasoi Care.',
+                        style: context.type.bodySmall),
+                    const SizedBox(height: 8),
+                    for (final b in cancellationFees) ...[
+                      CareCard(
+                        child: Row(children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(b.service,
+                                    style: const TextStyle(
+                                        fontSize: 13.5, fontWeight: FontWeight.w700)),
+                                const SizedBox(height: 3),
+                                Text(
+                                    '${b.customerName} · ${_formatDate(b.updatedAt ?? b.createdAt)}',
+                                    style: context.type.bodySmall),
+                              ],
+                            ),
+                          ),
+                          Text(Money.rupees((b.cancellationFeePaise ?? 0)),
+                              style: CareType.mono(context.scheme.onSurface,
+                                  size: 13.5, w: FontWeight.w600)),
+                        ]),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                  ],
                   const SectionHeader('Explore more'),
                   CareCard(
                     padding: const EdgeInsets.symmetric(horizontal: 16),

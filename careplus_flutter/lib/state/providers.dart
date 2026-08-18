@@ -44,6 +44,13 @@ final savedAddressesProvider = Provider<List<SavedAddress>>((ref) {
   return [...signupAddress, ...repo.addresses()];
 });
 
+/// Which of [savedAddressesProvider]'s entries the Home screen's "Serving"
+/// header shows — null means "use the first one" (the real signup address,
+/// when there is one). Set by tapping an entry in HomeScreen's location
+/// sheet; previously that sheet closed without recording the tap at all, so
+/// the header stayed on its hardcoded text no matter what you picked.
+final selectedAddressIdProvider = StateProvider<String?>((ref) => null);
+
 /// App-wide light/dark toggle. Persist to shared_preferences in production.
 final themeModeProvider = NotifierProvider<ThemeModeVM, ThemeMode>(ThemeModeVM.new);
 

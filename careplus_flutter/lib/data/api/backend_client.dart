@@ -97,4 +97,31 @@ class BackendClient {
     }
     return [];
   }
+
+  /// PATCH /api/bookings/{id}/cancel — the backend computes and applies the
+  /// real cancellation fee itself (based on how far the job had progressed;
+  /// see app.py's CANCELLATION_FEE_BY_STATUS), so this call carries no fee
+  /// the client could tamper with. Returns the updated booking JSON on a
+  /// 200, or null on any failure (network error, forbidden, already past
+  /// the point a booking can be cancelled).
+  Future<Map<String, dynamic>?> cancelBooking({
+    required String idToken,
+    required String bookingId,
+  }) async {
+    try {
+      final res = await http
+          .patch(
+            Uri.parse('${ApiConfig.baseUrl}/api/bookings/$bookingId/cancel'),
+            headers: {'Authorization': 'Bearer $idToken'},
+          )
+          .timeout(_timeout);
+      if (res.statusCode == 200) {
+        final decoded = jsonDecode(res.body);
+        if (decoded is Map<String, dynamic>) return decoded;
+      }
+    } catch (_) {
+      // Best-effort — see file header.
+    }
+    return null;
+  }
 }

@@ -15,6 +15,7 @@ class BookingDto {
     this.updatedAt,
     this.lat,
     this.lng,
+    this.cancellationFeePaise,
   });
 
   final String id;
@@ -32,6 +33,12 @@ class BookingDto {
   final DateTime? updatedAt;
   final double? lat;
   final double? lng;
+
+  /// Set only when this booking was cancelled by the customer — the real
+  /// fee credited to this technician for time already committed, from
+  /// app.py's CANCELLATION_FEE_BY_STATUS. 0 if the customer cancelled
+  /// before any technician engagement, null if not cancelled at all.
+  final int? cancellationFeePaise;
 
   factory BookingDto.fromJson(Map<String, dynamic> json) {
     // total_amount arrives in rupees (see app.py) — this app stores money in
@@ -54,6 +61,9 @@ class BookingDto {
       updatedAt: DateTime.tryParse('${json['updatedAt'] ?? ''}'),
       lat: (json['lat'] as num?)?.toDouble(),
       lng: (json['lng'] as num?)?.toDouble(),
+      cancellationFeePaise: (json['cancellationFee'] as num?) == null
+          ? null
+          : (json['cancellationFee'] as num).round() * 100,
     );
   }
 
@@ -69,6 +79,7 @@ class BookingDto {
         updatedAt: updatedAt,
         lat: lat,
         lng: lng,
+        cancellationFeePaise: cancellationFeePaise,
       );
 }
 

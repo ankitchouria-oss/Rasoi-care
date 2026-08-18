@@ -24,25 +24,39 @@ class CustomerShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final idx = navigationShell.currentIndex;
-    return Scaffold(
-      body: navigationShell,
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => context.go('/services'),
-        child: const Icon(Icons.add),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: BottomAppBar(
-        height: 68,
-        padding: EdgeInsets.zero,
-        color: context.scheme.surface,
-        child: Row(
-          children: [
-            _navItem(context, 0, idx),
-            _navItem(context, 1, idx),
-            const Expanded(child: SizedBox()), // FAB notch
-            _navItem(context, 2, idx),
-            _navItem(context, 3, idx),
-          ],
+    // Without this, the system back button exits the app the moment you're
+    // on any tab besides Home (Services/Bookings/Account) with nothing
+    // pushed on top — StatefulShellRoute gives each tab its own navigation
+    // stack, but does nothing on its own to send you back to the first tab
+    // once that stack is empty. A pushed screen within the current tab
+    // still pops normally first; this only fires once that tab's own stack
+    // has nothing left to pop.
+    return PopScope(
+      canPop: idx == 0,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _go(0);
+      },
+      child: Scaffold(
+        body: navigationShell,
+        floatingActionButton: FloatingActionButton(
+          onPressed: () => context.go('/services'),
+          child: const Icon(Icons.add),
+        ),
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+        bottomNavigationBar: BottomAppBar(
+          height: 68,
+          padding: EdgeInsets.zero,
+          color: context.scheme.surface,
+          child: Row(
+            children: [
+              _navItem(context, 0, idx),
+              _navItem(context, 1, idx),
+              const Expanded(child: SizedBox()), // FAB notch
+              _navItem(context, 2, idx),
+              _navItem(context, 3, idx),
+            ],
+          ),
         ),
       ),
     );
