@@ -234,6 +234,20 @@ class ApiRepository implements PartnerRepository {
     return list;
   }
 
+  /// Jobs a customer cancelled after this technician had already committed
+  /// time — the ones that actually carry a real cancellation fee (see
+  /// app.py's CANCELLATION_FEE_BY_STATUS). A cancellation before any
+  /// engagement carries a fee of 0 and is filtered out here; there's
+  /// nothing to compensate for.
+  List<BookingDto> cancellationFeeBookings() {
+    final list = _bookings
+        .where((b) => b.status == 'Cancelled' && (b.cancellationFeePaise ?? 0) > 0)
+        .toList();
+    list.sort((a, b) => (b.updatedAt ?? b.createdAt ?? DateTime(0))
+        .compareTo(a.updatedAt ?? a.createdAt ?? DateTime(0)));
+    return list;
+  }
+
   bool get bookingsFetched => _bookingsFetched;
 
   @override

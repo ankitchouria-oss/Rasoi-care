@@ -129,8 +129,26 @@ class ApiRepository implements CareRepository {
       suctionBefore: (json['suctionBefore'] as num?)?.toInt(),
       suctionAfter: (json['suctionAfter'] as num?)?.toInt(),
       timeOnSiteMin: (json['timeOnSiteMin'] as num?)?.toInt(),
+      cancellationFeePaise: (json['cancellationFee'] as num?) == null
+          ? null
+          : (json['cancellationFee'] as num).toInt() * 100,
+      rawStatus: json['status'] as String? ?? '',
     );
   }
+
+  /// A preview of what cancelling [booking] right now would cost — the
+  /// same tiers as app.py's CANCELLATION_FEE_BY_STATUS, so the "are you
+  /// sure" dialog can show a real number instead of a vague warning. The
+  /// server recomputes this independently when the cancellation actually
+  /// happens, so a stale preview (job advanced a step since this was read)
+  /// can never under- or overcharge — it just shows the wrong estimate for
+  /// a moment.
+  static int? cancellationFeePreviewPaise(Booking booking) => switch (booking.rawStatus) {
+        'Requested' => 0,
+        'Accepted' => 10000,
+        'On the way' || 'In Progress' => 20000,
+        _ => null,
+      };
 
   BookingStatus _statusFromBackend(String? status) => switch (status) {
         'Requested' => BookingStatus.scheduled,
@@ -138,8 +156,29 @@ class ApiRepository implements CareRepository {
         'On the way' => BookingStatus.onTheWay,
         'In Progress' => BookingStatus.inProgress,
         'Completed' => BookingStatus.completed,
+        'Cancelled' => BookingStatus.cancelled,
         _ => BookingStatus.scheduled,
       };
+
+  /// Cancels a booking this customer owns. On success, updates the
+  /// in-memory cache in place so BookingsScreen's Upcoming/Cancelled tabs
+  /// reflect it immediately without a refetch. Returns the real fee (in
+  /// paise, 0 if none) that was applied, or null if the cancellation
+  /// itself failed (network error, already completed, not this
+  /// customer's booking).
+  Future<int?> cancelBooking(String bookingId) async {
+    final token = await _idToken();
+    if (token == null) return null;
+    final json = await _client.cancelBooking(idToken: token, bookingId: bookingId);
+    if (json == null) return null;
+    final updated = _bookingFromJson(json);
+    _realBookings = [
+      for (final b in _realBookings ?? const <Booking>[])
+        if (b.id == bookingId) updated else b,
+    ];
+    onBookingsChanged?.call();
+    return updated.cancellationFeePaise ?? 0;
+  }
 
   String _whenLabel(String? createdAt) {
     if (createdAt == null) return '';
@@ -188,8 +227,16 @@ class ApiRepository implements CareRepository {
     if (completed) {
       return all.where((b) => b.status == BookingStatus.completed).toList();
     }
+    if (status == BookingStatus.cancelled) {
+      return all.where((b) => b.status == BookingStatus.cancelled).toList();
+    }
+    // "Upcoming" — everything not yet completed and not cancelled. Without
+    // the cancelled exclusion here, a cancelled booking used to land back
+    // in Upcoming (the only other bucket BookingsScreen had a real query
+    // for), since it's neither the completed status nor a status match.
     return all
-        .where((b) => b.status != BookingStatus.completed)
+        .where((b) =>
+            b.status != BookingStatus.completed && b.status != BookingStatus.cancelled)
         .where((b) => status == null || b.status == status)
         .toList();
   }

@@ -166,6 +166,8 @@ class Booking {
     this.suctionBefore,
     this.suctionAfter,
     this.timeOnSiteMin,
+    this.cancellationFeePaise,
+    this.rawStatus = '',
   });
 
   final String id;
@@ -208,6 +210,19 @@ class Booking {
   final int? suctionBefore;
   final int? suctionAfter;
   final int? timeOnSiteMin;
+
+  /// Set only once this booking is actually cancelled — the real fee
+  /// charged for cancelling at that point in the job's progress (credited
+  /// to the technician), from app.py's CANCELLATION_FEE_BY_STATUS. Null
+  /// for anything not cancelled.
+  final int? cancellationFeePaise;
+
+  /// The backend's own status string (`Requested`/`Accepted`/`On the
+  /// way`/`In Progress`/`Completed`/`Cancelled`), kept alongside [status]
+  /// because that enum collapses Requested and Accepted into the same
+  /// `scheduled` value — too coarse to preview a cancellation fee, which
+  /// differs between the two. Empty for mock/demo bookings.
+  final String rawStatus;
 }
 
 /// A timeline entry on the tracking screen.

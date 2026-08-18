@@ -126,6 +126,8 @@ def booking_row_to_dict(row):
         "suctionBefore": row["suction_before"] if "suction_before" in keys else None,
         "suctionAfter": row["suction_after"] if "suction_after" in keys else None,
         "timeOnSiteMin": row["time_on_site_min"] if "time_on_site_min" in keys else None,
+        "cancelledAt": row["cancelled_at"] if "cancelled_at" in keys else None,
+        "cancellationFee": row["cancellation_fee"] if "cancellation_fee" in keys else None,
     }
 
 
@@ -1079,6 +1081,54 @@ def advance_booking(booking_id):
             conn.execute(
                 "UPDATE bookings SET time_on_site_min = ? WHERE id = ?", (minutes, booking_id)
             )
+    conn.commit()
+    row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
+    conn.close()
+    return jsonify(booking_row_to_dict(row))
+
+
+# Tiered by how far the job had progressed when cancelled, not by a
+# scheduled appointment time — the booking flow never actually captures a
+# firm appointment timestamp server-side (day/slot are UI-only today), so
+# there's nothing real to measure "hours before service" against. Status
+# progress is real: a technician who's already been assigned, or is on the
+# way, or on site, has genuinely committed time this customer is cancelling
+# on, and the fee (credited to the technician, not the platform) reflects
+# that — same principle as Urban Company's partner-support cancellation
+# policy, adapted to data we actually have.
+CANCELLATION_FEE_BY_STATUS = {
+    "Requested": 0,
+    "Accepted": 100,
+    "On the way": 200,
+    "In Progress": 200,
+}
+
+
+@app.route("/api/bookings/<booking_id>/cancel", methods=["PATCH"])
+@require_auth
+def cancel_booking(booking_id):
+    """Called by the Customer app. Only the booking's own customer can
+    cancel it, and only before it's completed. The fee (if any) is credited
+    to the technician — see CANCELLATION_FEE_BY_STATUS."""
+    conn = get_db()
+    row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": "not found"}), 404
+    if row["user_id"] != request.user["id"]:
+        conn.close()
+        return jsonify({"error": "Forbidden"}), 403
+    if row["status"] not in CANCELLATION_FEE_BY_STATUS:
+        conn.close()
+        return jsonify({"error": f"Cannot cancel a {row['status'].lower()} booking"}), 400
+
+    fee = CANCELLATION_FEE_BY_STATUS[row["status"]]
+    ts = now()
+    conn.execute(
+        "UPDATE bookings SET status = 'Cancelled', updated_at = ?, cancelled_at = ?, "
+        "cancellation_fee = ? WHERE id = ?",
+        (ts, ts, fee, booking_id),
+    )
     conn.commit()
     row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
     conn.close()

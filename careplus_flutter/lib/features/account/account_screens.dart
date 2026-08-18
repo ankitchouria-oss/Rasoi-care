@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
+import '../../data/api/api_repository.dart';
 import '../../data/models.dart';
 import '../../state/providers.dart';
 import '../../state/auth_providers.dart';
@@ -34,6 +35,7 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
     ref.watch(bookingsRefreshProvider);
     final upcoming = repo.bookings();
     final past = repo.bookings(completed: true);
+    final cancelled = repo.bookings(status: BookingStatus.cancelled);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Your bookings')),
@@ -53,15 +55,27 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
             const SizedBox(height: 16),
             Expanded(
               child: switch (_tab) {
-                0 => ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 120),
-                    children: [
-                      for (final b in upcoming) ...[
-                        _BookingCard(booking: b),
-                        const SizedBox(height: 10),
-                      ],
-                    ],
-                  ),
+                0 => upcoming.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: EmptyState(
+                          glyph: '◌',
+                          title: 'No upcoming visits',
+                          body: 'Book a service and it shows up here.',
+                          action: OutlinedButton(
+                              onPressed: () => context.go('/services'),
+                              child: const Text('Browse services')),
+                        ),
+                      )
+                    : ListView(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 120),
+                        children: [
+                          for (final b in upcoming) ...[
+                            _BookingCard(booking: b, onCancel: () => _confirmCancel(b)),
+                            const SizedBox(height: 10),
+                          ],
+                        ],
+                      ),
                 1 => ListView(
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 120),
                     children: [
@@ -71,17 +85,27 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                       ],
                     ],
                   ),
-                _ => Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: EmptyState(
-                      glyph: '◌',
-                      title: 'Nothing cancelled',
-                      body: 'Cancelled visits appear here with any refund status.',
-                      action: OutlinedButton(
-                          onPressed: () => context.go('/services'),
-                          child: const Text('Browse services')),
-                    ),
-                  ),
+                _ => cancelled.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: EmptyState(
+                          glyph: '◌',
+                          title: 'Nothing cancelled',
+                          body: 'Cancelled visits appear here with any fee charged.',
+                          action: OutlinedButton(
+                              onPressed: () => context.go('/services'),
+                              child: const Text('Browse services')),
+                        ),
+                      )
+                    : ListView(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 120),
+                        children: [
+                          for (final b in cancelled) ...[
+                            _BookingCard(booking: b),
+                            const SizedBox(height: 10),
+                          ],
+                        ],
+                      ),
               },
             ),
           ],
@@ -89,12 +113,50 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
       ),
     );
   }
+
+  Future<void> _confirmCancel(Booking booking) async {
+    final feePreview = ApiRepository.cancellationFeePreviewPaise(booking);
+    final feeLine = feePreview == null
+        ? "This job's already too far along to cancel."
+        : feePreview == 0
+            ? 'No technician has taken this job yet — cancelling now is free.'
+            : 'A technician has already committed time to this job. Cancelling now applies a ${Money.rupees(feePreview)} fee, credited to them — not Rasoi Care.';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cancel this booking?'),
+        content: Text(feeLine),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Keep booking')),
+          if (feePreview != null)
+            FilledButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: const Text('Cancel booking')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final repo = ref.read(repositoryProvider);
+    if (repo is! ApiRepository) return;
+    final fee = await repo.cancelBooking(booking.id);
+    if (!mounted) return;
+    ref.read(bookingsRefreshProvider.notifier).state++;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(fee == null
+            ? 'Could not cancel — check connection and try again.'
+            : fee == 0
+                ? 'Booking cancelled — no fee.'
+                : 'Booking cancelled — ${Money.rupees(fee)} fee credited to the technician.')));
+  }
 }
 
 class _BookingCard extends StatelessWidget {
-  const _BookingCard({required this.booking, this.completed = false});
+  const _BookingCard({required this.booking, this.completed = false, this.onCancel});
   final Booking booking;
   final bool completed;
+  final VoidCallback? onCancel;
 
   @override
   Widget build(BuildContext context) {
@@ -128,6 +190,26 @@ class _BookingCard extends StatelessWidget {
                 : booking.whenLabel,
             style: context.type.bodySmall,
           ),
+          if (booking.status == BookingStatus.cancelled &&
+              booking.cancellationFeePaise != null) ...[
+            const SizedBox(height: 4),
+            Text(
+                booking.cancellationFeePaise == 0
+                    ? 'No cancellation fee'
+                    : '${Money.rupees(booking.cancellationFeePaise!)} fee credited to the technician',
+                style: context.type.bodySmall),
+          ],
+          if (onCancel != null) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: onCancel,
+                style: TextButton.styleFrom(foregroundColor: context.scheme.error),
+                child: const Text('Cancel booking'),
+              ),
+            ),
+          ],
           if (booking.technician != null) ...[
             const Divider(height: 24),
             Row(children: [
