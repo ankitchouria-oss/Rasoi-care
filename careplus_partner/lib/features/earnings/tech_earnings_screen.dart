@@ -41,7 +41,8 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
     final now = DateTime.now();
     final d = dt.toLocal();
     return switch (_period) {
-      _Period.today => d.year == now.year && d.month == now.month && d.day == now.day,
+      _Period.today =>
+        d.year == now.year && d.month == now.month && d.day == now.day,
       _Period.week => now.difference(d).inDays < 7,
       _Period.month => d.year == now.year && d.month == now.month,
       _Period.all => true,
@@ -52,10 +53,17 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
   Widget build(BuildContext context) {
     ref.watch(jobsFeedTickProvider);
     final repo = ref.watch(repositoryProvider);
-    final completed = repo is ApiRepository ? repo.completedBookings() : const <BookingDto>[];
+    final completed = repo is ApiRepository
+        ? repo.completedBookings()
+        : const <BookingDto>[];
     final fetched = repo is ApiRepository ? repo.bookingsFetched : false;
-    final inPeriod = completed.where((b) => _inPeriod(b.updatedAt ?? b.createdAt)).toList();
-    final totalPaise = inPeriod.fold<int>(0, (sum, b) => sum + b.totalAmountPaise);
+    final inPeriod = completed
+        .where((b) => _inPeriod(b.updatedAt ?? b.createdAt))
+        .toList();
+    final totalPaise = inPeriod.fold<int>(
+      0,
+      (sum, b) => sum + b.totalAmountPaise,
+    );
     final avgPaise = inPeriod.isEmpty ? 0 : totalPaise ~/ inPeriod.length;
 
     // Real per-month totals for the last 6 months, from the same completed
@@ -77,154 +85,241 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
     final maxMonthTotal = monthTotals.fold<int>(0, (a, b) => a > b ? a : b);
 
     return Scaffold(
-      appBar: AppBar(
-        leading: BackButton(onPressed: context.pop),
-        title: const Text('Earnings'),
-        actions: [
-          IconButton(
-            onPressed: _refreshing ? null : _refresh,
-            icon: _refreshing
-                ? const SizedBox(
-                    width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.refresh),
-          ),
-        ],
-      ),
       body: SafeArea(
-        top: false,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        bottom: false,
+        child: Column(
           children: [
-            Row(
-              children: [
-                for (final p in _Period.values) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+              child: Row(
+                children: [
                   Expanded(
-                    child: ChoiceChip(
-                      label: Text(_label(p)),
-                      selected: _period == p,
-                      onSelected: (_) => setState(() => _period = p),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Eyebrow('Earnings'),
+                        const SizedBox(height: 3),
+                        Text('Money', style: context.type.titleMedium),
+                      ],
                     ),
                   ),
-                  if (p != _Period.values.last) const SizedBox(width: 6),
-                ],
-              ],
-            ),
-            const SizedBox(height: 18),
-            CareCard(
-              color: CareColors.pine,
-              borderColor: Colors.transparent,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Eyebrow('Total earned', color: CareColors.brass),
-                  const SizedBox(height: 6),
-                  Text(Money.rupees(totalPaise),
-                      style: CareType.mono(CareColors.porcelain, size: 30, w: FontWeight.w600)),
-                  const SizedBox(height: 6),
-                  Text('${inPeriod.length} job${inPeriod.length == 1 ? '' : 's'} completed',
-                      style: TextStyle(
-                          fontSize: 12, color: CareColors.porcelain.withValues(alpha: 0.65))),
+                  IconButton(
+                    onPressed: _refreshing ? null : _refresh,
+                    icon: _refreshing
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.refresh),
+                  ),
                 ],
               ),
             ),
-            const SizedBox(height: 12),
-            Row(children: [
-              Expanded(child: _Stat(label: 'Jobs', value: '${inPeriod.length}')),
-              const SizedBox(width: 10),
-              Expanded(child: _Stat(label: 'Avg per job', value: Money.rupees(avgPaise))),
-            ]),
-            const SectionHeader('Earnings by month'),
-            CareCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
                 children: [
-                  SizedBox(
-                    height: 104,
-                    child: maxMonthTotal == 0
-                        ? Center(
-                            child: Text('No completed jobs yet.', style: context.type.bodySmall))
-                        : Row(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              for (var i = 0; i < monthTotals.length; i++) ...[
-                                Expanded(
-                                  child: _Bar(
-                                      heightPct: monthTotals[i] / maxMonthTotal,
-                                      emphasize: i == monthTotals.length - 1,
-                                      delay: Duration(milliseconds: i * 60)),
-                                ),
-                                if (i != monthTotals.length - 1) const SizedBox(width: 9),
-                              ],
-                            ],
-                          ),
-                  ),
-                  const SizedBox(height: 8),
                   Row(
                     children: [
-                      for (var i = 0; i < monthLabels.length; i++) ...[
+                      for (final p in _Period.values) ...[
                         Expanded(
-                          child: Text(monthLabels[i],
-                              textAlign: TextAlign.center,
-                              style: CareType.mono(context.care.inkMuted, size: 10.5)),
+                          child: ChoiceChip(
+                            label: Text(_label(p)),
+                            selected: _period == p,
+                            onSelected: (_) => setState(() => _period = p),
+                          ),
                         ),
-                        if (i != monthLabels.length - 1) const SizedBox(width: 9),
+                        if (p != _Period.values.last) const SizedBox(width: 6),
                       ],
                     ],
                   ),
-                ],
-              ),
-            ),
-            const SectionHeader('Explore more'),
-            CareCard(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                children: [
-                  _menuRow(context, Icons.currency_rupee, 'Loans',
-                      onTap: () => context.push('/tech/soon', extra: 'Loans')),
-                  _menuRow(context, Icons.history, 'Recoveries',
-                      onTap: () => context.push('/tech/soon', extra: 'Recoveries'), last: true),
-                ],
-              ),
-            ),
-            const SectionHeader('Job history'),
-            if (!fetched)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 20),
-                child: Center(child: Text('Loading…', style: context.type.bodySmall)),
-              )
-            else if (inPeriod.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 20),
-                child: Center(
-                  child: Text('No completed jobs in this period.',
-                      style: context.type.bodySmall),
-                ),
-              )
-            else
-              for (final b in inPeriod) ...[
-                CareCard(
-                  child: Row(children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(b.service,
-                              style: const TextStyle(
-                                  fontSize: 13.5, fontWeight: FontWeight.w700)),
-                          const SizedBox(height: 3),
-                          Text(
-                              '${b.customerName} · ${_formatDate(b.updatedAt ?? b.createdAt)}',
-                              style: context.type.bodySmall),
-                        ],
-                      ),
+                  const SizedBox(height: 18),
+                  CareCard(
+                    color: CareColors.pine,
+                    borderColor: Colors.transparent,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Eyebrow('Total earned', color: CareColors.brass),
+                        const SizedBox(height: 6),
+                        Text(
+                          Money.rupees(totalPaise),
+                          style: CareType.mono(
+                            CareColors.porcelain,
+                            size: 30,
+                            w: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '${inPeriod.length} job${inPeriod.length == 1 ? '' : 's'} completed',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: CareColors.porcelain.withValues(alpha: 0.65),
+                          ),
+                        ),
+                      ],
                     ),
-                    Text(Money.rupees(b.totalAmountPaise),
-                        style: CareType.mono(context.scheme.onSurface,
-                            size: 13.5, w: FontWeight.w600)),
-                  ]),
-                ),
-                const SizedBox(height: 8),
-              ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _Stat(
+                          label: 'Jobs',
+                          value: '${inPeriod.length}',
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _Stat(
+                          label: 'Avg per job',
+                          value: Money.rupees(avgPaise),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SectionHeader('Earnings by month'),
+                  CareCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          height: 104,
+                          child: maxMonthTotal == 0
+                              ? Center(
+                                  child: Text(
+                                    'No completed jobs yet.',
+                                    style: context.type.bodySmall,
+                                  ),
+                                )
+                              : Row(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    for (
+                                      var i = 0;
+                                      i < monthTotals.length;
+                                      i++
+                                    ) ...[
+                                      Expanded(
+                                        child: _Bar(
+                                          heightPct:
+                                              monthTotals[i] / maxMonthTotal,
+                                          emphasize:
+                                              i == monthTotals.length - 1,
+                                          delay: Duration(milliseconds: i * 60),
+                                        ),
+                                      ),
+                                      if (i != monthTotals.length - 1)
+                                        const SizedBox(width: 9),
+                                    ],
+                                  ],
+                                ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            for (var i = 0; i < monthLabels.length; i++) ...[
+                              Expanded(
+                                child: Text(
+                                  monthLabels[i],
+                                  textAlign: TextAlign.center,
+                                  style: CareType.mono(
+                                    context.care.inkMuted,
+                                    size: 10.5,
+                                  ),
+                                ),
+                              ),
+                              if (i != monthLabels.length - 1)
+                                const SizedBox(width: 9),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SectionHeader('Explore more'),
+                  CareCard(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      children: [
+                        _menuRow(
+                          context,
+                          Icons.currency_rupee,
+                          'Loans',
+                          onTap: () =>
+                              context.push('/tech/soon', extra: 'Loans'),
+                        ),
+                        _menuRow(
+                          context,
+                          Icons.history,
+                          'Recoveries',
+                          onTap: () =>
+                              context.push('/tech/soon', extra: 'Recoveries'),
+                          last: true,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SectionHeader('Job history'),
+                  if (!fetched)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 20),
+                      child: Center(
+                        child: Text('Loading…', style: context.type.bodySmall),
+                      ),
+                    )
+                  else if (inPeriod.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 20),
+                      child: Center(
+                        child: Text(
+                          'No completed jobs in this period.',
+                          style: context.type.bodySmall,
+                        ),
+                      ),
+                    )
+                  else
+                    for (final b in inPeriod) ...[
+                      CareCard(
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    b.service,
+                                    style: const TextStyle(
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    '${b.customerName} · ${_formatDate(b.updatedAt ?? b.createdAt)}',
+                                    style: context.type.bodySmall,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Text(
+                              Money.rupees(b.totalAmountPaise),
+                              style: CareType.mono(
+                                context.scheme.onSurface,
+                                size: 13.5,
+                                w: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -232,11 +327,11 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
   }
 
   String _label(_Period p) => switch (p) {
-        _Period.today => 'Today',
-        _Period.week => '7 days',
-        _Period.month => 'This month',
-        _Period.all => 'All time',
-      };
+    _Period.today => 'Today',
+    _Period.week => '7 days',
+    _Period.month => 'This month',
+    _Period.all => 'All time',
+  };
 
   String _formatDate(DateTime? dt) {
     if (dt == null) return '—';
@@ -247,8 +342,13 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
     }
   }
 
-  Widget _menuRow(BuildContext context, IconData icon, String label,
-      {required VoidCallback onTap, bool last = false}) {
+  Widget _menuRow(
+    BuildContext context,
+    IconData icon,
+    String label, {
+    required VoidCallback onTap,
+    bool last = false,
+  }) {
     return InkWell(
       onTap: onTap,
       child: Column(
@@ -260,10 +360,19 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
                 Icon(icon, size: 20, color: context.care.inkFaint),
                 const SizedBox(width: 14),
                 Expanded(
-                  child: Text(label,
-                      style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+                  child: Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
-                Icon(Icons.chevron_right, size: 18, color: context.care.inkFaint),
+                Icon(
+                  Icons.chevron_right,
+                  size: 18,
+                  color: context.care.inkFaint,
+                ),
               ],
             ),
           ),
@@ -275,27 +384,33 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
 }
 
 class _Bar extends StatelessWidget {
-  const _Bar({required this.heightPct, required this.emphasize, required this.delay});
+  const _Bar({
+    required this.heightPct,
+    required this.emphasize,
+    required this.delay,
+  });
   final double heightPct;
   final bool emphasize;
   final Duration delay;
   @override
   Widget build(BuildContext context) => TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0, end: heightPct),
-        duration: const Duration(milliseconds: 600),
-        curve: Motion.ease,
-        builder: (_, v, __) => FractionallySizedBox(
-          alignment: Alignment.bottomCenter,
-          heightFactor: v,
-          child: Container(
-            decoration: BoxDecoration(
-              color: emphasize ? context.scheme.secondary : context.scheme.primary,
-              borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(7), bottom: Radius.circular(3)),
-            ),
+    tween: Tween(begin: 0, end: heightPct),
+    duration: const Duration(milliseconds: 600),
+    curve: Motion.ease,
+    builder: (_, v, __) => FractionallySizedBox(
+      alignment: Alignment.bottomCenter,
+      heightFactor: v,
+      child: Container(
+        decoration: BoxDecoration(
+          color: emphasize ? context.scheme.secondary : context.scheme.primary,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(7),
+            bottom: Radius.circular(3),
           ),
         ),
-      );
+      ),
+    ),
+  );
 }
 
 class _Stat extends StatelessWidget {
@@ -303,15 +418,21 @@ class _Stat extends StatelessWidget {
   final String label, value;
   @override
   Widget build(BuildContext context) => CareCard(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Eyebrow(label),
-            const SizedBox(height: 6),
-            Text(value,
-                style: CareType.mono(context.scheme.onSurface, size: 18, w: FontWeight.w600)),
-          ],
+    padding: const EdgeInsets.all(14),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Eyebrow(label),
+        const SizedBox(height: 6),
+        Text(
+          value,
+          style: CareType.mono(
+            context.scheme.onSurface,
+            size: 18,
+            w: FontWeight.w600,
+          ),
         ),
-      );
+      ],
+    ),
+  );
 }
