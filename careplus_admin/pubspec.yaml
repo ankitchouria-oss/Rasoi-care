@@ -39,6 +39,7 @@ dependencies:
   firebase_core: ^3.8.0        # wired in — see lib/data/auth/README or app §Firebase Auth
   firebase_auth: ^5.3.4        # phone/email/Google sign-in, guarded fallback to mock if unconfigured
   google_sign_in: ^6.2.2       # Google auth provider — see lib/data/auth/firebase_auth_service.dart
+  smart_auth: ^3.2.0           # real SMS auto-read on the OTP screen (User Consent API)
   cloud_firestore: ^5.6.0      # staff profile write-through on sign-in
   http: ^1.2.0                 # live Flask+SQLite backend calls — see lib/data/api/
 
