@@ -9,7 +9,8 @@ import '../../core/theme/care_plus_theme.dart';
 import '../../data/api/api_repository.dart';
 import '../../data/models.dart';
 import '../../state/providers.dart';
-import '../../state/auth_providers.dart';
+import '../../state/auth_providers.dart'
+    show fetchTechnicianMe, technicianMeProvider;
 import '../../state/technician_location_reporter.dart';
 
 class TechJobsScreen extends ConsumerStatefulWidget {
@@ -51,7 +52,8 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
       if (mounted) ref.read(jobsFeedTickProvider.notifier).bump();
     }
     final me = await fetchTechnicianMe();
-    if (mounted && me != null) ref.read(technicianMeProvider.notifier).state = me;
+    if (mounted && me != null)
+      ref.read(technicianMeProvider.notifier).state = me;
   }
 
   Future<void> _acceptRequest(String jobId) async {
@@ -77,8 +79,11 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
       if (ok) {
         ref.read(jobsFeedTickProvider.notifier).bump();
       } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Could not update duty status — check connection')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not update duty status — check connection'),
+          ),
+        );
       }
     }
     if (mounted) setState(() => _togglingDuty = false);
@@ -90,8 +95,9 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
   Future<void> _callSos() async {
     final uri = Uri(scheme: 'tel', path: '112');
     if (!await launchUrl(uri) && mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Could not open the dialer.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open the dialer.')),
+      );
     }
   }
 
@@ -119,36 +125,35 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
               child: Row(
                 children: [
                   Expanded(
-                    child: GestureDetector(
-                      onTap: () => context.push('/tech/profile'),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Eyebrow('Technician'),
-                          const SizedBox(height: 3),
-                          Text(
-                              (ref.watch(technicianMeProvider)?['name'] as String?) ??
-                                  'Technician',
-                              style: context.type.titleMedium),
-                        ],
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Eyebrow('Technician'),
+                        const SizedBox(height: 3),
+                        Text(
+                          (ref.watch(technicianMeProvider)?['name']
+                                  as String?) ??
+                              'Technician',
+                          style: context.type.titleMedium,
+                        ),
+                      ],
                     ),
                   ),
                   GestureDetector(
-                    onTap: _togglingDuty ? null : () => _toggleDuty(stats.onDuty),
-                    child: StatusChip(stats.onDuty ? '● On duty' : 'Off duty',
-                        tone: stats.onDuty ? ChipTone.success : ChipTone.neutral),
+                    onTap: _togglingDuty
+                        ? null
+                        : () => _toggleDuty(stats.onDuty),
+                    child: StatusChip(
+                      stats.onDuty ? '● On duty' : 'Off duty',
+                      tone: stats.onDuty ? ChipTone.success : ChipTone.neutral,
+                    ),
                   ),
                   const SizedBox(width: 9),
-                  _RoundIcon(icon: Icons.sos_outlined, danger: true, onTap: _callSos),
-                  const SizedBox(width: 9),
                   _RoundIcon(
-                      icon: Icons.logout,
-                      onTap: () async {
-                        await ref.read(authServiceProvider).signOut();
-                        ref.read(authFlowProvider.notifier).reset();
-                        if (context.mounted) context.go('/login');
-                      }),
+                    icon: Icons.sos_outlined,
+                    danger: true,
+                    onTap: _callSos,
+                  ),
                 ],
               ),
             ),
@@ -159,53 +164,82 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
                   CareCard(
                     color: CareColors.pine,
                     borderColor: Colors.transparent,
-                    onTap: () => context.push('/tech/earnings'),
+                    onTap: () => context.go('/tech/earnings'),
                     child: Row(
                       children: [
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Eyebrow("Today's earnings", color: CareColors.brass),
-                              const SizedBox(height: 5),
-                              Text(Money.rupees(stats.earningsTodayPaise),
-                                  style: CareType.mono(CareColors.porcelain,
-                                      size: 26, w: FontWeight.w600)),
+                              Eyebrow(
+                                "Today's earnings",
+                                color: CareColors.brass,
+                              ),
                               const SizedBox(height: 5),
                               Text(
-                                  '${stats.jobsDone} of ${stats.jobsTotal} jobs done · ${Money.rupees(stats.tipsPaise)} tips',
-                                  style: TextStyle(
-                                      fontSize: 11.5,
-                                      color: CareColors.porcelain.withValues(alpha: 0.6))),
+                                Money.rupees(stats.earningsTodayPaise),
+                                style: CareType.mono(
+                                  CareColors.porcelain,
+                                  size: 26,
+                                  w: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 5),
+                              Text(
+                                '${stats.jobsDone} of ${stats.jobsTotal} jobs done · ${Money.rupees(stats.tipsPaise)} tips',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: CareColors.porcelain.withValues(
+                                    alpha: 0.6,
+                                  ),
+                                ),
+                              ),
                             ],
                           ),
                         ),
                         CareDial(
-                            value: stats.progress,
-                            size: 60,
-                            stroke: 7,
-                            showTicks: false,
-                            color: CareColors.brass,
-                            trackColor: const Color(0x33F6F4EF)),
+                          value: stats.progress,
+                          size: 60,
+                          stroke: 7,
+                          showTicks: false,
+                          color: CareColors.brass,
+                          trackColor: const Color(0x33F6F4EF),
+                        ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Row(children: [
-                    Expanded(child: _StatBox(label: 'Rating', value: '${stats.rating}')),
-                    const SizedBox(width: 10),
-                    Expanded(
+                  Row(
+                    children: [
+                      Expanded(
                         child: _StatBox(
-                            label: 'First-time fix', value: '${stats.firstTimeFixPct}%')),
-                  ]),
+                          label: 'Rating',
+                          value: '${stats.rating}',
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _StatBox(
+                          label: 'First-time fix',
+                          value: '${stats.firstTimeFixPct}%',
+                        ),
+                      ),
+                    ],
+                  ),
                   if (request != null) ...[
-                    SectionHeader('New request',
-                        trailing: Text(
-                            _acceptSecs > 0
-                                ? '0:${_acceptSecs.toString().padLeft(2, '0')} to accept'
-                                : 'Offer expired',
-                            style: CareType.mono(
-                                context.scheme.error, size: 11.5, w: FontWeight.w600))),
+                    SectionHeader(
+                      'New request',
+                      trailing: Text(
+                        _acceptSecs > 0
+                            ? '0:${_acceptSecs.toString().padLeft(2, '0')} to accept'
+                            : 'Offer expired',
+                        style: CareType.mono(
+                          context.scheme.error,
+                          size: 11.5,
+                          w: FontWeight.w600,
+                        ),
+                      ),
+                    ),
                     CareCard(
                       borderColor: context.scheme.secondary,
                       child: Column(
@@ -214,83 +248,109 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              StatusChip(request.serviceTitle,
-                                  tone: ChipTone.warning, height: 24),
+                              StatusChip(
+                                request.serviceTitle,
+                                tone: ChipTone.warning,
+                                height: 24,
+                              ),
                               Mono(request.jobId, color: context.care.inkMuted),
                             ],
                           ),
                           const SizedBox(height: 11),
-                          Text('Gangapur Road · ${request.distanceKm} km',
-                              style: const TextStyle(
-                                  fontSize: 14.5, fontWeight: FontWeight.w700)),
+                          Text(
+                            'Gangapur Road · ${request.distanceKm} km',
+                            style: const TextStyle(
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                           const SizedBox(height: 4),
                           Text(
-                              '${request.timeWindow} · payout ${Money.rupees(request.payoutPaise)} · ${request.note}',
-                              style: context.type.bodySmall),
+                            '${request.timeWindow} · payout ${Money.rupees(request.payoutPaise)} · ${request.note}',
+                            style: context.type.bodySmall,
+                          ),
                           const SizedBox(height: 13),
-                          Row(children: [
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: () {
-                                  setState(() => _requestOpen = false);
-                                  ScaffoldMessenger.of(context).showSnackBar(
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton(
+                                  onPressed: () {
+                                    setState(() => _requestOpen = false);
+                                    ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
-                                          content: Text('Passed to next technician')));
-                                },
-                                child: const Text('Pass'),
+                                        content: Text(
+                                          'Passed to next technician',
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  child: const Text('Pass'),
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 9),
-                            Expanded(
-                              child: FilledButton(
-                                onPressed:
-                                    _accepting ? null : () => _acceptRequest(request.jobId),
-                                child: _accepting
-                                    ? const SizedBox(
-                                        width: 16,
-                                        height: 16,
-                                        child: CircularProgressIndicator(
-                                            strokeWidth: 2, color: Colors.white))
-                                    : const Text('Accept'),
+                              const SizedBox(width: 9),
+                              Expanded(
+                                child: FilledButton(
+                                  onPressed: _accepting
+                                      ? null
+                                      : () => _acceptRequest(request.jobId),
+                                  child: _accepting
+                                      ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                      : const Text('Accept'),
+                                ),
                               ),
-                            ),
-                          ]),
+                            ],
+                          ),
                         ],
                       ),
                     ),
                   ],
                   SectionHeader('Route today'),
-                  Stagger(children: [
-                    for (final stop in route)
-                      CareCard(
-                        onTap: () => context.push('/tech/job/${stop.jobId}'),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                StatusChip(
+                  Stagger(
+                    children: [
+                      for (final stop in route)
+                        CareCard(
+                          onTap: () => context.push('/tech/job/${stop.jobId}'),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  StatusChip(
                                     stop.status == StopStatus.inProgress
                                         ? 'In progress'
                                         : 'Next',
                                     tone: stop.status == StopStatus.inProgress
                                         ? ChipTone.success
                                         : ChipTone.neutral,
-                                    height: 24),
-                                Mono(stop.time, color: context.care.inkMuted),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            Text('${stop.title} · ${stop.customerName}',
+                                    height: 24,
+                                  ),
+                                  Mono(stop.time, color: context.care.inkMuted),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                '${stop.title} · ${stop.customerName}',
                                 style: const TextStyle(
-                                    fontSize: 14, fontWeight: FontWeight.w700)),
-                            const SizedBox(height: 4),
-                            Text(stop.meta, style: context.type.bodySmall),
-                          ],
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(stop.meta, style: context.type.bodySmall),
+                            ],
+                          ),
                         ),
-                      ),
-                  ]),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -306,39 +366,50 @@ class _StatBox extends StatelessWidget {
   final String label, value;
   @override
   Widget build(BuildContext context) => CareCard(
-        padding: const EdgeInsets.all(13),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Eyebrow(label),
-            const SizedBox(height: 6),
-            Text(value,
-                style: CareType.mono(context.scheme.onSurface, size: 20, w: FontWeight.w600)),
-          ],
+    padding: const EdgeInsets.all(13),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Eyebrow(label),
+        const SizedBox(height: 6),
+        Text(
+          value,
+          style: CareType.mono(
+            context.scheme.onSurface,
+            size: 20,
+            w: FontWeight.w600,
+          ),
         ),
-      );
+      ],
+    ),
+  );
 }
 
 class _RoundIcon extends StatelessWidget {
-  const _RoundIcon({required this.icon, required this.onTap, this.danger = false});
+  const _RoundIcon({
+    required this.icon,
+    required this.onTap,
+    this.danger = false,
+  });
   final IconData icon;
   final VoidCallback onTap;
   final bool danger;
   @override
   Widget build(BuildContext context) => Pressable(
-        onTap: onTap,
-        scale: 0.9,
-        child: Container(
-          width: 38,
-          height: 38,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: danger ? context.scheme.errorContainer : context.scheme.surface,
-            shape: BoxShape.circle,
-            border: Border.all(
-                color: danger ? Colors.transparent : context.care.hairline),
-          ),
-          child: Icon(icon, size: 18, color: danger ? context.scheme.error : null),
+    onTap: onTap,
+    scale: 0.9,
+    child: Container(
+      width: 38,
+      height: 38,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: danger ? context.scheme.errorContainer : context.scheme.surface,
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: danger ? Colors.transparent : context.care.hairline,
         ),
-      );
+      ),
+      child: Icon(icon, size: 18, color: danger ? context.scheme.error : null),
+    ),
+  );
 }
