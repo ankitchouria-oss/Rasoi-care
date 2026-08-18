@@ -64,8 +64,17 @@ class ApiRepository implements CareRepository {
   /// cache immediately so [bookings] reflects it without a refetch. Never
   /// throws — on any failure this returns null and the caller's local
   /// "booking confirmed" UI flow proceeds regardless.
+  ///
+  /// [totalPaise] must be the exact figure shown to the customer as
+  /// "Payable now" (visit fee + tax − any discount, from
+  /// `BookingDraft.totalPaise`) — this is what gets stored as the
+  /// booking's real total_amount, so it's what the Partner and Admin
+  /// apps see too. Falling back to the bare service price here previously
+  /// meant the customer could be shown one figure at checkout while a
+  /// completely different (lower) one landed in the technician's app.
   Future<Booking?> createBooking({
     required ServiceItem service,
+    required int totalPaise,
     String? areaLabel,
     double? lat,
     double? lng,
@@ -77,7 +86,7 @@ class ApiRepository implements CareRepository {
       idToken: token,
       category: category,
       service: service.title,
-      price: service.pricePaise ~/ 100, // backend stores whole rupees
+      price: totalPaise ~/ 100, // backend stores whole rupees
       area: areaLabel,
       lat: lat,
       lng: lng,

@@ -435,6 +435,7 @@ class PaymentScreen extends ConsumerWidget {
               // Firestore profile write in firestore_user_profile_service.dart.
               unawaited(ref.read(apiRepositoryProvider).createBooking(
                     service: service,
+                    totalPaise: draft.totalPaise,
                     areaLabel: selected?.label,
                     lat: selected?.lat,
                     lng: selected?.lng,
