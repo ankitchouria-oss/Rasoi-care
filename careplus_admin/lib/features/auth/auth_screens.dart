@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smart_auth/smart_auth.dart';
 
 import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
@@ -394,10 +395,28 @@ class OtpScreen extends ConsumerStatefulWidget {
 }
 
 class _OtpScreenState extends ConsumerState<OtpScreen> {
-  final _shown = <String>['', '', '', ''];
+  // Firebase's real SMS codes are 6 digits; the mock demo code is 4. Using
+  // a hardcoded 4 here meant a real code could never be fully entered — the
+  // 4th digit auto-submitted an incomplete code and verification always
+  // failed, even when the SMS had genuinely arrived.
+  late final int _length = ref.read(authFlowProvider.notifier).isMock ? 4 : 6;
+  // Live mode types into one real (invisible) field overlaid on the boxes —
+  // not one TextField per box. Separate boxes each juggling their own
+  // FocusNode is the usual way this kind of UI silently ends up with no box
+  // ever focused (nothing requests focus on open, so the on-screen keyboard
+  // has nothing to type into) — a single field sidesteps that whole bug
+  // class: autofocus is trivial, backspace works for free, and there's only
+  // ever one focus target. Mock mode has no keyboard at all (it's a
+  // read-only auto-fill demo), so it just animates a plain string.
+  final _codeCtrl = TextEditingController();
+  final _codeFocus = FocusNode();
+  String _mockCode = '';
   int _secs = 24;
   Timer? _t;
   bool _verifying = false;
+
+  String get _code =>
+      ref.read(authFlowProvider.notifier).isMock ? _mockCode : _codeCtrl.text;
 
   @override
   void initState() {
@@ -406,33 +425,52 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       if (_secs == 0) return;
       setState(() => _secs--);
     });
-    // Only simulate SMS auto-read when there's no real backend to wait for.
+    // Mock mode fakes SMS auto-read on a timer; live mode listens for the
+    // real SMS via Android's User Consent API (no manifest permission
+    // needed — the OS shows its own one-time "allow?" dialog).
     if (ref.read(authFlowProvider.notifier).isMock) {
       const code = MockAuthService.demoCode;
-      for (var i = 0; i < 4; i++) {
+      for (var i = 0; i < _length; i++) {
         Timer(Duration(milliseconds: 420 + i * 230), () {
-          if (mounted) setState(() => _shown[i] = code[i]);
-          if (i == 3) _submit();
+          if (!mounted) return;
+          setState(() => _mockCode = code.substring(0, i + 1));
+          if (i == _length - 1) _submit();
         });
       }
+    } else {
+      _listenForSms();
     }
+  }
+
+  Future<void> _listenForSms() async {
+    final result = await SmartAuth.instance.getSmsWithUserConsentApi();
+    if (!mounted) return;
+    final code = result.data?.code;
+    if (code == null || code.length != _length) return;
+    setState(() => _codeCtrl.text = code);
+    _submit();
   }
 
   @override
   void dispose() {
     _t?.cancel();
+    _codeCtrl.dispose();
+    _codeFocus.dispose();
+    if (!ref.read(authFlowProvider.notifier).isMock) {
+      SmartAuth.instance.removeUserConsentApiListener();
+    }
     super.dispose();
   }
 
-  void _onDigit(int i, String v) {
-    setState(() => _shown[i] = v);
-    if (_shown.every((d) => d.isNotEmpty)) _submit();
+  void _onCodeChanged(String v) {
+    setState(() {});
+    if (v.length == _length) _submit();
   }
 
   Future<void> _submit() async {
-    if (_verifying || _shown.any((d) => d.isEmpty)) return;
+    if (_verifying || _code.length != _length) return;
     setState(() => _verifying = true);
-    final ok = await ref.read(authFlowProvider.notifier).verifyOtp(_shown.join());
+    final ok = await ref.read(authFlowProvider.notifier).verifyOtp(_code);
     if (!mounted) return;
     setState(() => _verifying = false);
     if (ok) {
@@ -440,11 +478,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     } else {
       final err = ref.read(authFlowProvider).error ?? 'Verification failed.';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
-      setState(() {
-        for (var i = 0; i < _shown.length; i++) {
-          _shown[i] = '';
-        }
-      });
+      setState(() => _codeCtrl.clear());
     }
   }
 
@@ -474,48 +508,58 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                     const SizedBox(height: 10),
                     Text(
                         phone.isEmpty
-                            ? 'Enter the 4-digit code we sent.'
+                            ? 'Enter the $_length-digit code we sent.'
                             : 'Sent to +91 $phone.',
                         style: context.type.bodyMedium),
                     const SizedBox(height: 34),
-                    Row(
+                    Stack(
                       children: [
-                        for (var i = 0; i < 4; i++) ...[
-                          Expanded(
-                            child: AnimatedContainer(
-                              duration: Motion.press,
-                              height: 64,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: context.scheme.surface,
-                                borderRadius: Radii.rMd,
-                                border: Border.all(
-                                    color: _shown[i].isEmpty
-                                        ? context.care.hairline
-                                        : context.scheme.primary,
-                                    width: 1.5),
+                        Row(
+                          children: [
+                            for (var i = 0; i < _length; i++) ...[
+                              Expanded(
+                                child: AnimatedContainer(
+                                  duration: Motion.press,
+                                  height: 64,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: context.scheme.surface,
+                                    borderRadius: Radii.rMd,
+                                    border: Border.all(
+                                        color: i < _code.length
+                                            ? context.scheme.primary
+                                            : context.care.hairline,
+                                        width: 1.5),
+                                  ),
+                                  child: Text(i < _code.length ? _code[i] : '',
+                                      style: CareType.mono(context.scheme.onSurface,
+                                          size: 24, w: FontWeight.w600)),
+                                ),
                               ),
-                              // Mock mode keeps the read-only auto-fill demo;
-                              // live mode takes a real single-digit tap-type.
-                              child: isMock
-                                  ? Text(_shown[i],
-                                      style: CareType.mono(context.scheme.onSurface,
-                                          size: 24, w: FontWeight.w600))
-                                  : TextField(
-                                      textAlign: TextAlign.center,
-                                      keyboardType: TextInputType.number,
-                                      maxLength: 1,
-                                      showCursor: false,
-                                      decoration: const InputDecoration(
-                                          counterText: '', border: InputBorder.none),
-                                      style: CareType.mono(context.scheme.onSurface,
-                                          size: 24, w: FontWeight.w600),
-                                      onChanged: (v) => _onDigit(i, v),
-                                    ),
+                              if (i != _length - 1) const SizedBox(width: 11),
+                            ],
+                          ],
+                        ),
+                        // The actual typing surface — invisible, but sized to
+                        // cover the whole box row so tapping anywhere focuses
+                        // it. Mock mode has nothing here; the boxes above
+                        // just animate _mockCode on a timer.
+                        if (!isMock)
+                          Positioned.fill(
+                            child: Opacity(
+                              opacity: 0,
+                              child: TextField(
+                                controller: _codeCtrl,
+                                focusNode: _codeFocus,
+                                autofocus: true,
+                                keyboardType: TextInputType.number,
+                                maxLength: _length,
+                                decoration: const InputDecoration(
+                                    counterText: '', border: InputBorder.none),
+                                onChanged: _onCodeChanged,
+                              ),
                             ),
                           ),
-                          if (i != 3) const SizedBox(width: 11),
-                        ],
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -523,7 +567,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                         _verifying
                             ? 'Verifying…'
                             : isMock
-                                ? (_shown.last.isEmpty ? 'Auto-reading SMS…' : 'Code read from SMS.')
+                                ? (_mockCode.length < _length ? 'Auto-reading SMS…' : 'Code read from SMS.')
                                 : 'Enter the code from the SMS you received.',
                         style: context.type.bodySmall),
                     const SizedBox(height: 26),
