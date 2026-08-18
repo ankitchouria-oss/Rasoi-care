@@ -29,9 +29,7 @@ class _TechCloseScreenState extends ConsumerState<TechCloseScreen> {
   @override
   Widget build(BuildContext context) {
     final lines = ref.watch(repositoryProvider).closeInvoice(widget.jobId);
-    final subtotal = lines.fold<int>(0, (sum, l) => sum + l.amountPaise);
-    const prepaid = 80000;
-    final collectNow = subtotal - prepaid;
+    final collectNow = lines.fold<int>(0, (sum, l) => sum + l.amountPaise);
 
     return Scaffold(
       appBar: AppBar(
@@ -84,9 +82,6 @@ class _TechCloseScreenState extends ConsumerState<TechCloseScreen> {
                                     size: 19, w: FontWeight.w600)),
                           ],
                         ),
-                        const SizedBox(height: 7),
-                        Text('${Money.rupees(prepaid)} already prepaid by the customer',
-                            style: context.type.bodySmall),
                       ],
                     ),
                   ),
