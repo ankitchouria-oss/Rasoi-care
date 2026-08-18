@@ -289,8 +289,22 @@ class ApiRepository implements PartnerRepository {
     );
   }
 
+  /// Real jobs get a single honest line — the service and its actual
+  /// booked total_amount, straight from the last `/technician/bookings`
+  /// fetch. There's no real payment gateway or itemized-parts backend
+  /// behind this app yet, so a fabricated visit-fee/coupon/GST/parts
+  /// breakdown would just be numbers nobody actually charged — this was
+  /// the exact bug reported: every job showed the same hardcoded ₹899 +
+  /// parts + coupon + GST invoice regardless of what was really booked.
+  /// Falls back to the mock invoice only for a job this technician doesn't
+  /// have in their real, fetched bookings (a mock/demo job).
   @override
-  List<InvoiceLine> closeInvoice(String jobId) => _mock.closeInvoice(jobId);
+  List<InvoiceLine> closeInvoice(String jobId) {
+    final match = _bookings.where((b) => b.id == jobId);
+    if (match.isEmpty) return _mock.closeInvoice(jobId);
+    final booking = match.first;
+    return [InvoiceLine(booking.service, booking.totalAmountPaise)];
+  }
 
   /// The live status string for [jobId] if it's a known real booking from
   /// the last successful `/technician/bookings` fetch, else null (a mock
