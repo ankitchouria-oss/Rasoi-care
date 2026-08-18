@@ -6,6 +6,8 @@ import '../../core/widgets/care_widgets.dart';
 import '../../core/widgets/appliance_illustration.dart';
 import '../../core/theme/care_plus_theme.dart';
 import '../../data/models.dart';
+import '../../state/auth_providers.dart';
+import '../../state/firestore_providers.dart';
 import '../../state/providers.dart';
 
 class HomeScreen extends ConsumerWidget {
@@ -13,6 +15,16 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final addresses = ref.watch(savedAddressesProvider);
+    final selectedId = ref.watch(selectedAddressIdProvider);
+    final current = addresses.isEmpty
+        ? null
+        : addresses.firstWhere((a) => a.id == selectedId, orElse: () => addresses.first);
+    final profile = ref.watch(userProfileStreamProvider).valueOrNull;
+    final isMock = ref.read(authFlowProvider.notifier).isMock;
+    final displayName = (profile?.name.isNotEmpty ?? false)
+        ? profile!.name
+        : (isMock ? 'Rohan Deshpande' : '');
     return Scaffold(
       body: SafeArea(
         bottom: false,
@@ -33,7 +45,7 @@ class HomeScreen extends ConsumerWidget {
                           const SizedBox(height: 3),
                           Row(children: [
                             Flexible(
-                              child: Text('Gangapur Road, Nashik',
+                              child: Text(current?.line ?? 'Add your address',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: context.type.titleMedium),
@@ -49,7 +61,9 @@ class HomeScreen extends ConsumerWidget {
                   const SizedBox(width: 9),
                   Pressable(
                     onTap: () => context.go('/account'),
-                    child: const Blob('RD', size: 38),
+                    child: profile?.photoUrl != null
+                        ? CircleAvatar(radius: 19, backgroundImage: NetworkImage(profile!.photoUrl!))
+                        : Blob(_initialsOf(displayName), size: 38),
                   ),
                 ],
               ),
@@ -242,7 +256,10 @@ class HomeScreen extends ConsumerWidget {
             const SizedBox(height: 14),
             for (final ad in addresses) ...[
               CareCard(
-                onTap: () => Navigator.pop(context),
+                onTap: () {
+                  ref.read(selectedAddressIdProvider.notifier).state = ad.id;
+                  Navigator.pop(context);
+                },
                 child: Row(children: [
                   Text(ad.glyph, style: const TextStyle(fontSize: 17)),
                   const SizedBox(width: 12),
@@ -273,6 +290,17 @@ class HomeScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// "Rohan Deshpande" -> "RD"; falls back to "?" for an empty/unknown name —
+/// this used to always be the hardcoded literal "RD" no matter who was
+/// actually signed in.
+String _initialsOf(String name) {
+  final words = name.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+  if (words.isEmpty) return '?';
+  final first = words.first[0];
+  final last = words.length > 1 ? words.last[0] : '';
+  return (first + last).toUpperCase();
 }
 
 class _HeroBanner extends StatelessWidget {

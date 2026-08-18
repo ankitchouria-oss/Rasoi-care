@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 /// What AccountScreen shows for the signed-in person. All fields fall back
 /// to whatever Firebase Auth itself knows (displayName/email/phoneNumber)
@@ -12,6 +15,7 @@ class UserProfile {
     required this.phone,
     required this.email,
     required this.address,
+    this.photoUrl,
     this.lat,
     this.lng,
   });
@@ -19,6 +23,7 @@ class UserProfile {
   final String phone;
   final String email;
   final String address;
+  final String? photoUrl;
   final double? lat;
   final double? lng;
 }
@@ -53,10 +58,35 @@ class UserProfileService {
             ? data!['email'] as String
             : (user.email ?? ''),
         address: (data?['address'] as String?) ?? '',
+        photoUrl: data?['photoUrl'] as String?,
         lat: (data?['addressLat'] as num?)?.toDouble(),
         lng: (data?['addressLng'] as num?)?.toDouble(),
       );
     });
+  }
+
+  /// Uploads a new profile photo to Firebase Storage and saves its URL to
+  /// the profile doc. Returns the download URL on success, null on any
+  /// failure (mock mode, not signed in, upload error) — the caller keeps
+  /// showing the initials-blob fallback in that case rather than a broken
+  /// image.
+  Future<String?> uploadPhoto(File file) async {
+    if (Firebase.apps.isEmpty) return null;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return null;
+    try {
+      final ext = file.path.split('.').last;
+      final ref = FirebaseStorage.instance.ref('user_profiles/${user.uid}/photo.$ext');
+      await ref.putFile(file).timeout(const Duration(seconds: 30));
+      final url = await ref.getDownloadURL();
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
+        {'photoUrl': url, 'updatedAt': FieldValue.serverTimestamp()},
+        SetOptions(merge: true),
+      ).timeout(const Duration(seconds: 6));
+      return url;
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> saveProfile({

@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
@@ -8,6 +11,10 @@ import '../../data/models.dart';
 import '../../state/providers.dart';
 import '../../state/auth_providers.dart';
 import '../../state/firestore_providers.dart';
+
+/// True while a just-picked profile photo is uploading — the avatar shows a
+/// spinner instead of letting you fire off a second upload mid-flight.
+final _uploadingPhotoProvider = StateProvider<bool>((ref) => false);
 
 // ============================================================ BOOKINGS
 class BookingsScreen extends ConsumerStatefulWidget {
@@ -170,8 +177,7 @@ class AccountScreen extends ConsumerWidget {
           children: [
             CareCard(
               child: Row(children: [
-                Blob(_initialsOf(name),
-                    size: 56, bg: context.scheme.primary, fg: context.scheme.onPrimary),
+                _ProfileAvatar(name: name, photoUrl: profile?.photoUrl),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
@@ -236,10 +242,17 @@ class AccountScreen extends ConsumerWidget {
                     trailing: 'English ›', onTap: () {}, last: true),
               ]),
             ),
-            const SectionHeader('Other Rasoi Care apps'),
-            Text(
-                'Technicians use the separate Rasoi Care Partner app for jobs, checklists and payment collection. Owners and staff use Rasoi Care Admin for operations, analytics and reports.',
-                style: context.type.bodySmall),
+            const SectionHeader('Legal'),
+            CareCard(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(children: [
+                _NavRow(
+                    icon: Icons.description_outlined,
+                    label: 'Terms and conditions',
+                    onTap: () => _showTerms(context),
+                    last: true),
+              ]),
+            ),
             const SizedBox(height: 18),
             SizedBox(
               width: double.infinity,
@@ -257,6 +270,86 @@ class AccountScreen extends ConsumerWidget {
             Center(child: Text('Care+ 0.1.0 · build 1', style: context.type.bodySmall)),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showTerms(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 30),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Terms and conditions', style: context.type.titleMedium),
+            const SizedBox(height: 12),
+            Text(
+                "Rasoi Care's published terms of service aren't live yet. "
+                "Check back here once they are — we won't show placeholder legal text in the meantime.",
+                style: context.type.bodyMedium),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The account photo — a real uploaded photo when there is one, otherwise
+/// the initials blob. Tapping it opens the gallery to pick a new one, real
+/// image_picker + Firebase Storage upload — there was previously no way to
+/// set a profile photo at all, just this fixed initials circle.
+class _ProfileAvatar extends ConsumerWidget {
+  const _ProfileAvatar({required this.name, required this.photoUrl});
+  final String name;
+  final String? photoUrl;
+
+  Future<void> _pick(BuildContext context, WidgetRef ref) async {
+    final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (picked == null || !context.mounted) return;
+    ref.read(_uploadingPhotoProvider.notifier).state = true;
+    final url = await ref.read(userProfileServiceProvider).uploadPhoto(File(picked.path));
+    ref.read(_uploadingPhotoProvider.notifier).state = false;
+    if (url == null && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not update your photo — check connection.')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final uploading = ref.watch(_uploadingPhotoProvider);
+    return GestureDetector(
+      onTap: uploading ? null : () => _pick(context, ref),
+      child: Stack(
+        children: [
+          if (uploading)
+            const SizedBox(
+                width: 56,
+                height: 56,
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
+          else if (photoUrl != null)
+            CircleAvatar(radius: 28, backgroundImage: NetworkImage(photoUrl!))
+          else
+            Blob(_initialsOf(name),
+                size: 56, bg: context.scheme.primary, fg: context.scheme.onPrimary),
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: Container(
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: context.scheme.primary,
+                border: Border.all(color: context.scheme.surface, width: 1.5),
+              ),
+              child: Icon(Icons.camera_alt, size: 11, color: context.scheme.onPrimary),
+            ),
+          ),
+        ],
       ),
     );
   }
