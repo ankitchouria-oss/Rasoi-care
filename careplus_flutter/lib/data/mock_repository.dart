@@ -14,7 +14,6 @@ abstract interface class CareRepository {
   List<Issue> issuesFor(Appliance a);
   ApplianceDetail applianceDetail(Appliance a);
   List<SavedAddress> addresses();
-  List<PaymentMethod> paymentMethods();
   List<Booking> bookings({BookingStatus? status, bool completed = false});
 
   /// Look up a single booking (active or completed) by id, or null if it
@@ -612,15 +611,6 @@ class MockRepository implements CareRepository {
   // lib/state/providers.dart, which is what screens actually watch.
   @override
   List<SavedAddress> addresses() => const [];
-
-  @override
-  List<PaymentMethod> paymentMethods() => const [
-        PaymentMethod('upi', 'UPI — GPay, PhonePe, Paytm', 'Instant · no fee', '▲'),
-        PaymentMethod('card', 'HDFC •••• 4471', 'Visa credit', '▭'),
-        PaymentMethod('wallet', 'Care+ wallet', '₹1,240 available', '◍'),
-        PaymentMethod('netbank', 'Net banking', '12 banks', '▤'),
-        PaymentMethod('cod', 'Pay after the visit', 'Cash or UPI to technician', '₹'),
-      ];
 
   @override
   List<Booking> bookings({BookingStatus? status, bool completed = false}) {

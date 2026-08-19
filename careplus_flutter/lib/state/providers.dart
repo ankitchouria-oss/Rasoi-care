@@ -83,7 +83,6 @@ class BookingDraft {
     this.addressId = 'a_home',
     this.pickedAddress,
     this.directions = '',
-    this.paymentId = 'upi',
   });
 
   /// Every service the customer added on the service-detail screen —
@@ -111,7 +110,6 @@ class BookingDraft {
   /// customer's job showed regardless of their real address, and that
   /// wasn't wired to the backend even if you could have edited it.
   final String directions;
-  final String paymentId;
 
   /// The real, unmodified total of what was actually selected — no
   /// invented visit fee, coupon, loyalty-coin discount, or GST used to be
@@ -128,7 +126,6 @@ class BookingDraft {
     String? addressId,
     SavedAddress? pickedAddress,
     String? directions,
-    String? paymentId,
   }) =>
       BookingDraft(
         services: services ?? this.services,
@@ -139,7 +136,6 @@ class BookingDraft {
         addressId: addressId ?? this.addressId,
         pickedAddress: pickedAddress ?? this.pickedAddress,
         directions: directions ?? this.directions,
-        paymentId: paymentId ?? this.paymentId,
       );
 }
 
@@ -177,5 +173,4 @@ class BookingDraftVM extends Notifier<BookingDraft> {
   void setPickedAddress(SavedAddress address) =>
       state = state.copyWith(addressId: address.id, pickedAddress: address);
   void setDirections(String v) => state = state.copyWith(directions: v);
-  void setPayment(String id) => state = state.copyWith(paymentId: id);
 }

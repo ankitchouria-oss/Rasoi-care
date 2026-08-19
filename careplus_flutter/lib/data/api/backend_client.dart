@@ -46,7 +46,7 @@ class BackendClient {
   /// technicians were removed), or a generic one for a real network
   /// failure (offline, timeout) — so the caller can show the customer what
   /// actually went wrong instead of always blaming their connection.
-  Future<({Map<String, dynamic>? booking, String? error})> createBooking({
+  Future<({Map<String, dynamic>? booking, String? error, bool unauthorized})> createBooking({
     required String idToken,
     required String category,
     required String service,
@@ -74,12 +74,31 @@ class BackendClient {
           .timeout(_timeout);
       final decoded = jsonDecode(res.body);
       if (res.statusCode == 201 && decoded is Map<String, dynamic>) {
-        return (booking: decoded, error: null);
+        return (booking: decoded, error: null, unauthorized: false);
       }
+      if (res.statusCode == 401) {
+        // require_auth's own 401s use {"error": "Unauthorized", "message":
+        // "<real reason>"} — "error" here is just a coarse category label,
+        // not something worth showing a customer. This is almost always a
+        // stale ID token, so `unauthorized: true` tells ApiRepository to
+        // retry once with a forced token refresh before ever surfacing
+        // this to the UI as a final failure.
+        return (
+          booking: null,
+          error: 'Your session needs refreshing — please try again.',
+          unauthorized: true,
+        );
+      }
+      // Business-logic rejections (e.g. the 503 "no technician available")
+      // put the full human-readable reason directly in "error".
       final message = decoded is Map<String, dynamic> ? decoded['error'] as String? : null;
-      return (booking: null, error: message ?? 'The server rejected this booking (${res.statusCode}).');
+      return (
+        booking: null,
+        error: message ?? 'The server rejected this booking (${res.statusCode}).',
+        unauthorized: false,
+      );
     } catch (_) {
-      return (booking: null, error: null); // real network failure — see file header
+      return (booking: null, error: null, unauthorized: false); // real network failure — see file header
     }
   }
 

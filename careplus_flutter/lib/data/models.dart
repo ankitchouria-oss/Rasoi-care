@@ -109,13 +109,6 @@ class SavedAddress {
   final double? lng;
 }
 
-class PaymentMethod {
-  const PaymentMethod(this.id, this.name, this.detail, this.glyph);
-  final String id;
-  final String name;
-  final String detail;
-  final String glyph;
-}
 
 enum BookingStatus { scheduled, onTheWay, inProgress, completed, cancelled }
 

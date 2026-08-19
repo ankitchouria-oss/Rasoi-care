@@ -39,10 +39,10 @@ class ApiRepository implements CareRepository {
   /// serving the mock list, same as before this class existed.
   List<Booking>? _realBookings;
 
-  Future<String?> _idToken() async {
+  Future<String?> _idToken({bool forceRefresh = false}) async {
     if (Firebase.apps.isEmpty) return null; // mock auth mode — nothing to send
     try {
-      return await FirebaseAuth.instance.currentUser?.getIdToken();
+      return await FirebaseAuth.instance.currentUser?.getIdToken(forceRefresh);
     } catch (_) {
       return null;
     }
@@ -93,7 +93,7 @@ class ApiRepository implements CareRepository {
     final token = await _idToken();
     if (token == null) return (booking: null, error: 'You need to be signed in to book.');
     final category = applianceToBackendCategory[service.appliance] ?? 'RasoiAir';
-    final result = await _client.createBooking(
+    var result = await _client.createBooking(
       idToken: token,
       category: category,
       service: service.title,
@@ -103,6 +103,28 @@ class ApiRepository implements CareRepository {
       lng: lng,
       directions: directions,
     );
+    // A 401 here is almost always a stale cached ID token (Firebase tokens
+    // expire hourly; getIdToken() without forceRefresh can hand back one
+    // that's about to or has just expired) rather than a real "you're not
+    // signed in" — retry once with a forced refresh before ever surfacing
+    // this as a failure. This is the single highest-stakes action in the
+    // app (creating a real, paid booking), worth one extra round trip to
+    // avoid a spurious failure on a genuinely signed-in customer.
+    if (result.unauthorized) {
+      final freshToken = await _idToken(forceRefresh: true);
+      if (freshToken != null) {
+        result = await _client.createBooking(
+          idToken: freshToken,
+          category: category,
+          service: service.title,
+          price: totalPaise ~/ 100,
+          area: areaLabel,
+          lat: lat,
+          lng: lng,
+          directions: directions,
+        );
+      }
+    }
     if (result.booking == null) return (booking: null, error: result.error);
     final booking = _bookingFromJson(result.booking!);
     _realBookings = [...(_realBookings ?? []), booking];
@@ -230,9 +252,6 @@ class ApiRepository implements CareRepository {
 
   @override
   List<SavedAddress> addresses() => _mock.addresses();
-
-  @override
-  List<PaymentMethod> paymentMethods() => _mock.paymentMethods();
 
   @override
   Technician get preferredTechnician => _mock.preferredTechnician;
