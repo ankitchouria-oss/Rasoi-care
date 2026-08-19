@@ -21,6 +21,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
 import '../../data/auth/auth_service.dart';
+import '../../l10n/l10n_extensions.dart';
 import '../../state/auth_providers.dart';
 
 const _categories = [
@@ -140,34 +141,35 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
 
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
+    final t = context.l10n;
     if (_category == null) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Pick what work you do.')));
+          .showSnackBar(SnackBar(content: Text(t.applyPickCategory)));
       return;
     }
     if (_city == null) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Pick where you live.')));
+          .showSnackBar(SnackBar(content: Text(t.applyPickCity)));
       return;
     }
     if (!_isEditing && !_agreedToTerms) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Accept the Terms & conditions to continue.')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(t.applyAcceptTerms)));
       return;
     }
     if (_aadharDocument == null && _existingAadharDocumentUrl == null) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Upload a photo of your Aadhaar card.')));
+          .showSnackBar(SnackBar(content: Text(t.applyUploadAadhaar)));
       return;
     }
     if (_panDocument == null && _existingPanDocumentUrl == null) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Upload a photo of your PAN card.')));
+          .showSnackBar(SnackBar(content: Text(t.applyUploadPan)));
       return;
     }
     if (_addressCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Enter your address.')));
+          .showSnackBar(SnackBar(content: Text(t.applyEnterAddress)));
       return;
     }
     setState(() => _submitting = true);
@@ -223,8 +225,9 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.l10n;
     return Scaffold(
-      appBar: AppBar(title: Text(_isEditing ? 'Edit profile' : 'Complete your application')),
+      appBar: AppBar(title: Text(_isEditing ? t.applyEditTitle : t.applyTitle)),
       body: SafeArea(
         top: false,
         child: Form(
@@ -236,7 +239,7 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
                   width: double.infinity,
                   color: CareColors.brass.withValues(alpha: 0.16),
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  child: Text('A few more steps to start getting jobs and earnings!',
+                  child: Text(t.applyStepsBanner,
                       style: context.type.bodySmall!.copyWith(fontWeight: FontWeight.w700)),
                 ),
               Expanded(
@@ -244,7 +247,7 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                   children: [
                     if (!_isEditing) ...[
-                      Text('Tell us about yourself!', style: context.type.headlineLarge),
+                      Text(t.applyIntro, style: context.type.headlineLarge),
                       const SizedBox(height: 20),
                     ],
                     Center(
@@ -267,27 +270,27 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
                     ),
                     const SizedBox(height: 6),
                     Center(
-                        child: Text('Profile photo — tap to change', style: context.type.bodySmall)),
+                        child: Text(t.applyPhotoHint, style: context.type.bodySmall)),
                     const SizedBox(height: 22),
-                    Eyebrow("What's your name?"),
+                    Eyebrow(t.applyNameQuestion),
                     const SizedBox(height: 8),
-                    CareField('Full name',
+                    CareField(t.applyFullName,
                         controller: _nameCtrl,
                         validator: (v) {
-                          if (v == null || v.trim().isEmpty) return 'Enter your name';
+                          if (v == null || v.trim().isEmpty) return t.applyNameRequired;
                           if (!_nameCharsRe.hasMatch(v)) {
-                            return 'Special characters like !@#\$%^&*()_-+={}::;~,. are not allowed';
+                            return t.applyNameInvalid;
                           }
                           return null;
                         }),
                     const SizedBox(height: 18),
-                    Eyebrow('What work do you do?'),
+                    Eyebrow(t.applyWorkQuestion),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
                       initialValue: _category,
                       isExpanded: true,
                       decoration: const InputDecoration(border: OutlineInputBorder()),
-                      hint: const Text('Select your trade'),
+                      hint: Text(t.applySelectTrade),
                       items: [
                         for (final c in _categories)
                           DropdownMenuItem(value: c.$1, child: Text(c.$2)),
@@ -295,40 +298,40 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
                       onChanged: (v) => setState(() => _category = v),
                     ),
                     const SizedBox(height: 18),
-                    Eyebrow('Where do you live?'),
+                    Eyebrow(t.applyLiveQuestion),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
                       initialValue: _city,
                       isExpanded: true,
                       decoration: const InputDecoration(border: OutlineInputBorder()),
-                      hint: const Text('Select city'),
+                      hint: Text(t.applySelectCity),
                       items: [
                         for (final c in _cities) DropdownMenuItem(value: c, child: Text(c)),
                       ],
                       onChanged: (v) => setState(() => _city = v),
                     ),
                     const SizedBox(height: 13),
-                    CareField('Years of experience',
+                    CareField(t.applyExperience,
                         controller: _experienceCtrl,
                         keyboardType: TextInputType.number,
                         validator: (v) => (v == null || int.tryParse(v.trim()) == null)
-                            ? 'Enter a number'
+                            ? t.applyExperienceError
                             : null),
                     const SizedBox(height: 24),
                     _SectionCard(
                       icon: Icons.badge_outlined,
-                      title: 'Aadhaar card',
+                      title: t.applyAadhaarCard,
                       child: Column(
                         children: [
-                          CareField('Aadhaar number',
+                          CareField(t.applyAadhaarNumber,
                               controller: _aadharCtrl, keyboardType: TextInputType.number),
                           const SizedBox(height: 13),
                           _DocPickerRow(
                             label: _aadharDocument != null
                                 ? _aadharDocument!.path.split('/').last
                                 : (_existingAadharDocumentUrl != null
-                                    ? 'Uploaded — tap to replace'
-                                    : 'Upload a photo of your Aadhaar card'),
+                                    ? t.applyAadhaarUploaded
+                                    : t.applyAadhaarUpload),
                             onTap: _pickAadharDocument,
                           ),
                         ],
@@ -337,17 +340,17 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
                     const SizedBox(height: 16),
                     _SectionCard(
                       icon: Icons.credit_card_outlined,
-                      title: 'PAN card',
+                      title: t.applyPanCard,
                       child: Column(
                         children: [
-                          CareField('PAN number', controller: _panCtrl),
+                          CareField(t.applyPanNumber, controller: _panCtrl),
                           const SizedBox(height: 13),
                           _DocPickerRow(
                             label: _panDocument != null
                                 ? _panDocument!.path.split('/').last
                                 : (_existingPanDocumentUrl != null
-                                    ? 'Uploaded — tap to replace'
-                                    : 'Upload a photo of your PAN card'),
+                                    ? t.applyPanUploaded
+                                    : t.applyPanUpload),
                             onTap: _pickPanDocument,
                           ),
                         ],
@@ -356,47 +359,47 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
                     const SizedBox(height: 16),
                     _SectionCard(
                       icon: Icons.home_outlined,
-                      title: 'Address',
-                      child: CareField('Full address',
+                      title: t.applyAddress,
+                      child: CareField(t.applyFullAddress,
                           controller: _addressCtrl, maxLines: 3),
                     ),
                     const SizedBox(height: 16),
                     _SectionCard(
                       icon: Icons.account_balance_outlined,
-                      title: 'Bank & payout details',
+                      title: t.applyBankDetails,
                       child: Column(
                         children: [
-                          CareField('Account holder name', controller: _bankNameCtrl),
+                          CareField(t.applyAccountHolder, controller: _bankNameCtrl),
                           const SizedBox(height: 13),
-                          CareField('Account number',
+                          CareField(t.applyAccountNumber,
                               controller: _bankAccountCtrl, keyboardType: TextInputType.number),
                           const SizedBox(height: 13),
-                          CareField('IFSC code', controller: _bankIfscCtrl),
+                          CareField(t.applyIfsc, controller: _bankIfscCtrl),
                           const SizedBox(height: 13),
-                          CareField('UPI ID (optional)',
+                          CareField(t.applyUpi,
                               controller: _upiCtrl,
                               keyboardType: TextInputType.emailAddress,
                               prefix: const Icon(Icons.alternate_email, size: 18)),
                           const SizedBox(height: 13),
-                          CareField('GST number (optional)', controller: _gstCtrl),
+                          CareField(t.applyGst, controller: _gstCtrl),
                         ],
                       ),
                     ),
                     const SizedBox(height: 22),
-                    Eyebrow('Personal details'),
+                    Eyebrow(t.applyPersonalDetails),
                     const SizedBox(height: 10),
                     GestureDetector(
                       onTap: _pickDob,
                       child: AbsorbPointer(
-                        child: CareField('Date of birth (optional)', controller: _dobCtrl),
+                        child: CareField(t.applyDob, controller: _dobCtrl),
                       ),
                     ),
                     const SizedBox(height: 22),
-                    Eyebrow('Emergency contact (optional)'),
+                    Eyebrow(t.applyEmergencyContact),
                     const SizedBox(height: 10),
-                    CareField('Contact name', controller: _emergencyNameCtrl),
+                    CareField(t.applyContactName, controller: _emergencyNameCtrl),
                     const SizedBox(height: 13),
-                    CareField('Contact phone number',
+                    CareField(t.applyContactPhone,
                         controller: _emergencyPhoneCtrl, keyboardType: TextInputType.phone),
                     if (!_isEditing) ...[
                       const SizedBox(height: 22),
@@ -410,9 +413,7 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
                             onChanged: (v) => setState(() => _agreedToTerms = v ?? false),
                           ),
                           Expanded(
-                            child: Text(
-                                'By proceeding, you agree to Rasoi Care\'s Terms & conditions and Privacy policy',
-                                style: context.type.bodySmall),
+                            child: Text(t.applyTermsText, style: context.type.bodySmall),
                           ),
                         ]),
                       ),
@@ -430,7 +431,7 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
                             width: 18,
                             height: 18,
                             child: CircularProgressIndicator(strokeWidth: 2))
-                        : Text(_isEditing ? 'Save changes' : 'Continue'),
+                        : Text(_isEditing ? t.applySaveChanges : t.applyContinue),
                   ),
                 ),
               ),

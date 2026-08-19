@@ -8,6 +8,7 @@ import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
 import '../../data/api/api_repository.dart';
 import '../../data/models.dart';
+import '../../l10n/l10n_extensions.dart';
 import '../../state/providers.dart';
 import '../../state/auth_providers.dart'
     show fetchTechnicianMe, technicianMeProvider;
@@ -80,9 +81,7 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
         ref.read(jobsFeedTickProvider.notifier).bump();
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not update duty status — check connection'),
-          ),
+          SnackBar(content: Text(context.l10n.jobsDutyError)),
         );
       }
     }
@@ -96,7 +95,7 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
     final uri = Uri(scheme: 'tel', path: '112');
     if (!await launchUrl(uri) && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open the dialer.')),
+        SnackBar(content: Text(context.l10n.jobsSosDialerError)),
       );
     }
   }
@@ -114,6 +113,7 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
     final stats = repo.techStats();
     final request = _requestOpen ? repo.incomingRequest() : null;
     final route = repo.routeToday();
+    final t = context.l10n;
 
     return Scaffold(
       body: SafeArea(
@@ -128,12 +128,12 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Eyebrow('Technician'),
+                        Eyebrow(t.jobsEyebrowTechnician),
                         const SizedBox(height: 3),
                         Text(
                           (ref.watch(technicianMeProvider)?['name']
                                   as String?) ??
-                              'Technician',
+                              t.jobsFallbackName,
                           style: context.type.titleMedium,
                         ),
                       ],
@@ -144,7 +144,7 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
                         ? null
                         : () => _toggleDuty(stats.onDuty),
                     child: StatusChip(
-                      stats.onDuty ? '● On duty' : 'Off duty',
+                      stats.onDuty ? t.jobsOnDuty : t.jobsOffDuty,
                       tone: stats.onDuty ? ChipTone.success : ChipTone.neutral,
                     ),
                   ),
@@ -172,7 +172,7 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Eyebrow(
-                                "Today's earnings",
+                                t.jobsTodaysEarnings,
                                 color: CareColors.brass,
                               ),
                               const SizedBox(height: 5),
@@ -186,7 +186,8 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
                               ),
                               const SizedBox(height: 5),
                               Text(
-                                '${stats.jobsDone} of ${stats.jobsTotal} jobs done · ${Money.rupees(stats.tipsPaise)} tips',
+                                t.jobsSummary(stats.jobsDone, stats.jobsTotal,
+                                    Money.rupees(stats.tipsPaise)),
                                 style: TextStyle(
                                   fontSize: 11.5,
                                   color: CareColors.porcelain.withValues(
@@ -213,14 +214,14 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
                     children: [
                       Expanded(
                         child: _StatBox(
-                          label: 'Rating',
+                          label: t.jobsRating,
                           value: '${stats.rating}',
                         ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: _StatBox(
-                          label: 'First-time fix',
+                          label: t.jobsFirstTimeFix,
                           value: '${stats.firstTimeFixPct}%',
                         ),
                       ),
@@ -228,11 +229,11 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
                   ),
                   if (request != null) ...[
                     SectionHeader(
-                      'New request',
+                      t.jobsNewRequest,
                       trailing: Text(
                         _acceptSecs > 0
-                            ? '0:${_acceptSecs.toString().padLeft(2, '0')} to accept'
-                            : 'Offer expired',
+                            ? t.jobsAcceptIn(_acceptSecs.toString().padLeft(2, '0'))
+                            : t.jobsOfferExpired,
                         style: CareType.mono(
                           context.scheme.error,
                           size: 11.5,
@@ -258,7 +259,7 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
                           ),
                           const SizedBox(height: 11),
                           Text(
-                            'Gangapur Road · ${request.distanceKm} km',
+                            t.jobsRequestLocation('${request.distanceKm}'),
                             style: const TextStyle(
                               fontSize: 14.5,
                               fontWeight: FontWeight.w700,
@@ -277,14 +278,10 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
                                   onPressed: () {
                                     setState(() => _requestOpen = false);
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'Passed to next technician',
-                                        ),
-                                      ),
+                                      SnackBar(content: Text(t.jobsPassedToast)),
                                     );
                                   },
-                                  child: const Text('Pass'),
+                                  child: Text(t.jobsPass),
                                 ),
                               ),
                               const SizedBox(width: 9),
@@ -302,7 +299,7 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
                                             color: Colors.white,
                                           ),
                                         )
-                                      : const Text('Accept'),
+                                      : Text(t.jobsAccept),
                                 ),
                               ),
                             ],
@@ -311,7 +308,7 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
                       ),
                     ),
                   ],
-                  SectionHeader('Route today'),
+                  SectionHeader(t.jobsRouteToday),
                   Stagger(
                     children: [
                       for (final stop in route)
@@ -326,8 +323,8 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
                                 children: [
                                   StatusChip(
                                     stop.status == StopStatus.inProgress
-                                        ? 'In progress'
-                                        : 'Next',
+                                        ? t.jobsInProgress
+                                        : t.jobsNext,
                                     tone: stop.status == StopStatus.inProgress
                                         ? ChipTone.success
                                         : ChipTone.neutral,

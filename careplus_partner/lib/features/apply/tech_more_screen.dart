@@ -11,7 +11,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/widgets/care_widgets.dart';
+import '../../l10n/l10n_extensions.dart';
 import '../../state/auth_providers.dart';
+import '../../state/providers.dart';
 
 class TechMoreScreen extends ConsumerStatefulWidget {
   const TechMoreScreen({super.key});
@@ -24,6 +26,10 @@ class _TechMoreScreenState extends ConsumerState<TechMoreScreen> {
   Widget build(BuildContext context) {
     final me = ref.watch(technicianMeProvider);
     final verified = me?['verified'] == true;
+    final whatsappOn = ref.watch(whatsappUpdatesProvider);
+    final locale = ref.watch(localeProvider);
+    final t = context.l10n;
+    final languageLabel = locale.languageCode == 'hi' ? t.languageHindi : t.languageEnglish;
 
     return Scaffold(
       body: SafeArea(
@@ -38,14 +44,14 @@ class _TechMoreScreenState extends ConsumerState<TechMoreScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Eyebrow('Account'),
+                        Eyebrow(t.moreAccountSection),
                         const SizedBox(height: 3),
-                        Text('More', style: context.type.titleMedium),
+                        Text(t.navMore, style: context.type.titleMedium),
                       ],
                     ),
                   ),
                   StatusChip(
-                    verified ? 'Verified' : 'Awaiting review',
+                    verified ? t.moreVerified : t.moreAwaitingReview,
                     tone: verified ? ChipTone.success : ChipTone.warning,
                   ),
                 ],
@@ -55,7 +61,7 @@ class _TechMoreScreenState extends ConsumerState<TechMoreScreen> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
                 children: [
-                  Eyebrow('Work'),
+                  Eyebrow(t.moreWork),
                   const SizedBox(height: 8),
                   CareCard(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -64,39 +70,39 @@ class _TechMoreScreenState extends ConsumerState<TechMoreScreen> {
                         _menuRow(
                           context,
                           Icons.history,
-                          'Job history',
+                          t.moreJobHistory,
                           onTap: () => context.go('/tech/earnings'),
                         ),
                         _menuRow(
                           context,
                           Icons.storefront_outlined,
-                          'My Hub',
-                          onTap: () => _openComingSoon(context, 'My Hub'),
+                          t.moreMyHub,
+                          onTap: () => _openComingSoon(context, t.moreMyHub),
                         ),
                         _menuRow(
                           context,
                           Icons.account_balance_wallet_outlined,
-                          'Credits',
-                          onTap: () => _openComingSoon(context, 'Credits'),
+                          t.moreCredits,
+                          onTap: () => _openComingSoon(context, t.moreCredits),
                         ),
                         _menuRow(
                           context,
                           Icons.currency_rupee,
-                          'Loans',
-                          onTap: () => _openComingSoon(context, 'Loans'),
+                          t.moreLoans,
+                          onTap: () => _openComingSoon(context, t.moreLoans),
                         ),
                         _menuRow(
                           context,
                           Icons.school_outlined,
-                          'Training',
-                          onTap: () => _openComingSoon(context, 'Training'),
+                          t.moreTraining,
+                          onTap: () => _openComingSoon(context, t.moreTraining),
                           last: true,
                         ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 18),
-                  Eyebrow('Account'),
+                  Eyebrow(t.moreAccountSection),
                   const SizedBox(height: 8),
                   CareCard(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -105,41 +111,46 @@ class _TechMoreScreenState extends ConsumerState<TechMoreScreen> {
                         _menuRow(
                           context,
                           Icons.badge_outlined,
-                          'My documents',
+                          t.moreMyDocuments,
                           onTap: () => context.push('/tech/financial'),
                         ),
                         _menuRow(
                           context,
                           Icons.account_balance_outlined,
-                          'Financial details',
+                          t.moreFinancialDetails,
                           onTap: () => context.push('/tech/financial'),
                         ),
                         _menuRow(
                           context,
                           Icons.help_outline,
-                          'Help Center',
+                          t.moreHelpCenter,
                           onTap: () => context.push('/tech/help'),
                         ),
                         _menuRow(
                           context,
                           Icons.person_add_alt_outlined,
-                          'Invite a friend',
-                          onTap: () =>
-                              _openComingSoon(context, 'Invite a friend'),
+                          t.moreInviteFriend,
+                          onTap: () => _openComingSoon(context, t.moreInviteFriend),
                         ),
                         _menuRow(
                           context,
                           Icons.shopping_bag_outlined,
-                          'Rasoi Care shop',
-                          onTap: () =>
-                              _openComingSoon(context, 'Rasoi Care shop'),
+                          t.moreShop,
+                          onTap: () => _openComingSoon(context, t.moreShop),
                         ),
                         _menuRow(
                           context,
                           Icons.chat_bubble_outline,
-                          'Send WhatsApp updates',
-                          onTap: () =>
-                              _openComingSoon(context, 'WhatsApp updates'),
+                          t.moreWhatsAppUpdates,
+                          subtitle: whatsappOn ? t.moreWhatsAppOn : t.moreWhatsAppOff,
+                          onTap: () => _confirmWhatsAppToggle(context, whatsappOn),
+                        ),
+                        _menuRow(
+                          context,
+                          Icons.translate,
+                          t.moreChangeLanguage,
+                          subtitle: languageLabel,
+                          onTap: () => context.push('/tech/language'),
                           last: true,
                         ),
                       ],
@@ -154,7 +165,7 @@ class _TechMoreScreenState extends ConsumerState<TechMoreScreen> {
                         ref.read(authFlowProvider.notifier).reset();
                         if (context.mounted) context.go('/login');
                       },
-                      child: const Text('Sign out'),
+                      child: Text(t.commonSignOut),
                     ),
                   ),
                 ],
@@ -169,11 +180,45 @@ class _TechMoreScreenState extends ConsumerState<TechMoreScreen> {
   void _openComingSoon(BuildContext context, String title) =>
       context.push('/tech/soon', extra: title);
 
+  /// Mirrors Urban Company Partner's own confirmation dialog before turning
+  /// WhatsApp updates off. This toggle is a real, persisted device
+  /// preference — see whatsappUpdatesProvider — but there's no WhatsApp
+  /// Business API behind this backend yet to actually send anything, so
+  /// the copy stays honest about that rather than promising delivery.
+  Future<void> _confirmWhatsAppToggle(BuildContext context, bool currentlyOn) async {
+    final t = context.l10n;
+    if (!currentlyOn) {
+      await ref.read(whatsappUpdatesProvider.notifier).set(true);
+      return;
+    }
+    final turnOff = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(t.moreWhatsAppDialogTitle),
+        content: Text(t.moreWhatsAppDialogBody),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(t.moreWhatsAppKeepOn)),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Theme.of(dialogContext).colorScheme.error),
+            child: Text(t.moreWhatsAppTurnOff),
+          ),
+        ],
+      ),
+    );
+    if (turnOff == true) {
+      await ref.read(whatsappUpdatesProvider.notifier).set(false);
+    }
+  }
+
   Widget _menuRow(
     BuildContext context,
     IconData icon,
     String label, {
     required VoidCallback onTap,
+    String? subtitle,
     bool last = false,
   }) {
     return InkWell(
@@ -187,12 +232,22 @@ class _TechMoreScreenState extends ConsumerState<TechMoreScreen> {
                 Icon(icon, size: 20, color: context.care.inkFaint),
                 const SizedBox(width: 14),
                 Expanded(
-                  child: Text(
-                    label,
-                    style: const TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        label,
+                        style: const TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 2),
+                        Text(subtitle,
+                            style: TextStyle(fontSize: 12, color: context.care.inkFaint)),
+                      ],
+                    ],
                   ),
                 ),
                 Icon(

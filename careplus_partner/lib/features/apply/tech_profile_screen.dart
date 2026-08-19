@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/widgets/care_widgets.dart';
+import '../../l10n/l10n_extensions.dart';
 import '../../state/auth_providers.dart';
 
 class TechProfileScreen extends ConsumerStatefulWidget {
@@ -32,6 +33,7 @@ class _TechProfileScreenState extends ConsumerState<TechProfileScreen> {
   Widget build(BuildContext context) {
     final me = ref.watch(technicianMeProvider);
     final verified = me?['verified'] == true;
+    final t = context.l10n;
     return Scaffold(
       body: SafeArea(
         bottom: false,
@@ -45,9 +47,9 @@ class _TechProfileScreenState extends ConsumerState<TechProfileScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Eyebrow('Technician'),
+                        Eyebrow(t.profileEyebrow),
                         const SizedBox(height: 3),
-                        Text('My profile', style: context.type.titleMedium),
+                        Text(t.profileTitle, style: context.type.titleMedium),
                       ],
                     ),
                   ),
@@ -68,7 +70,7 @@ class _TechProfileScreenState extends ConsumerState<TechProfileScreen> {
               child: me == null
                   ? Center(
                       child: Text(
-                        'Couldn\'t load your profile — check connection and retry.',
+                        t.profileLoadError,
                         style: context.type.bodyMedium,
                       ),
                     )
@@ -95,7 +97,7 @@ class _TechProfileScreenState extends ConsumerState<TechProfileScreen> {
                         const SizedBox(height: 12),
                         Center(
                           child: Text(
-                            (me['name'] as String?) ?? 'Technician',
+                            (me['name'] as String?) ?? t.profileFallbackName,
                             style: const TextStyle(
                               fontSize: 17,
                               fontWeight: FontWeight.w700,
@@ -105,7 +107,7 @@ class _TechProfileScreenState extends ConsumerState<TechProfileScreen> {
                         const SizedBox(height: 6),
                         Center(
                           child: StatusChip(
-                            verified ? 'Verified' : 'Awaiting review',
+                            verified ? t.profileVerified : t.profileAwaitingReview,
                             tone: verified
                                 ? ChipTone.success
                                 : ChipTone.warning,
@@ -119,7 +121,7 @@ class _TechProfileScreenState extends ConsumerState<TechProfileScreen> {
                                 child: _stat(
                                   context,
                                   '★ ${me['rating'] ?? '—'}',
-                                  'Rating',
+                                  t.profileRating,
                                 ),
                               ),
                               Container(
@@ -131,7 +133,7 @@ class _TechProfileScreenState extends ConsumerState<TechProfileScreen> {
                                 child: _stat(
                                   context,
                                   '${me['jobsCompleted'] ?? 0}',
-                                  'Jobs done',
+                                  t.profileJobsDone,
                                 ),
                               ),
                               Container(
@@ -145,7 +147,7 @@ class _TechProfileScreenState extends ConsumerState<TechProfileScreen> {
                                   me['experienceYears'] != null
                                       ? '${me['experienceYears']}y'
                                       : '—',
-                                  'Experience',
+                                  t.profileExperience,
                                 ),
                               ),
                             ],
@@ -158,7 +160,7 @@ class _TechProfileScreenState extends ConsumerState<TechProfileScreen> {
                             onPressed: () async {
                               await context.push('/tech/apply', extra: me);
                             },
-                            child: const Text('Edit profile'),
+                            child: Text(t.commonEditProfile),
                           ),
                         ),
                       ],

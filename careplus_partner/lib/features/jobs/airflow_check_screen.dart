@@ -15,6 +15,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
+import '../../l10n/app_localizations.dart';
+import '../../l10n/l10n_extensions.dart';
 
 class AirflowReading {
   const AirflowReading({
@@ -117,6 +119,7 @@ class _AirflowCheckScreenState extends ConsumerState<AirflowCheckScreen> {
   @override
   Widget build(BuildContext context) {
     final reading = ref.watch(airflowReadingProvider);
+    final t = context.l10n;
 
     return Scaffold(
       body: SafeArea(
@@ -134,13 +137,11 @@ class _AirflowCheckScreenState extends ConsumerState<AirflowCheckScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Eyebrow('Live reading'),
+                    Eyebrow(t.airflowLiveReading),
                     const SizedBox(height: 6),
-                    Text('Draw improvement', style: context.type.headlineMedium),
+                    Text(t.airflowDrawImprovement, style: context.type.headlineMedium),
                     const SizedBox(height: 4),
-                    Text(
-                        'Hold the anemometer flush to the outlet grille, same spot for both readings.',
-                        style: context.type.bodyMedium),
+                    Text(t.airflowInstructions, style: context.type.bodyMedium),
                     const SizedBox(height: 20),
                     Center(child: _DialGauge(pct: reading.improvementPct)),
                     const SizedBox(height: 24),
@@ -148,7 +149,7 @@ class _AirflowCheckScreenState extends ConsumerState<AirflowCheckScreen> {
                       children: [
                         Expanded(
                           child: _ReadingCard(
-                            label: 'Before',
+                            label: t.airflowBefore,
                             controller: _beforeCtrl,
                             cfmLabel: '${reading.beforeCfm.round()} CFM',
                             accent: context.care.inkMuted,
@@ -158,7 +159,7 @@ class _AirflowCheckScreenState extends ConsumerState<AirflowCheckScreen> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: _ReadingCard(
-                            label: 'After',
+                            label: t.airflowAfter,
                             controller: _afterCtrl,
                             cfmLabel: '${reading.afterCfm.round()} CFM',
                             accent: context.care.success,
@@ -195,13 +196,11 @@ class _AirflowCheckScreenState extends ConsumerState<AirflowCheckScreen> {
                               TextSpan(
                                 style: context.type.bodySmall!.copyWith(
                                     color: CareColors.pineDeep, height: 1.5),
-                                children: const [
+                                children: [
                                   TextSpan(
-                                      text: 'Vane anemometer recommended. ',
-                                      style: TextStyle(fontWeight: FontWeight.w700)),
-                                  TextSpan(
-                                      text:
-                                          'Same distance and angle from the grille both times keeps before/after numbers comparable.'),
+                                      text: t.airflowVaneTitle,
+                                      style: const TextStyle(fontWeight: FontWeight.w700)),
+                                  TextSpan(text: t.airflowVaneBody),
                                 ],
                               ),
                             ),
@@ -221,7 +220,7 @@ class _AirflowCheckScreenState extends ConsumerState<AirflowCheckScreen> {
                 child: FilledButton(
                   onPressed: () => context.pop(
                       (reading.beforeCfm.round(), reading.afterCfm.round())),
-                  child: const Text('Save reading to job report'),
+                  child: Text(t.airflowSaveReading),
                 ),
               ),
             ),
@@ -247,6 +246,7 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.l10n;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(22, 16, 22, 22),
@@ -275,8 +275,8 @@ class _TopBar extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Airflow Check', style: CareType.display(CareColors.porcelain, size: 19)),
-                  Text('Chimney service',
+                  Text(t.airflowAppBarTitle, style: CareType.display(CareColors.porcelain, size: 19)),
+                  Text(t.airflowChimneyService,
                       style: CareType.mono(CareColors.porcelain.withValues(alpha: 0.72),
                           size: 12.5)),
                 ],
@@ -294,7 +294,7 @@ class _TopBar extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Text('Job #$jobId',
+                Text(t.airflowJobHash(jobId),
                     style: CareType.mono(CareColors.porcelain.withValues(alpha: 0.85),
                         size: 12.5)),
                 const SizedBox(width: 10),
@@ -326,15 +326,16 @@ class _DialGauge extends StatelessWidget {
     return CareColors.brass;
   }
 
-  String get _tagText {
-    if (pct >= 50) return 'Strong improvement';
-    if (pct >= 15) return 'Moderate improvement';
-    if (pct >= 0) return 'Minor change';
-    return 'Check readings';
+  String _tagText(AppLocalizations t) {
+    if (pct >= 50) return t.airflowStrong;
+    if (pct >= 15) return t.airflowModerate;
+    if (pct >= 0) return t.airflowMinor;
+    return t.airflowCheckReadings;
   }
 
   @override
   Widget build(BuildContext context) {
+    final t = context.l10n;
     final clamped = pct.clamp(0, 100);
     return SizedBox(
       width: 220,
@@ -370,7 +371,7 @@ class _DialGauge extends StatelessWidget {
                   color: _tagColor.withValues(alpha: 0.1),
                   borderRadius: Radii.pill,
                 ),
-                child: Text(_tagText,
+                child: Text(_tagText(t),
                     style: CareType.mono(_tagColor, size: 11, w: FontWeight.w600)
                         .copyWith(letterSpacing: 0.5)),
               ),
@@ -535,6 +536,7 @@ class _DuctSizeField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.l10n;
     return CareCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -542,9 +544,9 @@ class _DuctSizeField extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Outlet duct size',
+              Text(t.airflowDuctSize,
                   style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
-              Text('for CFM calc', style: CareType.mono(CareColors.brass, size: 10.5)),
+              Text(t.airflowForCfmCalc, style: CareType.mono(CareColors.brass, size: 10.5)),
             ],
           ),
           const SizedBox(height: 6),
@@ -557,7 +559,7 @@ class _DuctSizeField extends StatelessWidget {
               ),
               _dimInput(context, heightCtrl),
               const Spacer(),
-              Text('inches', style: context.type.bodySmall),
+              Text(t.airflowInches, style: context.type.bodySmall),
             ],
           ),
         ],
@@ -586,6 +588,7 @@ class _ResultStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.l10n;
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 14),
       decoration: BoxDecoration(
@@ -593,12 +596,12 @@ class _ResultStrip extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _resultItem(
-              context, '${reading.deltaCfm >= 0 ? '+' : ''}${reading.deltaCfm.round()}', 'CFM gained'),
+          _resultItem(context,
+              '${reading.deltaCfm >= 0 ? '+' : ''}${reading.deltaCfm.round()}', t.airflowCfmGained),
           _divider(context),
-          _resultItem(context, '${reading.beforeCfm.round()}', 'Before CFM'),
+          _resultItem(context, '${reading.beforeCfm.round()}', t.airflowBeforeCfm),
           _divider(context),
-          _resultItem(context, '${reading.afterCfm.round()}', 'After CFM'),
+          _resultItem(context, '${reading.afterCfm.round()}', t.airflowAfterCfm),
         ],
       ),
     );

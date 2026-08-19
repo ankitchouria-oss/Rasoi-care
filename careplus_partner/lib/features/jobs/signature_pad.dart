@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../l10n/l10n_extensions.dart';
+
 /// A minimal signature pad: drag to draw, no package required. Reports
 /// whether anything has been drawn via [onChanged] so the caller can gate a
 /// "Mark paid" button on a captured signature if desired.
@@ -39,7 +41,7 @@ class SignaturePadState extends State<SignaturePad> {
             painter: _SignaturePainter(_points, Theme.of(context).colorScheme.onSurface),
             child: _points.isEmpty
                 ? Center(
-                    child: Text('Sign here with a finger',
+                    child: Text(context.l10n.signatureHint,
                         style: TextStyle(
                             fontSize: 11.5,
                             color: Theme.of(context).colorScheme.onSurfaceVariant)),

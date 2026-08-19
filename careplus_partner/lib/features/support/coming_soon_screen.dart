@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/widgets/care_widgets.dart';
+import '../../l10n/l10n_extensions.dart';
 
 class ComingSoonScreen extends StatelessWidget {
   const ComingSoonScreen({super.key, required this.title, this.glyph = '🛠️'});
@@ -15,6 +16,7 @@ class ComingSoonScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.l10n;
     return Scaffold(
       appBar: AppBar(
         leading: BackButton(onPressed: context.pop),
@@ -24,8 +26,8 @@ class ComingSoonScreen extends StatelessWidget {
         top: false,
         child: EmptyState(
           glyph: glyph,
-          title: '$title is coming soon',
-          body: "We're still building this out — it'll show up here once it's ready.",
+          title: t.comingSoonTitle(title),
+          body: t.comingSoonBody,
         ),
       ),
     );

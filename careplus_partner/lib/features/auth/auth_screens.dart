@@ -6,6 +6,7 @@ import 'package:smart_auth/smart_auth.dart';
 
 import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
+import '../../l10n/l10n_extensions.dart';
 import '../../state/auth_providers.dart';
 import '../../data/auth/mock_auth_service.dart';
 
@@ -35,6 +36,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.l10n;
     return Scaffold(
       backgroundColor: CareColors.pine,
       body: Center(
@@ -49,12 +51,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
               child: const Icon(Icons.build_outlined, color: CareColors.porcelain, size: 34),
             ),
             const SizedBox(height: 26),
-            Text('Rasoi Care', style: CareType.display(CareColors.porcelain, size: 34)),
-            Text('PARTNER',
+            Text(t.splashBrand, style: CareType.display(CareColors.porcelain, size: 34)),
+            Text(t.splashPartnerBadge,
                 style: CareType.mono(CareColors.brass, size: 13)
                     .copyWith(letterSpacing: 4, fontWeight: FontWeight.w600)),
             const SizedBox(height: 20),
-            Text('FOR TECHNICIANS ON THE JOB',
+            Text(t.splashTagline,
                 textAlign: TextAlign.center,
                 style: CareType.mono(CareColors.porcelain.withValues(alpha: 0.6), size: 10)
                     .copyWith(letterSpacing: 2.2, height: 1.6)),
@@ -90,10 +92,11 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
   }
 
   Future<void> _send() async {
+    final t = context.l10n;
     final digits = _phoneCtrl.text.replaceAll(RegExp(r'\D'), '');
     if (digits.length != 10) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Enter a 10-digit mobile number.')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(t.phoneErrorDigits)));
       return;
     }
     final ok = await ref.read(authFlowProvider.notifier).sendOtp(digits);
@@ -101,7 +104,7 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
     if (ok) {
       context.push('/login/otp');
     } else {
-      final err = ref.read(authFlowProvider).error ?? 'Could not send a code.';
+      final err = ref.read(authFlowProvider).error ?? t.phoneErrorGeneric;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
     }
   }
@@ -109,6 +112,7 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
   @override
   Widget build(BuildContext context) {
     final sending = ref.watch(authFlowProvider.select((s) => s.sending));
+    final t = context.l10n;
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
@@ -124,13 +128,10 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                 child: Icon(Icons.build_outlined, color: context.scheme.primary, size: 22),
               ),
               const SizedBox(height: 26),
-              Text(_creatingAccount ? 'Become a Rasoi Care partner' : 'Rasoi Care Partner',
+              Text(_creatingAccount ? t.phoneTitleCreate : t.phoneTitleSignIn,
                   style: context.type.headlineLarge),
               const SizedBox(height: 10),
-              Text(
-                  _creatingAccount
-                      ? "Enter your mobile number to create your account. We'll text you a one-time code, then walk you through your profile."
-                      : "Sign in with your mobile number. We'll text you a one-time code.",
+              Text(_creatingAccount ? t.phoneBodyCreate : t.phoneBodySignIn,
                   style: context.type.bodyMedium),
               const SizedBox(height: 30),
               Row(
@@ -142,7 +143,7 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: CareField('Mobile number',
+                    child: CareField(t.phoneFieldLabel,
                         controller: _phoneCtrl, keyboardType: TextInputType.phone),
                   ),
                 ],
@@ -157,7 +158,7 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                           width: 18,
                           height: 18,
                           child: CircularProgressIndicator(strokeWidth: 2))
-                      : Text(_creatingAccount ? 'Create account' : 'Send code'),
+                      : Text(_creatingAccount ? t.phoneButtonCreate : t.phoneButtonSend),
                 ),
               ),
               const SizedBox(height: 18),
@@ -165,9 +166,7 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                 child: GestureDetector(
                   onTap: () => setState(() => _creatingAccount = !_creatingAccount),
                   child: Text(
-                      _creatingAccount
-                          ? 'Already a partner? Sign in'
-                          : 'New here? Create an account',
+                      _creatingAccount ? t.phoneToggleToSignIn : t.phoneToggleToCreate,
                       style: TextStyle(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w700,
@@ -268,7 +267,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     if (ok) {
       routeToStage(context, ref.read(authFlowProvider).stage);
     } else {
-      final err = ref.read(authFlowProvider).error ?? 'Verification failed.';
+      final err = ref.read(authFlowProvider).error ?? context.l10n.otpErrorGeneric;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
       setState(() => _codeCtrl.clear());
     }
@@ -285,6 +284,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
   Widget build(BuildContext context) {
     final isMock = ref.watch(authFlowProvider.notifier).isMock;
     final phone = ref.watch(authFlowProvider.select((s) => s.phone));
+    final t = context.l10n;
     return Scaffold(
       appBar: AppBar(leading: BackButton(onPressed: context.pop)),
       body: SafeArea(
@@ -296,12 +296,12 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Enter the code', style: context.type.headlineLarge),
+                    Text(t.otpTitle, style: context.type.headlineLarge),
                     const SizedBox(height: 10),
                     Text(
                         phone.isEmpty
-                            ? 'Enter the $_length-digit code we sent.'
-                            : 'Sent to +91 $phone.',
+                            ? t.otpBodyGeneric(_length)
+                            : t.otpBodySentTo(phone),
                         style: context.type.bodyMedium),
                     const SizedBox(height: 34),
                     Stack(
@@ -357,22 +357,22 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                     const SizedBox(height: 8),
                     Text(
                         _verifying
-                            ? 'Verifying…'
+                            ? t.otpVerifying
                             : isMock
-                                ? (_mockCode.length < _length ? 'Auto-reading SMS…' : 'Code read from SMS.')
-                                : 'Enter the code from the SMS you received.',
+                                ? (_mockCode.length < _length ? t.otpAutoReading : t.otpCodeRead)
+                                : t.otpEnterFromSms,
                         style: context.type.bodySmall),
                     const SizedBox(height: 26),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text("Didn't get it?", style: context.type.bodySmall),
+                        Text(t.otpDidntGetIt, style: context.type.bodySmall),
                         GestureDetector(
                           onTap: _resend,
                           child: Mono(
                               _secs > 0
-                                  ? 'Resend in 0:${_secs.toString().padLeft(2, '0')}'
-                                  : 'Resend code',
+                                  ? t.otpResendIn(_secs.toString().padLeft(2, '0'))
+                                  : t.otpResendCode,
                               color: context.scheme.secondary),
                         ),
                       ],
@@ -385,9 +385,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                         const Text('🔒', style: TextStyle(fontSize: 17)),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: Text(
-                              'Rasoi Care never asks for your OTP over a call. Share it only inside this app.',
-                              style: context.type.bodySmall),
+                          child: Text(t.otpSecurityNote, style: context.type.bodySmall),
                         ),
                       ]),
                     ),
@@ -406,7 +404,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                           width: 18,
                           height: 18,
                           child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Verify'),
+                      : Text(t.otpVerify),
                 ),
               ),
             ),
@@ -416,4 +414,3 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     );
   }
 }
-
