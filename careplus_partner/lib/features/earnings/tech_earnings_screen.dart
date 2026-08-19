@@ -14,6 +14,8 @@ import '../../core/theme/care_plus_theme.dart';
 import '../../data/api/api_repository.dart';
 import '../../data/api/booking_dto.dart';
 import '../../data/models.dart';
+import '../../l10n/app_localizations.dart';
+import '../../l10n/l10n_extensions.dart';
 import '../../state/providers.dart';
 
 enum _Period { today, week, month, all }
@@ -86,6 +88,7 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
       monthTotals.add(total);
     }
     final maxMonthTotal = monthTotals.fold<int>(0, (a, b) => a > b ? a : b);
+    final t = context.l10n;
 
     return Scaffold(
       body: SafeArea(
@@ -100,9 +103,9 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Eyebrow('Earnings'),
+                        Eyebrow(t.earningsEyebrow),
                         const SizedBox(height: 3),
-                        Text('Money', style: context.type.titleMedium),
+                        Text(t.earningsTitle, style: context.type.titleMedium),
                       ],
                     ),
                   ),
@@ -128,7 +131,7 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
                       for (final p in _Period.values) ...[
                         Expanded(
                           child: ChoiceChip(
-                            label: Text(_label(p)),
+                            label: Text(_label(t, p)),
                             selected: _period == p,
                             onSelected: (_) => setState(() => _period = p),
                           ),
@@ -144,7 +147,7 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Eyebrow('Total earned', color: CareColors.brass),
+                        Eyebrow(t.earningsTotalEarned, color: CareColors.brass),
                         const SizedBox(height: 6),
                         Text(
                           Money.rupees(totalPaise),
@@ -156,7 +159,7 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          '${inPeriod.length} job${inPeriod.length == 1 ? '' : 's'} completed',
+                          t.earningsJobsCompleted(inPeriod.length),
                           style: TextStyle(
                             fontSize: 12,
                             color: CareColors.porcelain.withValues(alpha: 0.65),
@@ -170,20 +173,20 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
                     children: [
                       Expanded(
                         child: _Stat(
-                          label: 'Jobs',
+                          label: t.earningsJobs,
                           value: '${inPeriod.length}',
                         ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: _Stat(
-                          label: 'Avg per job',
+                          label: t.earningsAvgPerJob,
                           value: Money.rupees(avgPaise),
                         ),
                       ),
                     ],
                   ),
-                  const SectionHeader('Earnings by month'),
+                  SectionHeader(t.earningsByMonth),
                   CareCard(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -193,7 +196,7 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
                           child: maxMonthTotal == 0
                               ? Center(
                                   child: Text(
-                                    'No completed jobs yet.',
+                                    t.earningsNoJobsYet,
                                     style: context.type.bodySmall,
                                   ),
                                 )
@@ -243,12 +246,10 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
                     ),
                   ),
                   if (cancellationFees.isNotEmpty) ...[
-                    SectionHeader('Cancellation fees',
+                    SectionHeader(t.earningsCancellationFees,
                         trailing: Text(Money.rupees(cancellationFeesTotalPaise),
                             style: context.type.bodySmall)),
-                    Text(
-                        'Jobs a customer cancelled after you\'d already been assigned or were on the way — the fee below is credited to you, not kept by Rasoi Care.',
-                        style: context.type.bodySmall),
+                    Text(t.earningsCancellationExplain, style: context.type.bodySmall),
                     const SizedBox(height: 8),
                     for (final b in cancellationFees) ...[
                       CareCard(
@@ -275,7 +276,7 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
                       const SizedBox(height: 8),
                     ],
                   ],
-                  const SectionHeader('Explore more'),
+                  SectionHeader(t.earningsExploreMore),
                   CareCard(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Column(
@@ -283,27 +284,27 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
                         _menuRow(
                           context,
                           Icons.currency_rupee,
-                          'Loans',
+                          t.earningsLoans,
                           onTap: () =>
-                              context.push('/tech/soon', extra: 'Loans'),
+                              context.push('/tech/soon', extra: t.earningsLoans),
                         ),
                         _menuRow(
                           context,
                           Icons.history,
-                          'Recoveries',
+                          t.earningsRecoveries,
                           onTap: () =>
-                              context.push('/tech/soon', extra: 'Recoveries'),
+                              context.push('/tech/soon', extra: t.earningsRecoveries),
                           last: true,
                         ),
                       ],
                     ),
                   ),
-                  const SectionHeader('Job history'),
+                  SectionHeader(t.earningsJobHistory),
                   if (!fetched)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 20),
                       child: Center(
-                        child: Text('Loading…', style: context.type.bodySmall),
+                        child: Text(t.earningsLoading, style: context.type.bodySmall),
                       ),
                     )
                   else if (inPeriod.isEmpty)
@@ -311,7 +312,7 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 20),
                       child: Center(
                         child: Text(
-                          'No completed jobs in this period.',
+                          t.earningsNoJobsInPeriod,
                           style: context.type.bodySmall,
                         ),
                       ),
@@ -362,11 +363,11 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
     );
   }
 
-  String _label(_Period p) => switch (p) {
-    _Period.today => 'Today',
-    _Period.week => '7 days',
-    _Period.month => 'This month',
-    _Period.all => 'All time',
+  String _label(AppLocalizations t, _Period p) => switch (p) {
+    _Period.today => t.earningsPeriodToday,
+    _Period.week => t.earningsPeriod7Days,
+    _Period.month => t.earningsPeriodMonth,
+    _Period.all => t.earningsPeriodAll,
   };
 
   String _formatDate(DateTime? dt) {

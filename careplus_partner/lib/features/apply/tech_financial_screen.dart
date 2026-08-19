@@ -13,6 +13,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
+import '../../l10n/app_localizations.dart';
+import '../../l10n/l10n_extensions.dart';
 import '../../state/auth_providers.dart';
 
 class TechFinancialScreen extends ConsumerWidget {
@@ -21,6 +23,7 @@ class TechFinancialScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final me = ref.watch(technicianMeProvider);
+    final t = context.l10n;
     String val(String key) {
       final v = me?[key] as String?;
       return (v?.isNotEmpty ?? false) ? v! : '—';
@@ -31,61 +34,61 @@ class TechFinancialScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         leading: BackButton(onPressed: context.pop),
-        title: const Text('Financial details'),
+        title: Text(t.financialTitle),
       ),
       body: SafeArea(
         top: false,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
           children: [
-            Eyebrow('GST'),
+            Eyebrow(t.financialGst),
             const SizedBox(height: 8),
             CareCard(
-              child: _row(context, 'GST number', val('gstNumber'), last: true),
+              child: _row(context, t.financialGstNumber, val('gstNumber'), last: true),
             ),
             const SizedBox(height: 18),
-            Eyebrow('PAN'),
+            Eyebrow(t.financialPan),
             const SizedBox(height: 8),
             CareCard(
-              child: _row(context, 'PAN number', val('panNumber'), last: true),
+              child: _row(context, t.financialPanNumber, val('panNumber'), last: true),
             ),
             const SizedBox(height: 18),
-            Eyebrow('Payout bank account'),
+            Eyebrow(t.financialPayoutBank),
             const SizedBox(height: 8),
             CareCard(
               child: Column(
                 children: [
-                  _row(context, 'Account holder', val('bankAccountName')),
-                  _row(context, 'Account number', val('bankAccountNumber')),
-                  _row(context, 'IFSC', val('bankIfsc')),
-                  _row(context, 'UPI ID', val('upiId'), last: true),
+                  _row(context, t.financialAccountHolder, val('bankAccountName')),
+                  _row(context, t.financialAccountNumber, val('bankAccountNumber')),
+                  _row(context, t.financialIfsc, val('bankIfsc')),
+                  _row(context, t.financialUpiId, val('upiId'), last: true),
                 ],
               ),
             ),
             const SizedBox(height: 18),
-            Eyebrow('Personal details'),
+            Eyebrow(t.financialPersonalDetails),
             const SizedBox(height: 8),
             CareCard(
               child: Column(
                 children: [
-                  _row(context, 'Date of birth', val('dateOfBirth')),
-                  _row(context, 'Aadhaar number', val('aadharNumber')),
-                  _row(context, 'Email', val('email')),
-                  _row(context, 'Name', (me?['name'] as String?)?.isNotEmpty == true
+                  _row(context, t.financialDob, val('dateOfBirth')),
+                  _row(context, t.financialAadhaarNumber, val('aadharNumber')),
+                  _row(context, t.financialEmail, val('email')),
+                  _row(context, t.financialName, (me?['name'] as String?)?.isNotEmpty == true
                       ? me!['name'] as String
                       : '—'),
-                  _row(context, 'Phone number', phone ?? '—', last: true),
+                  _row(context, t.financialPhone, phone ?? '—', last: true),
                 ],
               ),
             ),
             const SizedBox(height: 18),
-            Eyebrow('Address'),
+            Eyebrow(t.financialAddress),
             const SizedBox(height: 8),
             CareCard(
               child: Text(val('address'), style: context.type.bodyMedium),
             ),
             const SizedBox(height: 18),
-            Eyebrow('Emergency contact'),
+            Eyebrow(t.financialEmergencyContact),
             const SizedBox(height: 8),
             CareCard(
               child: Row(
@@ -94,8 +97,9 @@ class TechFinancialScreen extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _row(context, 'Name', val('emergencyContactName')),
-                        _row(context, 'Phone', val('emergencyContactPhone'), last: true),
+                        _row(context, t.financialEmergencyName, val('emergencyContactName')),
+                        _row(context, t.financialEmergencyPhone, val('emergencyContactPhone'),
+                            last: true),
                       ],
                     ),
                   ),
@@ -111,19 +115,19 @@ class TechFinancialScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 18),
-            Eyebrow('Aadhaar card'),
+            Eyebrow(t.financialAadhaarCard),
             const SizedBox(height: 8),
-            _docThumb(context, me?['aadharDocumentUrl'] as String?),
+            _docThumb(context, t, me?['aadharDocumentUrl'] as String?),
             const SizedBox(height: 18),
-            Eyebrow('PAN card'),
+            Eyebrow(t.financialPanCard),
             const SizedBox(height: 8),
-            _docThumb(context, me?['panDocumentUrl'] as String?),
+            _docThumb(context, t, me?['panDocumentUrl'] as String?),
             const SizedBox(height: 22),
             SizedBox(
               width: double.infinity,
               child: OutlinedButton(
                 onPressed: () => context.push('/tech/apply', extra: me),
-                child: const Text('Edit details'),
+                child: Text(t.financialEditDetails),
               ),
             ),
           ],
@@ -132,8 +136,8 @@ class TechFinancialScreen extends ConsumerWidget {
     );
   }
 
-  Widget _docThumb(BuildContext context, String? url) => url == null
-      ? Text('Not uploaded', style: context.type.bodySmall)
+  Widget _docThumb(BuildContext context, AppLocalizations t, String? url) => url == null
+      ? Text(t.financialNotUploaded, style: context.type.bodySmall)
       : ClipRRect(
           borderRadius: Radii.rMd,
           child: Image.network(url, height: 160, fit: BoxFit.cover),

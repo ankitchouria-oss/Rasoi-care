@@ -14,6 +14,8 @@ import '../../core/theme/care_plus_theme.dart';
 import '../../data/api/api_repository.dart';
 import '../../data/firebase/technician_upload_service.dart';
 import '../../data/models.dart';
+import '../../l10n/app_localizations.dart';
+import '../../l10n/l10n_extensions.dart';
 import '../../state/providers.dart';
 
 class TechJobScreen extends ConsumerStatefulWidget {
@@ -101,7 +103,7 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
         launched = false;
       }
     }
-    if (!launched && mounted) _toast(context, 'Could not open navigation.');
+    if (!launched && mounted) _toast(context, context.l10n.jobDetailNavError);
   }
 
   String get _clock {
@@ -113,11 +115,11 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
   /// when this is a known live booking (see `ApiRepository.statusOf`);
   /// `null` covers mock/local jobs, which keep the original single-step
   /// flow straight into the invoice screen.
-  String _primaryLabel(String? liveStatus) => switch (liveStatus) {
-        'Requested' => 'Accept job',
-        'Accepted' => 'On my way',
-        'On the way' => 'Arrived — start job',
-        _ => 'Complete and invoice', // In Progress, Completed, null (mock)
+  String _primaryLabel(AppLocalizations t, String? liveStatus) => switch (liveStatus) {
+        'Requested' => t.jobDetailPrimaryAccept,
+        'Accepted' => t.jobDetailPrimaryOnMyWay,
+        'On the way' => t.jobDetailPrimaryArrived,
+        _ => t.jobDetailPrimaryComplete, // In Progress, Completed, null (mock)
       };
 
   Future<void> _handlePrimaryAction(String? liveStatus, JobDetail job) async {
@@ -151,42 +153,43 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
   }
 
   Future<(int?, int?)> _askSuctionReadings() async {
+    final t = context.l10n;
     final beforeCtrl = TextEditingController();
     final afterCtrl = TextEditingController();
     final result = await showDialog<(int?, int?)>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Suction readings'),
+        title: Text(t.jobDetailSuctionTitle),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Optional — shown on the customer\'s invoice.',
+            Text(t.jobDetailSuctionSubtitle,
                 style: Theme.of(dialogContext).textTheme.bodySmall),
             const SizedBox(height: 14),
             TextField(
               controller: beforeCtrl,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Before (m³/hr)'),
+              decoration: InputDecoration(labelText: t.jobDetailSuctionBefore),
             ),
             const SizedBox(height: 10),
             TextField(
               controller: afterCtrl,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'After (m³/hr)'),
+              decoration: InputDecoration(labelText: t.jobDetailSuctionAfter),
             ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop((null, null)),
-            child: const Text('Skip'),
+            child: Text(t.jobDetailSkip),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop((
               int.tryParse(beforeCtrl.text),
               int.tryParse(afterCtrl.text),
             )),
-            child: const Text('Save'),
+            child: Text(t.jobDetailSave),
           ),
         ],
       ),
@@ -203,7 +206,7 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
       if (ok) {
         ref.read(jobsFeedTickProvider.notifier).bump();
       } else if (mounted) {
-        _toast(context, 'Could not update status — check connection');
+        _toast(context, context.l10n.jobDetailStatusError);
       }
     }
     if (mounted) setState(() => _advancing = false);
@@ -235,6 +238,7 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
     final beforePhotos = ref.watch(techBeforePhotosProvider(widget.jobId));
     final afterPhotos = ref.watch(techAfterPhotosProvider(widget.jobId));
     final doneCount = checklist.where((c) => c.checked).length;
+    final t = context.l10n;
 
     return Scaffold(
       appBar: AppBar(
@@ -319,20 +323,20 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
                     children: [
                       _ActionTile(
                           glyph: '🧭',
-                          label: 'Navigate',
+                          label: t.jobDetailNavigate,
                           onTap: () => _openNavigation(job)),
                       _ActionTile(
                           glyph: '📞',
-                          label: 'Call',
-                          onTap: () => _toast(context, 'Calling — masked')),
+                          label: t.jobDetailCall,
+                          onTap: () => _toast(context, t.jobDetailCallingToast)),
                       _ActionTile(
                           glyph: '💬',
-                          label: 'Chat',
-                          onTap: () => _toast(context, 'Opening chat')),
+                          label: t.jobDetailChat,
+                          onTap: () => _toast(context, t.jobDetailChatToast)),
                       _ActionTile(
                           glyph: '⚑',
-                          label: 'Escalate',
-                          onTap: () => _toast(context, 'Escalated to ops')),
+                          label: t.jobDetailEscalate,
+                          onTap: () => _toast(context, t.jobDetailEscalateToast)),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -340,7 +344,7 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Eyebrow('Customer reported'),
+                        Eyebrow(t.jobDetailCustomerReported),
                         const SizedBox(height: 10),
                         Wrap(
                           spacing: 7,
@@ -362,7 +366,7 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
                       ],
                     ),
                   ),
-                  SectionHeader('Checklist',
+                  SectionHeader(t.jobDetailChecklist,
                       trailing: Mono('$doneCount / ${checklist.length}',
                           color: context.care.inkMuted)),
                   CareCard(
@@ -378,8 +382,8 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
                       ],
                     ),
                   ),
-                  const SectionHeader('Photos'),
-                  Text('Before and after are mandatory', style: context.type.bodySmall),
+                  SectionHeader(t.jobDetailPhotos),
+                  Text(t.jobDetailPhotosRequired, style: context.type.bodySmall),
                   const SizedBox(height: 10),
                   GridView.count(
                     crossAxisCount: 4,
@@ -391,20 +395,20 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
                     children: [
                       for (var i = 0; i < 2; i++)
                         _photoBox(context,
-                            label: 'Before',
+                            label: t.jobDetailBefore,
                             imagePath: i < beforePhotos.length ? beforePhotos[i] : null,
                             onTap: i == beforePhotos.length ? () => _capturePhoto(true) : null),
                       for (var i = 0; i < 2; i++)
                         _photoBox(context,
-                            label: 'After',
+                            label: t.jobDetailAfter,
                             imagePath: i < afterPhotos.length ? afterPhotos[i] : null,
                             onTap: i == afterPhotos.length ? () => _capturePhoto(false) : null),
                     ],
                   ),
-                  SectionHeader('Parts used',
+                  SectionHeader(t.jobDetailPartsUsed,
                       trailing: GestureDetector(
-                        onTap: () => _toast(context, 'Scan part barcode'),
-                        child: Text('Scan',
+                        onTap: () => _toast(context, t.jobDetailScanToast),
+                        child: Text(t.jobDetailScan,
                             style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
@@ -426,7 +430,7 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
                                         style: const TextStyle(
                                             fontSize: 13, fontWeight: FontWeight.w700)),
                                     const SizedBox(height: 3),
-                                    Text('SKU ${part.sku} · qty ${part.qty}',
+                                    Text(t.jobDetailSkuQty(part.sku, '${part.qty}'),
                                         style: context.type.bodySmall),
                                   ],
                                 ),
@@ -437,7 +441,7 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
                           ),
                           if (part.approved) ...[
                             const Divider(height: 22),
-                            StatusChip('Customer approved ${part.approvedAt}',
+                            StatusChip(t.jobDetailApprovedAt(part.approvedAt ?? ''),
                                 tone: ChipTone.success, height: 26),
                           ],
                         ],
@@ -448,8 +452,8 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton(
-                      onPressed: () => _toast(context, 'Quote sent for approval'),
-                      child: const Text('+ Add a part and send quote'),
+                      onPressed: () => _toast(context, t.jobDetailQuoteSentToast),
+                      child: Text(t.jobDetailAddPart),
                     ),
                   ),
                 ],
@@ -466,7 +470,7 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
                           width: 18,
                           height: 18,
                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : Text(_primaryLabel(liveStatus)),
+                      : Text(_primaryLabel(t, liveStatus)),
                 ),
               ),
             ),

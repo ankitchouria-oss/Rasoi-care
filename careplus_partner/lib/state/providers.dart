@@ -1,8 +1,11 @@
 // Riverpod wiring. The repository provider is the single place you change to
 // go from mock data to a real backend.
 
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/api/api_repository.dart';
 import '../data/models.dart';
@@ -72,5 +75,78 @@ class JobPhotosVM extends FamilyNotifier<List<String>, String> {
   List<String> build(String arg) => const [];
   void add(String path) {
     if (state.length < 2) state = [...state, path];
+  }
+}
+
+/// Whether this device should get job-critical updates over WhatsApp —
+/// a real, persisted device preference (see More tab), matching Urban
+/// Company Partner's "Send WhatsApp updates" toggle. What it doesn't do,
+/// because there's no WhatsApp Business API wired into this backend yet,
+/// is actually deliver anything over WhatsApp — the preference is real,
+/// the delivery channel behind it isn't built. Defaults to on, same as
+/// UC's own default, until the real stored value (if any) loads.
+final whatsappUpdatesProvider =
+    NotifierProvider<WhatsAppUpdatesVM, bool>(WhatsAppUpdatesVM.new);
+
+class WhatsAppUpdatesVM extends Notifier<bool> {
+  static const _key = 'whatsapp_updates_enabled';
+
+  @override
+  bool build() {
+    _load();
+    return true;
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final stored = prefs.getBool(_key);
+    if (stored != null) state = stored;
+  }
+
+  Future<void> set(bool value) async {
+    state = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_key, value);
+  }
+}
+
+/// The app's display language — a real, persisted device preference, not
+/// just a menu row. Defaults to the device's own language when it's one we
+/// support (English/Hindi today), else falls back to English, until the
+/// real stored choice (if any) loads. Data that actually came from the
+/// server — a customer's name, an address a technician typed — is never
+/// translated; only this app's own UI chrome changes.
+final localeProvider = NotifierProvider<LocaleVM, Locale>(LocaleVM.new);
+
+const supportedLocales = [Locale('en'), Locale('hi')];
+
+class LocaleVM extends Notifier<Locale> {
+  static const _key = 'app_locale';
+
+  @override
+  Locale build() {
+    _load();
+    return const Locale('en');
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final stored = prefs.getString(_key);
+    if (stored != null) {
+      final match = supportedLocales.where((l) => l.languageCode == stored);
+      if (match.isNotEmpty) {
+        state = match.first;
+        return;
+      }
+    }
+    final deviceCode = PlatformDispatcher.instance.locale.languageCode;
+    final deviceMatch = supportedLocales.where((l) => l.languageCode == deviceCode);
+    if (deviceMatch.isNotEmpty) state = deviceMatch.first;
+  }
+
+  Future<void> set(Locale locale) async {
+    state = locale;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_key, locale.languageCode);
   }
 }

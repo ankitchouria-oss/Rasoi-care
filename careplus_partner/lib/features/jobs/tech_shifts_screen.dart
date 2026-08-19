@@ -15,6 +15,7 @@ import '../../core/theme/care_plus_theme.dart';
 import '../../data/api/api_repository.dart';
 import '../../data/api/booking_dto.dart';
 import '../../data/models.dart';
+import '../../l10n/l10n_extensions.dart';
 import '../../state/providers.dart';
 
 class TechShiftsScreen extends ConsumerStatefulWidget {
@@ -67,6 +68,7 @@ class _TechShiftsScreenState extends ConsumerState<TechShiftsScreen> {
     final weekTotalPaise = jobsByDay.values
         .expand((l) => l)
         .fold<int>(0, (sum, b) => sum + b.totalAmountPaise);
+    final t = context.l10n;
 
     return Scaffold(
       body: SafeArea(
@@ -81,9 +83,9 @@ class _TechShiftsScreenState extends ConsumerState<TechShiftsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Eyebrow('Schedule'),
+                        Eyebrow(t.shiftsSchedule),
                         const SizedBox(height: 3),
-                        Text('My Shifts', style: context.type.titleMedium),
+                        Text(t.shiftsTitle, style: context.type.titleMedium),
                       ],
                     ),
                   ),
@@ -108,20 +110,20 @@ class _TechShiftsScreenState extends ConsumerState<TechShiftsScreen> {
                     children: [
                       Expanded(
                         child: _Stat(
-                          label: 'Worked days · 7d',
+                          label: t.shiftsWorkedDays,
                           value: '$workedDays',
                         ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: _Stat(
-                          label: 'Earned · 7d',
+                          label: t.shiftsEarned,
                           value: Money.rupees(weekTotalPaise),
                         ),
                       ),
                     ],
                   ),
-                  const SectionHeader('This week'),
+                  SectionHeader(t.shiftsThisWeek),
                   CareCard(
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.end,
@@ -144,9 +146,9 @@ class _TechShiftsScreenState extends ConsumerState<TechShiftsScreen> {
                     ),
                   ),
                   SectionHeader(
-                    "Today's route",
+                    t.shiftsTodaysRoute,
                     trailing: Text(
-                      '${route.length} stop${route.length == 1 ? '' : 's'}',
+                      t.shiftsStopCount(route.length),
                       style: context.type.bodySmall,
                     ),
                   ),
@@ -155,7 +157,7 @@ class _TechShiftsScreenState extends ConsumerState<TechShiftsScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 20),
                       child: Center(
                         child: Text(
-                          'No stops scheduled for today.',
+                          t.shiftsNoStops,
                           style: context.type.bodySmall,
                         ),
                       ),
@@ -176,8 +178,8 @@ class _TechShiftsScreenState extends ConsumerState<TechShiftsScreen> {
                                   children: [
                                     StatusChip(
                                       stop.status == StopStatus.inProgress
-                                          ? 'In progress'
-                                          : 'Next',
+                                          ? t.shiftsInProgress
+                                          : t.shiftsNext,
                                       tone: stop.status == StopStatus.inProgress
                                           ? ChipTone.success
                                           : ChipTone.neutral,

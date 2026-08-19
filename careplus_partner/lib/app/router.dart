@@ -14,7 +14,9 @@ import '../features/jobs/tech_job_screen.dart';
 import '../features/jobs/tech_close_screen.dart';
 import '../features/jobs/airflow_check_screen.dart';
 import '../features/support/coming_soon_screen.dart';
+import '../features/support/language_screen.dart';
 import '../features/support/tech_help_screen.dart';
+import '../l10n/l10n_extensions.dart';
 import 'partner_shell.dart';
 
 final _rootKey = GlobalKey<NavigatorState>();
@@ -54,8 +56,13 @@ final router = GoRouter(
     GoRoute(
       path: '/tech/soon',
       parentNavigatorKey: _rootKey,
-      builder: (_, s) =>
-          ComingSoonScreen(title: s.extra as String? ?? 'Coming soon'),
+      builder: (context, s) =>
+          ComingSoonScreen(title: s.extra as String? ?? context.l10n.moreWork),
+    ),
+    GoRoute(
+      path: '/tech/language',
+      parentNavigatorKey: _rootKey,
+      builder: (_, __) => const LanguageScreen(),
     ),
     GoRoute(
       path: '/tech/job/:id',

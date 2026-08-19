@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/widgets/care_widgets.dart';
+import '../../l10n/l10n_extensions.dart';
 import '../../state/auth_providers.dart';
 
 /// Shown once the application's submitted but an admin hasn't verified the
@@ -27,12 +28,13 @@ class _TechPendingScreenState extends ConsumerState<TechPendingScreen> {
       context.go('/tech/jobs');
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Still under review — check back soon.')));
+          SnackBar(content: Text(context.l10n.pendingStillReview)));
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final t = context.l10n;
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -48,10 +50,9 @@ class _TechPendingScreenState extends ConsumerState<TechPendingScreen> {
                   child: Icon(Icons.hourglass_top, color: context.scheme.primary, size: 32),
                 ),
                 const SizedBox(height: 22),
-                Text('Application under review', style: context.type.headlineMedium),
+                Text(t.pendingTitle, style: context.type.headlineMedium),
                 const SizedBox(height: 10),
-                Text(
-                    'We\'re checking your details and documents. This usually takes a day or two — you\'ll be able to go online for jobs as soon as you\'re verified.',
+                Text(t.pendingBody,
                     textAlign: TextAlign.center,
                     style: context.type.bodyMedium),
                 const SizedBox(height: 26),
@@ -59,18 +60,18 @@ class _TechPendingScreenState extends ConsumerState<TechPendingScreen> {
                   alignment: Alignment.centerLeft,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const [
+                    children: [
                       StepDot(
-                        TimelineStepView('Application submitted',
-                            'Profile, documents and bank details on file', TrackState.done),
+                        TimelineStepView(t.pendingStep1Title,
+                            t.pendingStep1Detail, TrackState.done),
                       ),
                       StepDot(
-                        TimelineStepView('Under review',
-                            'Our team is checking your details', TrackState.now),
+                        TimelineStepView(t.pendingStep2Title,
+                            t.pendingStep2Detail, TrackState.now),
                       ),
                       StepDot(
-                        TimelineStepView('Approved — ready for jobs',
-                            'Go online and start getting job requests', TrackState.upcoming),
+                        TimelineStepView(t.pendingStep3Title,
+                            t.pendingStep3Detail, TrackState.upcoming),
                         last: true,
                       ),
                     ],
@@ -86,7 +87,7 @@ class _TechPendingScreenState extends ConsumerState<TechPendingScreen> {
                             width: 18,
                             height: 18,
                             child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Text('Check status'),
+                        : Text(t.pendingCheckStatus),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -96,7 +97,7 @@ class _TechPendingScreenState extends ConsumerState<TechPendingScreen> {
                     ref.read(authFlowProvider.notifier).reset();
                     if (context.mounted) context.go('/login');
                   },
-                  child: const Text('Sign out'),
+                  child: Text(t.commonSignOut),
                 ),
               ],
             ),
