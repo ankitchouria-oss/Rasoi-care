@@ -79,12 +79,11 @@ class BookingDraft {
     this.issues = const [],
     this.notes = '',
     this.day = 'Sat 25 Jul',
-    this.slot = '10:00 – 11:00 am',
+    this.slot = '10:00 – 11:30 am',
     this.addressId = 'a_home',
     this.pickedAddress,
+    this.directions = '',
     this.paymentId = 'upi',
-    this.couponApplied = true,
-    this.useCoins = false,
   });
 
   /// Every service the customer added on the service-detail screen —
@@ -105,18 +104,20 @@ class BookingDraft {
   /// set, so the existing "which card is selected" comparisons in
   /// AddressScreen keep working unchanged.
   final SavedAddress? pickedAddress;
-  final String paymentId;
-  final bool couponApplied;
-  final bool useCoins;
 
-  // Pricing is derived, never stored — the source of truth is the line items.
-  int get itemPaise => services.fold(0, (sum, s) => sum + s.pricePaise);
-  int get visitPaise => 4900;
-  int get discountPaise => couponApplied ? (itemPaise * 0.30).round() : 0;
-  int get coinsPaise => useCoins ? 20000 : 0;
-  int get taxablePaise => itemPaise + visitPaise - discountPaise - coinsPaise;
-  int get taxPaise => (taxablePaise * 0.18).round();
-  int get totalPaise => taxablePaise + taxPaise;
+  /// Free-text the customer actually typed on the address step — sent to
+  /// the backend and shown to the technician as-is. Previously a
+  /// hardcoded, non-editable "Gate code 4402, lift on the left" that every
+  /// customer's job showed regardless of their real address, and that
+  /// wasn't wired to the backend even if you could have edited it.
+  final String directions;
+  final String paymentId;
+
+  /// The real, unmodified total of what was actually selected — no
+  /// invented visit fee, coupon, loyalty-coin discount, or GST used to be
+  /// layered on top of this by default (CARE30 was even pre-applied),
+  /// none of which reflected an actual pricing or tax policy.
+  int get totalPaise => services.fold(0, (sum, s) => sum + s.pricePaise);
 
   BookingDraft copyWith({
     List<ServiceItem>? services,
@@ -126,9 +127,8 @@ class BookingDraft {
     String? slot,
     String? addressId,
     SavedAddress? pickedAddress,
+    String? directions,
     String? paymentId,
-    bool? couponApplied,
-    bool? useCoins,
   }) =>
       BookingDraft(
         services: services ?? this.services,
@@ -138,9 +138,8 @@ class BookingDraft {
         slot: slot ?? this.slot,
         addressId: addressId ?? this.addressId,
         pickedAddress: pickedAddress ?? this.pickedAddress,
+        directions: directions ?? this.directions,
         paymentId: paymentId ?? this.paymentId,
-        couponApplied: couponApplied ?? this.couponApplied,
-        useCoins: useCoins ?? this.useCoins,
       );
 }
 
@@ -155,8 +154,8 @@ class BookingDraftVM extends Notifier<BookingDraft> {
     if (services.isEmpty) return;
     final issues = ref.read(repositoryProvider).issuesFor(services.first.appliance);
     // Matches the label SlotScreen builds for its "Today" chip — so that
-    // chip (and the real GST day for it) shows selected by default instead
-    // of the flow opening on a mismatched, permanently-stale hardcoded date.
+    // chip shows selected by default instead of the flow opening on a
+    // mismatched, permanently-stale hardcoded date.
     final today = 'Today ${DateFormat('d MMM').format(DateTime.now())}';
     state = BookingDraft(services: services, issues: issues, day: today);
   }
@@ -177,8 +176,6 @@ class BookingDraftVM extends Notifier<BookingDraft> {
   /// existing `repo.addresses()` card.
   void setPickedAddress(SavedAddress address) =>
       state = state.copyWith(addressId: address.id, pickedAddress: address);
+  void setDirections(String v) => state = state.copyWith(directions: v);
   void setPayment(String id) => state = state.copyWith(paymentId: id);
-  void toggleCoupon() =>
-      state = state.copyWith(couponApplied: !state.couponApplied);
-  void toggleCoins() => state = state.copyWith(useCoins: !state.useCoins);
 }

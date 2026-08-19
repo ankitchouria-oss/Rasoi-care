@@ -28,6 +28,22 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
   int _tab = 0;
 
   @override
+  void initState() {
+    super.initState();
+    // The repository's constructor already tries once, but that can race
+    // Firebase Auth restoring `currentUser` on a cold start and silently
+    // never retry — leaving this screen stuck on mock demo bookings for the
+    // rest of the session. Asking again on every real visit to this screen
+    // means a failed first attempt gets a real second chance.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
+  }
+
+  Future<void> _refresh() async {
+    final repo = ref.read(repositoryProvider);
+    if (repo is ApiRepository) await repo.refreshBookings();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final repo = ref.watch(repositoryProvider);
     // Rebuild when ApiRepository's real-booking cache changes (initial
@@ -38,7 +54,12 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
     final cancelled = repo.bookings(status: BookingStatus.cancelled);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Your bookings')),
+      appBar: AppBar(
+        title: const Text('Your bookings'),
+        actions: [
+          IconButton(onPressed: _refresh, icon: const Icon(Icons.refresh)),
+        ],
+      ),
       body: SafeArea(
         top: false,
         child: Column(
@@ -297,9 +318,16 @@ class AccountScreen extends ConsumerWidget {
                 _NavRow(icon: Icons.shield_outlined, label: 'Plans, warranty, appliances',
                     onTap: () => context.push('/plans')),
                 _NavRow(icon: Icons.account_balance_wallet_outlined,
-                    label: 'Wallet and Care Coins', onTap: () {}),
+                    label: 'Wallet and Care Coins',
+                    onTap: () => _showComingSoon(context, 'Wallet and Care Coins',
+                        "There's no real wallet or loyalty-coins system behind this yet — "
+                        "so rather than show you a made-up balance, we're waiting until "
+                        "there's a real one to report.")),
                 _NavRow(icon: Icons.chat_bubble_outline, label: 'Help and support',
-                    onTap: () {}, last: true),
+                    onTap: () => _showComingSoon(context, 'Help and support',
+                        "A dedicated support line isn't set up yet. For now, reach out "
+                        "through whichever channel you used to install this app."),
+                    last: true),
               ]),
             ),
             const SectionHeader('Preferences'),
@@ -356,7 +384,13 @@ class AccountScreen extends ConsumerWidget {
     );
   }
 
-  void _showTerms(BuildContext context) {
+  void _showTerms(BuildContext context) => _showComingSoon(
+      context,
+      'Terms and conditions',
+      "Rasoi Care's published terms of service aren't live yet. "
+      "Check back here once they are — we won't show placeholder legal text in the meantime.");
+
+  void _showComingSoon(BuildContext context, String title, String body) {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -366,12 +400,9 @@ class AccountScreen extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Terms and conditions', style: context.type.titleMedium),
+            Text(title, style: context.type.titleMedium),
             const SizedBox(height: 12),
-            Text(
-                "Rasoi Care's published terms of service aren't live yet. "
-                "Check back here once they are — we won't show placeholder legal text in the meantime.",
-                style: context.type.bodyMedium),
+            Text(body, style: context.type.bodyMedium),
           ],
         ),
       ),

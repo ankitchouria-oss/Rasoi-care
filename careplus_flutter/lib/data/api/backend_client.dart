@@ -49,6 +49,7 @@ class BackendClient {
     String? area,
     double? lat,
     double? lng,
+    String? directions,
   }) async {
     try {
       final res = await http
@@ -62,6 +63,7 @@ class BackendClient {
               if (area != null && area.isNotEmpty) 'area': area,
               if (lat != null) 'lat': lat,
               if (lng != null) 'lng': lng,
+              if (directions != null && directions.isNotEmpty) 'directions': directions,
             }),
           )
           .timeout(_timeout);
@@ -123,5 +125,28 @@ class BackendClient {
       // Best-effort — see file header.
     }
     return null;
+  }
+
+  /// POST /api/bookings/{id}/rating — the real endpoint the RateScreen
+  /// star rating submits to. Returns true on success; the caller decides
+  /// what to tell the customer on failure rather than silently pretending
+  /// it worked.
+  Future<bool> rateBooking({
+    required String idToken,
+    required String bookingId,
+    required int rating,
+  }) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('${ApiConfig.baseUrl}/api/bookings/$bookingId/rating'),
+            headers: _headers(idToken),
+            body: jsonEncode({'serviceRating': rating, 'techRating': rating}),
+          )
+          .timeout(_timeout);
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
   }
 }

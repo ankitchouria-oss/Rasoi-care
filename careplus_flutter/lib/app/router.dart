@@ -83,7 +83,9 @@ final router = GoRouter(
     GoRoute(
         path: '/booking/:id/confirmed',
         parentNavigatorKey: _rootKey,
-        builder: (_, s) => ConfirmedScreen(bookingId: s.pathParameters['id']!)),
+        builder: (_, s) => ConfirmedScreen(
+            bookingId: s.pathParameters['id']!,
+            totalBooked: s.extra as int? ?? 1)),
     GoRoute(
         path: '/booking/:id/track',
         parentNavigatorKey: _rootKey,

@@ -58,6 +58,15 @@ class ApiRepository implements CareRepository {
     onBookingsChanged?.call();
   }
 
+  /// Public re-fetch, called from BookingsScreen on mount and on
+  /// pull-to-refresh. The constructor's one-shot [_loadInitialBookings] can
+  /// run before Firebase Auth has restored `currentUser` on a cold start —
+  /// [_idToken] then returns null, [_realBookings] is never set, and
+  /// [bookings] silently keeps serving mock demo data for the rest of the
+  /// app's lifetime with nothing to retry it. This gives the UI a way to
+  /// ask again once a real signed-in user is actually available.
+  Future<void> refreshBookings() => _loadInitialBookings();
+
   /// Called from the booking flow's final confirm/pay step
   /// (PaymentScreen in lib/features/booking/booking_screens.dart). Posts
   /// the booking to the backend and, on success, adds it to the in-memory
@@ -78,6 +87,7 @@ class ApiRepository implements CareRepository {
     String? areaLabel,
     double? lat,
     double? lng,
+    String? directions,
   }) async {
     final token = await _idToken();
     if (token == null) return null;
@@ -90,12 +100,23 @@ class ApiRepository implements CareRepository {
       area: areaLabel,
       lat: lat,
       lng: lng,
+      directions: directions,
     );
     if (json == null) return null;
     final booking = _bookingFromJson(json);
     _realBookings = [...(_realBookings ?? []), booking];
     onBookingsChanged?.call();
     return booking;
+  }
+
+  /// Submits the real star rating from RateScreen — previously the
+  /// "Submit rating" button never called anything, just showed a fake
+  /// "60 Care Coins added" toast and went home regardless of what was
+  /// picked. Returns true only if the backend actually recorded it.
+  Future<bool> rateBooking({required String bookingId, required int rating}) async {
+    final token = await _idToken();
+    if (token == null) return false;
+    return _client.rateBooking(idToken: token, bookingId: bookingId, rating: rating);
   }
 
   Booking _bookingFromJson(Map<String, dynamic> json) {

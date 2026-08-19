@@ -128,6 +128,7 @@ def booking_row_to_dict(row):
         "timeOnSiteMin": row["time_on_site_min"] if "time_on_site_min" in keys else None,
         "cancelledAt": row["cancelled_at"] if "cancelled_at" in keys else None,
         "cancellationFee": row["cancellation_fee"] if "cancellation_fee" in keys else None,
+        "directions": row["directions"] if "directions" in keys else None,
     }
 
 
@@ -972,6 +973,7 @@ def create_booking():
     lng = data.get("lng")
     lat = float(lat) if isinstance(lat, (int, float)) else None
     lng = float(lng) if isinstance(lng, (int, float)) else None
+    directions = (data.get("directions") or "").strip() or None
 
     if service_id:
         conn = get_db()
@@ -1018,18 +1020,27 @@ def create_booking():
             ).fetchone()
         if not match:
             match = conn.execute("SELECT id FROM technicians LIMIT 1").fetchone()
-        technician_id = match["id"] if match else "ramesh"
+        if not match:
+            # No technician exists at all — used to silently assign the
+            # literal string "ramesh" here, a demo id that doesn't
+            # correspond to a real account, so every booking "succeeded"
+            # while quietly never reaching anyone. Telling the customer
+            # honestly that nobody's available yet is better than a booking
+            # that looks confirmed but was never actually assigned.
+            conn.close()
+            return jsonify({"error": "No technician is available for this service yet"}), 503
+        technician_id = match["id"]
 
     booking_id = next_id(conn, "order", "RC")
     ts = now()
     conn.execute(
         "INSERT INTO bookings (id, category, service, price, technician_id, customer_name, "
         "status, bachat_slot, service_rating, tech_rating, area, created_at, updated_at, "
-        "user_id, service_id, total_amount, lat, lng) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "user_id, service_id, total_amount, lat, lng, directions) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (booking_id, category, service, price, technician_id, request.user["name"],
          "Requested", bachat_slot, None, None, area, ts, ts,
-         request.user["id"], service_id, total_amount, lat, lng),
+         request.user["id"], service_id, total_amount, lat, lng, directions),
     )
     conn.commit()
     row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
@@ -1613,10 +1624,15 @@ def stats_reports():
     return jsonify(result)
 
 
-# ---------------------------------------------------------------- reset (demo convenience)
+# ---------------------------------------------------------------- reset
+# No longer wipes and reseeds fake data (see database.py's seed() docstring)
+# — init_db() itself already purges any leftover demo rows on every boot,
+# so this just re-runs that, idempotently. Kept as a manual trigger for an
+# already-running instance that hasn't restarted since the demo data was
+# removed.
 @app.route("/api/reset", methods=["POST"])
 def reset():
-    init_db(reset=True)
+    init_db()
     return jsonify({"ok": True})
 
 
