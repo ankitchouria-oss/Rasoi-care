@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../data/models.dart';
 import '../data/mock_repository.dart';
@@ -74,7 +75,7 @@ final etaProvider = StreamProvider.autoDispose.family<int, String>(
 // ---------------------------------------------------------------------------
 class BookingDraft {
   const BookingDraft({
-    this.service,
+    this.services = const [],
     this.issues = const [],
     this.notes = '',
     this.day = 'Sat 25 Jul',
@@ -86,7 +87,11 @@ class BookingDraft {
     this.useCoins = false,
   });
 
-  final ServiceItem? service;
+  /// Every service the customer added on the service-detail screen —
+  /// previously a single `ServiceItem?`, which silently dropped the first
+  /// pick the moment a second one was tapped even though its "Add"/"Added"
+  /// button language implied you could add more than one.
+  final List<ServiceItem> services;
   final List<Issue> issues;
   final String notes;
   final String day;
@@ -105,7 +110,7 @@ class BookingDraft {
   final bool useCoins;
 
   // Pricing is derived, never stored — the source of truth is the line items.
-  int get itemPaise => service?.pricePaise ?? 0;
+  int get itemPaise => services.fold(0, (sum, s) => sum + s.pricePaise);
   int get visitPaise => 4900;
   int get discountPaise => couponApplied ? (itemPaise * 0.30).round() : 0;
   int get coinsPaise => useCoins ? 20000 : 0;
@@ -114,7 +119,7 @@ class BookingDraft {
   int get totalPaise => taxablePaise + taxPaise;
 
   BookingDraft copyWith({
-    ServiceItem? service,
+    List<ServiceItem>? services,
     List<Issue>? issues,
     String? notes,
     String? day,
@@ -126,7 +131,7 @@ class BookingDraft {
     bool? useCoins,
   }) =>
       BookingDraft(
-        service: service ?? this.service,
+        services: services ?? this.services,
         issues: issues ?? this.issues,
         notes: notes ?? this.notes,
         day: day ?? this.day,
@@ -146,9 +151,14 @@ class BookingDraftVM extends Notifier<BookingDraft> {
   @override
   BookingDraft build() => const BookingDraft();
 
-  void start(ServiceItem service) {
-    final issues = ref.read(repositoryProvider).issuesFor(service.appliance);
-    state = BookingDraft(service: service, issues: issues);
+  void start(List<ServiceItem> services) {
+    if (services.isEmpty) return;
+    final issues = ref.read(repositoryProvider).issuesFor(services.first.appliance);
+    // Matches the label SlotScreen builds for its "Today" chip — so that
+    // chip (and the real GST day for it) shows selected by default instead
+    // of the flow opening on a mismatched, permanently-stale hardcoded date.
+    final today = 'Today ${DateFormat('d MMM').format(DateTime.now())}';
+    state = BookingDraft(services: services, issues: issues, day: today);
   }
 
   void toggleIssue(int i) {

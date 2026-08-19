@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 
 import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
@@ -87,12 +90,7 @@ class IssueScreen extends ConsumerWidget {
           const SizedBox(height: 22),
           Eyebrow('Photos help — add up to 4'),
           const SizedBox(height: 10),
-          Row(children: [
-            for (final label in const ['Filter', 'Model tag', 'Add', 'Gallery']) ...[
-              Expanded(child: _PhotoBox(label: label)),
-              if (label != 'Gallery') const SizedBox(width: 10),
-            ],
-          ]),
+          const _PhotoPicker(),
         ],
       ),
     );
@@ -126,27 +124,118 @@ class _IssueRow extends StatelessWidget {
       );
 }
 
-class _PhotoBox extends StatelessWidget {
-  const _PhotoBox({required this.label});
-  final String label;
+/// Up to 4 real photos, picked from the camera or gallery — previously four
+/// decorative boxes captioned "Filter"/"Model tag"/"Add"/"Gallery" (leftover
+/// labels that didn't match any actual action; tapping one did nothing).
+/// These stay local to the booking flow rather than being uploaded anywhere
+/// — there's no backend field yet to attach photos to a booking, so showing
+/// them as sent to the technician would be exactly the kind of fabrication
+/// this app avoids elsewhere. The customer still gets a real, working way to
+/// review what they're about to describe before confirming the booking.
+class _PhotoPicker extends StatefulWidget {
+  const _PhotoPicker();
+  @override
+  State<_PhotoPicker> createState() => _PhotoPickerState();
+}
+
+class _PhotoPickerState extends State<_PhotoPicker> {
+  static const _maxPhotos = 4;
+  final List<File> _photos = [];
+
+  Future<void> _add() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Camera'),
+              onTap: () => Navigator.of(sheetContext).pop(ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Gallery'),
+              onTap: () => Navigator.of(sheetContext).pop(ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+    final picked = await ImagePicker().pickImage(source: source, imageQuality: 80);
+    if (picked != null && mounted) setState(() => _photos.add(File(picked.path)));
+  }
+
+  void _remove(int i) => setState(() => _photos.removeAt(i));
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(children: [
+      for (var i = 0; i < _maxPhotos; i++) ...[
+        Expanded(
+          child: i < _photos.length
+              ? _FilledPhotoTile(file: _photos[i], onRemove: () => _remove(i))
+              : _EmptyPhotoTile(onTap: i == _photos.length ? _add : null),
+        ),
+        if (i != _maxPhotos - 1) const SizedBox(width: 10),
+      ],
+    ]);
+  }
+}
+
+class _EmptyPhotoTile extends StatelessWidget {
+  const _EmptyPhotoTile({required this.onTap});
+  final VoidCallback? onTap;
   @override
   Widget build(BuildContext context) => AspectRatio(
         aspectRatio: 1,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: context.scheme.surfaceContainerHigh,
-            borderRadius: Radii.rMd,
-            border: Border.all(
-                color: context.care.hairline,
-                style: BorderStyle.solid),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: Radii.rMd,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: context.scheme.surfaceContainerHigh,
+              borderRadius: Radii.rMd,
+              border: Border.all(color: context.care.hairline),
+            ),
+            child: Icon(
+              onTap != null ? Icons.add_a_photo_outlined : Icons.camera_alt_outlined,
+              size: 18,
+              color: context.care.inkFaint,
+            ),
           ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+        ),
+      );
+}
+
+class _FilledPhotoTile extends StatelessWidget {
+  const _FilledPhotoTile({required this.file, required this.onRemove});
+  final File file;
+  final VoidCallback onRemove;
+  @override
+  Widget build(BuildContext context) => AspectRatio(
+        aspectRatio: 1,
+        child: ClipRRect(
+          borderRadius: Radii.rMd,
+          child: Stack(
+            fit: StackFit.expand,
             children: [
-              Icon(Icons.camera_alt_outlined, size: 18, color: context.care.inkFaint),
-              const SizedBox(height: 4),
-              Text(label,
-                  style: TextStyle(fontSize: 11, color: context.care.inkFaint)),
+              Image.file(file, fit: BoxFit.cover),
+              Positioned(
+                right: 3,
+                top: 3,
+                child: GestureDetector(
+                  onTap: onRemove,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: const BoxDecoration(
+                        color: Colors.black54, shape: BoxShape.circle),
+                    child: const Icon(Icons.close, size: 13, color: Colors.white),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -156,10 +245,21 @@ class _PhotoBox extends StatelessWidget {
 // ============================================================ 2 · SLOT
 class SlotScreen extends ConsumerWidget {
   const SlotScreen({super.key});
-  static const _days = [
-    ('Today', '24 Jul'), ('Sat', '25 Jul'), ('Sun', '26 Jul'),
-    ('Mon', '27 Jul'), ('Tue', '28 Jul'), ('Wed', '29 Jul'),
-  ];
+
+  /// Today plus the next 5 real calendar days — this used to be six days
+  /// hardcoded to "24 Jul – 29 Jul" regardless of the actual date, so every
+  /// booking after that one week showed the wrong "Today".
+  static List<(String, String)> get _days {
+    final now = DateTime.now();
+    return [
+      for (var i = 0; i < 6; i++)
+        (
+          i == 0 ? 'Today' : DateFormat('E').format(now.add(Duration(days: i))),
+          DateFormat('d MMM').format(now.add(Duration(days: i))),
+        ),
+    ];
+  }
+
   static const _am = ['8:00 – 9:00 am', '9:00 – 10:00 am', '10:00 – 11:00 am', '11:00 – 12:00 pm'];
   static const _pm = ['12:00 – 2:00 pm', '2:00 – 4:00 pm', '4:00 – 6:00 pm', '6:00 – 8:00 pm'];
 
@@ -414,35 +514,44 @@ class PaymentScreen extends ConsumerWidget {
           ),
         ),
         FilledButton(
-          onPressed: () {
-            // Razorpay checkout opens here in production, then the app listens
-            // to the booking doc for payment.status before advancing.
-            final service = draft.service;
-            if (service != null) {
-              SavedAddress? selected;
-              for (final a in [
-                ...ref.read(savedAddressesProvider),
-                if (draft.pickedAddress != null) draft.pickedAddress!,
-              ]) {
-                if (a.id == draft.addressId) {
-                  selected = a;
-                  break;
-                }
-              }
-              // Fire-and-forget — this booking flow always completes
-              // locally regardless of whether the real backend is
-              // reachable, same "never block a flow" philosophy as the
-              // Firestore profile write in firestore_user_profile_service.dart.
-              unawaited(ref.read(apiRepositoryProvider).createBooking(
-                    service: service,
-                    totalPaise: draft.totalPaise,
-                    areaLabel: selected?.label,
-                    lat: selected?.lat,
-                    lng: selected?.lng,
-                  ));
-            }
-            context.go('/booking/CP-2481-NSK/confirmed');
-          },
+          onPressed: draft.services.isEmpty
+              ? null
+              : () {
+                  // Razorpay checkout opens here in production, then the app
+                  // listens to the booking doc for payment.status before
+                  // advancing.
+                  SavedAddress? selected;
+                  for (final a in [
+                    ...ref.read(savedAddressesProvider),
+                    if (draft.pickedAddress != null) draft.pickedAddress!,
+                  ]) {
+                    if (a.id == draft.addressId) {
+                      selected = a;
+                      break;
+                    }
+                  }
+                  // One real booking per selected service — each keeps its
+                  // own price and gets routed/tracked independently on the
+                  // Partner side; the shared visit fee, discount, and tax
+                  // above are what the customer actually pays up front and
+                  // aren't split across bookings, there being no per-visit
+                  // field on a booking row to hold them.
+                  //
+                  // Fire-and-forget — this booking flow always completes
+                  // locally regardless of whether the real backend is
+                  // reachable, same "never block a flow" philosophy as the
+                  // Firestore profile write in firestore_user_profile_service.dart.
+                  for (final service in draft.services) {
+                    unawaited(ref.read(apiRepositoryProvider).createBooking(
+                          service: service,
+                          totalPaise: service.pricePaise,
+                          areaLabel: selected?.label,
+                          lat: selected?.lat,
+                          lng: selected?.lng,
+                        ));
+                  }
+                  context.go('/booking/CP-2481-NSK/confirmed');
+                },
           child: Text('Pay ${Money.rupees(draft.totalPaise)}'),
         ),
       ]),
@@ -453,16 +562,20 @@ class PaymentScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(draft.service?.title ?? 'Service',
-                        style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
-                    Text(Money.rupees(draft.itemPaise),
-                        style: CareType.mono(context.scheme.onSurface, size: 12)),
-                  ],
-                ),
-                const SizedBox(height: 4),
+                for (final s in draft.services) ...[
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(s.title,
+                            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+                      ),
+                      Text(Money.rupees(s.pricePaise),
+                          style: CareType.mono(context.scheme.onSurface, size: 12)),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                ],
                 Text('${draft.day} · ${draft.slot}', style: context.type.bodySmall),
                 const Divider(height: 24),
                 _line(context, 'Item total', Money.rupees(draft.itemPaise)),

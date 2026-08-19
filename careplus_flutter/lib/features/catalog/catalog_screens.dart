@@ -108,7 +108,7 @@ class ServiceDetailScreen extends ConsumerStatefulWidget {
 
 class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
   int _tab = 0;
-  ServiceItem? _selected;
+  final Set<String> _selectedIds = {};
   final Set<String> _expandedIncluded = {};
 
   @override
@@ -121,7 +121,9 @@ class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
     }
 
     final services = repo.servicesFor(widget.appliance);
-    _selected ??= services.first;
+    if (_selectedIds.isEmpty) _selectedIds.add(services.first.id);
+    final selected = [for (final s in services) if (_selectedIds.contains(s.id)) s];
+    final selectedTotalPaise = selected.fold<int>(0, (sum, s) => sum + s.pricePaise);
     final avgDurationMin =
         services.firstWhere((s) => s.mostBooked, orElse: () => services.first).durationMin;
 
@@ -171,18 +173,22 @@ class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Eyebrow('1 service'),
-                      Text(Money.rupees(_selected!.pricePaise),
+                      Eyebrow(selected.length == 1
+                          ? '1 service'
+                          : '${selected.length} services'),
+                      Text(Money.rupees(selectedTotalPaise),
                           style: CareType.mono(context.scheme.onSurface,
                               size: 16, w: FontWeight.w600)),
                     ],
                   ),
                 ),
                 FilledButton(
-                  onPressed: () {
-                    ref.read(bookingDraftProvider.notifier).start(_selected!);
-                    context.push('/book/issue');
-                  },
+                  onPressed: selected.isEmpty
+                      ? null
+                      : () {
+                          ref.read(bookingDraftProvider.notifier).start(selected);
+                          context.push('/book/issue');
+                        },
                   child: const Text('Continue'),
                 ),
               ]),
@@ -236,9 +242,22 @@ class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
                       ),
                     ),
                     const SizedBox(width: 10),
-                    ChoiceTag(_selected == s ? 'Added' : 'Add',
-                        selected: _selected == s,
-                        onTap: () => setState(() => _selected = s)),
+                    ChoiceTag(_selectedIds.contains(s.id) ? 'Added' : 'Add',
+                        selected: _selectedIds.contains(s.id),
+                        onTap: () => setState(() {
+                              // A real multi-add, not a single radio pick —
+                              // the "Add"/"Added" wording always implied you
+                              // could pick more than one service in a visit,
+                              // but this used to just replace the selection
+                              // each tap, silently dropping the first pick.
+                              // The last item can't be un-added: Continue
+                              // needs at least one service selected.
+                              if (_selectedIds.contains(s.id)) {
+                                if (_selectedIds.length > 1) _selectedIds.remove(s.id);
+                              } else {
+                                _selectedIds.add(s.id);
+                              }
+                            })),
                   ],
                 ),
                 if (s.included.isNotEmpty) ...[
