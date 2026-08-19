@@ -121,9 +121,7 @@ class AuthFlowVM extends Notifier<AuthFlowState> {
       unawaited(
         ref.read(staffProfileServiceProvider).touchProfile(role: state.role),
       );
-      unawaited(
-        ref.read(staffBootstrapServiceProvider).bootstrap(role: state.role),
-      );
+      unawaited(_bootstrapAndSyncRole());
       return true;
     } on AuthException catch (e) {
       state = state.copyWith(verifying: false, error: e.message);
@@ -160,9 +158,7 @@ class AuthFlowVM extends Notifier<AuthFlowState> {
       unawaited(
         ref.read(staffProfileServiceProvider).touchProfile(role: state.role),
       );
-      unawaited(
-        ref.read(staffBootstrapServiceProvider).bootstrap(role: state.role),
-      );
+      unawaited(_bootstrapAndSyncRole());
       return true;
     } on AuthException catch (e) {
       state = state.copyWith(submitting: false, error: e.message);
@@ -174,6 +170,18 @@ class AuthFlowVM extends Notifier<AuthFlowState> {
       );
       return false;
     }
+  }
+
+  /// Posts the requested role to /api/staff/bootstrap and, once the real
+  /// backend-assigned role comes back, corrects [state.role] to match it —
+  /// see StaffBootstrapService.bootstrap's doc comment. Runs after
+  /// navigation has already happened (never blocks sign-in), so the UI may
+  /// briefly show the requested role before this lands; that's the same
+  /// lag every other real-data screen in this app already has while its
+  /// first fetch is in flight.
+  Future<void> _bootstrapAndSyncRole() async {
+    final real = await ref.read(staffBootstrapServiceProvider).bootstrap(role: state.role);
+    if (real != null) state = state.copyWith(role: real);
   }
 
   void reset() => state = const AuthFlowState();
