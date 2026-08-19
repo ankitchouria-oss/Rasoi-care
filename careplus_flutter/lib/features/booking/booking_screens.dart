@@ -495,8 +495,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     // created, which is exactly why "the actual booking" never showed up.
     final directions = draft.directions.trim();
     final created = <Booking>[];
+    String? lastError;
     for (final service in draft.services) {
-      final booking = await ref.read(apiRepositoryProvider).createBooking(
+      final result = await ref.read(apiRepositoryProvider).createBooking(
             service: service,
             totalPaise: service.pricePaise,
             areaLabel: selected?.label,
@@ -504,15 +505,20 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             lng: selected?.lng,
             directions: directions.isEmpty ? null : directions,
           );
-      if (booking != null) created.add(booking);
+      if (result.booking != null) created.add(result.booking!);
+      if (result.error != null) lastError = result.error;
     }
     if (!mounted) return;
     setState(() => _submitting = false);
     if (created.isEmpty) {
       // Honest failure — no fake "you're booked" when nothing was actually
-      // created (e.g. the backend has no technician to route to yet).
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text("Couldn't confirm your booking — check your connection and try again.")));
+      // created. Show the real reason (e.g. the backend has no technician
+      // to route to yet) rather than always blaming the customer's
+      // connection, which is wrong for anything but a genuine network
+      // failure and actively misleading for a real server-side rejection.
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(lastError ??
+              "Couldn't confirm your booking — check your connection and try again.")));
       return;
     }
     context.go('/booking/${created.first.id}/confirmed', extra: created.length);
