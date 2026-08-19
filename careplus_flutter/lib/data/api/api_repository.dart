@@ -71,8 +71,9 @@ class ApiRepository implements CareRepository {
   /// (PaymentScreen in lib/features/booking/booking_screens.dart). Posts
   /// the booking to the backend and, on success, adds it to the in-memory
   /// cache immediately so [bookings] reflects it without a refetch. Never
-  /// throws — on any failure this returns null and the caller's local
-  /// "booking confirmed" UI flow proceeds regardless.
+  /// throws — on failure `booking` is null and `error` carries why (see
+  /// BackendClient.createBooking), so the caller can tell the customer the
+  /// real reason instead of a generic "check your connection".
   ///
   /// [totalPaise] must be the exact figure shown to the customer as
   /// "Payable now" (visit fee + tax − any discount, from
@@ -81,7 +82,7 @@ class ApiRepository implements CareRepository {
   /// apps see too. Falling back to the bare service price here previously
   /// meant the customer could be shown one figure at checkout while a
   /// completely different (lower) one landed in the technician's app.
-  Future<Booking?> createBooking({
+  Future<({Booking? booking, String? error})> createBooking({
     required ServiceItem service,
     required int totalPaise,
     String? areaLabel,
@@ -90,9 +91,9 @@ class ApiRepository implements CareRepository {
     String? directions,
   }) async {
     final token = await _idToken();
-    if (token == null) return null;
+    if (token == null) return (booking: null, error: 'You need to be signed in to book.');
     final category = applianceToBackendCategory[service.appliance] ?? 'RasoiAir';
-    final json = await _client.createBooking(
+    final result = await _client.createBooking(
       idToken: token,
       category: category,
       service: service.title,
@@ -102,11 +103,11 @@ class ApiRepository implements CareRepository {
       lng: lng,
       directions: directions,
     );
-    if (json == null) return null;
-    final booking = _bookingFromJson(json);
+    if (result.booking == null) return (booking: null, error: result.error);
+    final booking = _bookingFromJson(result.booking!);
     _realBookings = [...(_realBookings ?? []), booking];
     onBookingsChanged?.call();
-    return booking;
+    return (booking: booking, error: null);
   }
 
   /// Submits the real star rating from RateScreen — previously the

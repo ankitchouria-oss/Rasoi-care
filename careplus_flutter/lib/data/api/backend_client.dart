@@ -39,9 +39,14 @@ class BackendClient {
   }
 
   /// POST /api/bookings using the legacy category/service/price shape.
-  /// Returns the decoded booking JSON on a 201, or null on any failure
-  /// (network error, timeout, non-2xx response).
-  Future<Map<String, dynamic>?> createBooking({
+  /// Returns the decoded booking JSON on a 201. On any failure, `booking`
+  /// is null and `error` carries the reason: the backend's own message for
+  /// an unsuccessful-but-reachable request (e.g. app.py's 503 "No
+  /// technician is available for this service yet" once the demo
+  /// technicians were removed), or a generic one for a real network
+  /// failure (offline, timeout) — so the caller can show the customer what
+  /// actually went wrong instead of always blaming their connection.
+  Future<({Map<String, dynamic>? booking, String? error})> createBooking({
     required String idToken,
     required String category,
     required String service,
@@ -67,14 +72,15 @@ class BackendClient {
             }),
           )
           .timeout(_timeout);
-      if (res.statusCode == 201) {
-        final decoded = jsonDecode(res.body);
-        if (decoded is Map<String, dynamic>) return decoded;
+      final decoded = jsonDecode(res.body);
+      if (res.statusCode == 201 && decoded is Map<String, dynamic>) {
+        return (booking: decoded, error: null);
       }
+      final message = decoded is Map<String, dynamic> ? decoded['error'] as String? : null;
+      return (booking: null, error: message ?? 'The server rejected this booking (${res.statusCode}).');
     } catch (_) {
-      // Best-effort — see file header.
+      return (booking: null, error: null); // real network failure — see file header
     }
-    return null;
   }
 
   /// GET /api/bookings with the caller's Firebase ID token — the backend
