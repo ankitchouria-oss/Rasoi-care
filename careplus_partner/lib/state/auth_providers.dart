@@ -103,7 +103,14 @@ Future<Map<String, dynamic>?> fetchTechnicianMe() async {
 /// called by TechApplyScreen. Unlike [bootstrapTechnicianBackend]/
 /// [fetchTechnicianMe], this is a primary action the person is actively
 /// waiting on, so it throws a real [AuthException] instead of silently
-/// swallowing failures.
+/// swallowing failures — and it surfaces the backend's actual reason
+/// rather than always blaming the connection. In particular, a 401 here
+/// almost always means [bootstrapTechnicianBackend] never actually
+/// created this technician's row yet (e.g. it silently timed out against
+/// a cold-starting backend right after sign-in) — [TechApplyScreen]
+/// catches [TechnicianProfileMissingException] specifically to retry that
+/// bootstrap once before giving up, so a slow first request doesn't
+/// permanently strand someone who filled out the whole form.
 Future<Map<String, dynamic>> submitTechnicianApplication(
   Map<String, dynamic> fields,
 ) async {
@@ -114,8 +121,9 @@ Future<Map<String, dynamic>> submitTechnicianApplication(
   if (user == null) throw const AuthException('Not signed in.');
   final token = await user.getIdToken();
   if (token == null) throw const AuthException('Not signed in.');
+  http.Response res;
   try {
-    final res = await http
+    res = await http
         .patch(
           Uri.parse('${ApiConfig.baseUrl}/api/technician/me'),
           headers: {
@@ -125,19 +133,29 @@ Future<Map<String, dynamic>> submitTechnicianApplication(
           body: jsonEncode(fields),
         )
         .timeout(const Duration(seconds: 15));
-    if (res.statusCode != 200) {
-      throw const AuthException('Could not submit — check your connection and try again.');
-    }
-    final decoded = jsonDecode(res.body);
-    if (decoded is! Map<String, dynamic>) {
-      throw const AuthException('Unexpected response — try again.');
-    }
-    return decoded;
-  } on AuthException {
-    rethrow;
   } catch (_) {
     throw const AuthException('Could not submit — check your connection and try again.');
   }
+  if (res.statusCode != 200) {
+    final decoded = jsonDecode(res.body);
+    final serverMessage =
+        decoded is Map<String, dynamic> ? decoded['message'] as String? : null;
+    if (res.statusCode == 401) {
+      throw TechnicianProfileMissingException(
+          serverMessage ?? 'Your technician profile isn\'t set up yet.');
+    }
+    throw AuthException(serverMessage ?? 'Could not submit (error ${res.statusCode}). Try again.');
+  }
+  final decoded = jsonDecode(res.body);
+  if (decoded is! Map<String, dynamic>) {
+    throw const AuthException('Unexpected response — try again.');
+  }
+  return decoded;
+}
+
+/// See [submitTechnicianApplication]'s doc comment.
+class TechnicianProfileMissingException extends AuthException {
+  const TechnicianProfileMissingException(super.message);
 }
 
 TechnicianStage stageFromTechnicianJson(Map<String, dynamic>? json) {
