@@ -186,7 +186,7 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
       final panDocumentUrl = _panDocument == null
           ? null
           : await uploadService.upload(_panDocument!, kind: 'pan_document');
-      final result = await submitTechnicianApplication({
+      final fields = {
         'name': _nameCtrl.text.trim(),
         'category': _category,
         'area': _city,
@@ -206,7 +206,8 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
         'emergencyContactName': _emergencyNameCtrl.text.trim(),
         'emergencyContactPhone': _emergencyPhoneCtrl.text.trim(),
         'submit': true,
-      });
+      };
+      final result = await _submitApplication(fields);
       if (!mounted) return;
       ref.read(technicianMeProvider.notifier).state = result;
       if (_isEditing) {
@@ -220,6 +221,26 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
       }
     } finally {
       if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  /// A 401 here almost always means [bootstrapTechnicianBackend] never
+  /// actually created this technician's row — most likely it silently
+  /// timed out against a cold-starting backend right after sign-in (Render
+  /// free tier can take well past the original 8-second bootstrap timeout
+  /// to wake up). Rather than stranding someone who just filled out the
+  /// whole KYC form behind a generic error, retry the bootstrap once and
+  /// resubmit before giving up for real.
+  Future<Map<String, dynamic>> _submitApplication(Map<String, dynamic> fields) async {
+    try {
+      return await submitTechnicianApplication(fields);
+    } on TechnicianProfileMissingException {
+      final bootstrapped = await bootstrapTechnicianBackend();
+      if (bootstrapped == null) {
+        throw const AuthException(
+            "Couldn't verify your sign-in — please sign out and sign in again.");
+      }
+      return submitTechnicianApplication(fields);
     }
   }
 
