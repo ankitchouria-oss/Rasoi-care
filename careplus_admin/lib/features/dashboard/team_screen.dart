@@ -10,18 +10,9 @@ import 'dashboard_header.dart';
 class TeamScreen extends ConsumerWidget {
   const TeamScreen({super.key});
 
-  String _dutyLabel(DutyStatus d) => switch (d) {
-        DutyStatus.onJob => 'On job',
-        DutyStatus.idle => 'Idle',
-        DutyStatus.offDuty => 'Off duty',
-      };
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final team = ref.watch(repositoryProvider).team();
-    final onDuty = team.where((t) => t.duty != DutyStatus.offDuty).length;
-    final pendingReview =
-        team.where((t) => t.applicationSubmitted && !t.verified).length;
 
     return Scaffold(
       body: SafeArea(
@@ -30,58 +21,83 @@ class TeamScreen extends ConsumerWidget {
           children: [
             const DashboardHeader(eyebrow: 'Rasoi Care operations', title: 'Technician team'),
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
-                children: [
-                  Row(children: [
-                    Expanded(
-                        child: _Kpi(label: 'On duty', value: '$onDuty / ${team.length}')),
-                    const SizedBox(width: 10),
-                    Expanded(
-                        child: _Kpi(
-                            label: 'Awaiting review',
-                            value: '$pendingReview',
-                            warn: pendingReview > 0)),
-                  ]),
-                  const SizedBox(height: 12),
-                  Stagger(children: [
-                    for (final t in team)
-                      CareCard(
-                        onTap: () => _openDetail(context, ref, t),
-                        child: Row(children: [
-                          Blob(t.initials, size: 40),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(t.name,
-                                    style: const TextStyle(
-                                        fontSize: 13.5, fontWeight: FontWeight.w700)),
-                                const SizedBox(height: 3),
-                                Text('${t.specialties} · ${t.statsLabel}',
-                                    style: context.type.bodySmall),
-                              ],
-                            ),
-                          ),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              _StatusBadge(t),
-                              const SizedBox(height: 4),
-                              Text(_dutyLabel(t.duty),
-                                  style: TextStyle(fontSize: 11, color: context.care.inkMuted)),
-                            ],
-                          ),
-                        ]),
-                      ),
-                  ]),
-                ],
-              ),
+              child: team == null
+                  ? const Center(child: CircularProgressIndicator())
+                  : _TeamBody(team: team),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _TeamBody extends ConsumerWidget {
+  const _TeamBody({required this.team});
+  final List<AdminTeamMember> team;
+
+  String _dutyLabel(DutyStatus d) => switch (d) {
+        DutyStatus.onJob => 'On job',
+        DutyStatus.idle => 'Idle',
+        DutyStatus.offDuty => 'Off duty',
+      };
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final onDuty = team.where((t) => t.duty != DutyStatus.offDuty).length;
+    final pendingReview = team.where((t) => t.applicationSubmitted && !t.verified).length;
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+      children: [
+        Row(children: [
+          Expanded(child: _Kpi(label: 'On duty', value: '$onDuty / ${team.length}')),
+          const SizedBox(width: 10),
+          Expanded(
+              child: _Kpi(
+                  label: 'Awaiting review',
+                  value: '$pendingReview',
+                  warn: pendingReview > 0)),
+        ]),
+        const SizedBox(height: 12),
+        if (team.isEmpty)
+          const EmptyState(
+              glyph: '◌',
+              title: 'No technicians yet',
+              body: 'Technicians who sign up in the Partner app will appear here.')
+        else
+          Stagger(children: [
+            for (final t in team)
+              CareCard(
+                onTap: () => _openDetail(context, ref, t),
+                child: Row(children: [
+                  Blob(t.initials, size: 40),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(t.name,
+                            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 3),
+                        Text('${t.specialties} · ${t.statsLabel}',
+                            style: context.type.bodySmall),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      _StatusBadge(t),
+                      const SizedBox(height: 4),
+                      Text(_dutyLabel(t.duty),
+                          style: TextStyle(fontSize: 11, color: context.care.inkMuted)),
+                    ],
+                  ),
+                ]),
+              ),
+          ]),
+      ],
     );
   }
 

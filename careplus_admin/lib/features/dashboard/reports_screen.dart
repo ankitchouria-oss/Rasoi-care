@@ -23,31 +23,7 @@ class ReportsScreen extends ConsumerWidget {
         bottom: false,
         child: Column(
           children: [
-            DashboardHeader(
-              eyebrow: 'Analysis & reports',
-              title: 'Nashik cluster',
-              trailing: GestureDetector(
-                onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Report exported as PDF (demo)'))),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: context.scheme.surface,
-                    borderRadius: Radii.pill,
-                    border: Border.all(color: context.care.hairline),
-                  ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.ios_share, size: 14, color: context.scheme.primary),
-                    const SizedBox(width: 5),
-                    Text('Export',
-                        style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w700,
-                            color: context.scheme.primary)),
-                  ]),
-                ),
-              ),
-            ),
+            const DashboardHeader(eyebrow: 'Analysis & reports', title: 'Nashik cluster'),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: _RangeSeg(
@@ -57,39 +33,64 @@ class ReportsScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 6),
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 10, 20, 40),
-                children: [
-                  _RevenueTrendCard(report: report),
-                  const SizedBox(height: 12),
-                  _RatingTrendCard(report: report),
-                  SectionHeader('Revenue by category',
-                      trailing: Mono(range.label, color: context.care.inkMuted)),
-                  _CategoryRevenueCard(report: report),
-                  SectionHeader('Technician leaderboard'),
-                  _LeaderboardCard(report: report),
-                  SectionHeader('Customer segments'),
-                  _CustomerSegmentsCard(report: report),
-                  SectionHeader('SLA & complaints'),
-                  _ComplaintsCard(report: report),
-                  SectionHeader('Payment mix'),
-                  _PaymentMixCard(report: report),
-                  SectionHeader('Coupons & discounts'),
-                  _CouponsCard(report: report),
-                  SectionHeader('Financial P&L',
-                      trailing: role == AdminRole.owner
-                          ? null
-                          : const StatusChip('Owner only', tone: ChipTone.neutral, height: 24)),
-                  if (role == AdminRole.owner)
-                    _FinancialsCard(report: report)
-                  else
-                    const _OwnerOnlyLock(),
-                ],
-              ),
+              child: report == null
+                  ? const Center(child: CircularProgressIndicator())
+                  : _ReportsBody(report: report, range: range, role: role),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ReportsBody extends StatelessWidget {
+  const _ReportsBody({required this.report, required this.range, required this.role});
+  final ReportBundle report;
+  final ReportRange range;
+  final AdminRole role;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 40),
+      children: [
+        _RevenueTrendCard(report: report),
+        const SizedBox(height: 12),
+        _RatingTrendCard(report: report),
+        SectionHeader('Revenue by category',
+            trailing: Mono(range.label, color: context.care.inkMuted)),
+        if (report.categoryRevenue.isEmpty)
+          const EmptyState(glyph: '◌', title: 'No revenue yet', body: 'Nothing completed this period.')
+        else
+          _CategoryRevenueCard(report: report),
+        SectionHeader('Technician leaderboard'),
+        if (report.technicianLeaderboard.isEmpty)
+          const EmptyState(
+              glyph: '◌', title: 'No technicians yet', body: 'Add technicians from the Team tab.')
+        else
+          _LeaderboardCard(report: report),
+        SectionHeader('Complaints by status',
+            trailing: StatusChip(
+                '${report.complaintsByStatus.fold<int>(0, (s, c) => s + c.count)} total',
+                tone: ChipTone.neutral,
+                height: 26)),
+        if (report.complaintsByStatus.isEmpty)
+          const EmptyState(glyph: '✓', title: 'No complaints', body: 'None filed this period.')
+        else
+          _ComplaintsCard(report: report),
+        SectionHeader('Financial P&L',
+            trailing: role == AdminRole.owner
+                ? null
+                : const StatusChip('Owner only', tone: ChipTone.neutral, height: 24)),
+        if (role != AdminRole.owner)
+          const _OwnerOnlyLock()
+        else if (report.financials == null)
+          const EmptyState(
+              glyph: '◌', title: 'Loading…', body: 'Fetching the owner P&L summary.')
+        else
+          _FinancialsCard(financials: report.financials!),
+      ],
     );
   }
 }
@@ -154,18 +155,26 @@ class _RevenueTrendCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          SparkLineChart(values: [for (final p in report.revenueTrend) p.value]),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              for (final p in report.revenueTrend)
-                Expanded(
-                  child: Text(p.label,
-                      textAlign: TextAlign.center,
-                      style: CareType.mono(context.care.inkMuted, size: 10)),
-                ),
-            ],
-          ),
+          if (report.revenueTrend.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              child: Text('No completed bookings this period.',
+                  style: context.type.bodySmall, textAlign: TextAlign.center),
+            )
+          else ...[
+            SparkLineChart(values: [for (final p in report.revenueTrend) p.value]),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                for (final p in report.revenueTrend)
+                  Expanded(
+                    child: Text(p.label,
+                        textAlign: TextAlign.center,
+                        style: CareType.mono(context.care.inkMuted, size: 10)),
+                  ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -177,7 +186,6 @@ class _RatingTrendCard extends StatelessWidget {
   final ReportBundle report;
   @override
   Widget build(BuildContext context) {
-    final last = report.ratingTrend.last.value * 5;
     return CareCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -187,26 +195,35 @@ class _RatingTrendCard extends StatelessWidget {
             children: [
               const Text('Average rating trend',
                   style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
-              Text('★ ${last.toStringAsFixed(2)}',
-                  style: CareType.mono(context.scheme.secondary, size: 15, w: FontWeight.w600)),
+              if (report.ratingTrend.isNotEmpty)
+                Text('★ ${(report.ratingTrend.last.value * 5).toStringAsFixed(2)}',
+                    style: CareType.mono(context.scheme.secondary, size: 15, w: FontWeight.w600)),
             ],
           ),
           const SizedBox(height: 12),
-          SparkLineChart(
-              values: [for (final p in report.ratingTrend) p.value],
-              color: context.scheme.secondary,
-              height: 90),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              for (final p in report.ratingTrend)
-                Expanded(
-                  child: Text(p.label,
-                      textAlign: TextAlign.center,
-                      style: CareType.mono(context.care.inkMuted, size: 10)),
-                ),
-            ],
-          ),
+          if (report.ratingTrend.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              child: Text('No ratings submitted this period.',
+                  style: context.type.bodySmall, textAlign: TextAlign.center),
+            )
+          else ...[
+            SparkLineChart(
+                values: [for (final p in report.ratingTrend) p.value],
+                color: context.scheme.secondary,
+                height: 90),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                for (final p in report.ratingTrend)
+                  Expanded(
+                    child: Text(p.label,
+                        textAlign: TextAlign.center,
+                        style: CareType.mono(context.care.inkMuted, size: 10)),
+                  ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -226,9 +243,9 @@ class _CategoryRevenueCard extends StatelessWidget {
         children: [
           for (final c in list)
             HBarRow(
-              label: '${c.glyph}  ${c.label}',
-              value: '${Money.rupees(c.revenuePaise)} · ${c.jobs} jobs',
-              fraction: c.revenuePaise / max,
+              label: c.label,
+              value: Money.rupees(c.revenuePaise),
+              fraction: max <= 0 ? 0 : c.revenuePaise / max,
             ),
         ],
       ),
@@ -252,57 +269,10 @@ class _LeaderboardCard extends StatelessWidget {
             HBarRow(
               rank: i + 1,
               label: list[i].name,
-              value:
-                  '${Money.rupees(list[i].revenuePaise)} · ★${list[i].rating} · ${list[i].firstTimeFixPct}% FTF',
-              fraction: list[i].revenuePaise / max,
+              value: '${Money.rupees(list[i].revenuePaise)} · ★${list[i].rating}',
+              fraction: max <= 0 ? 0 : list[i].revenuePaise / max,
               color: i == 0 ? context.scheme.secondary : null,
             ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CustomerSegmentsCard extends StatelessWidget {
-  const _CustomerSegmentsCard({required this.report});
-  final ReportBundle report;
-  @override
-  Widget build(BuildContext context) {
-    final colors = [
-      context.scheme.primary,
-      context.scheme.secondary,
-      context.care.success,
-      context.scheme.error,
-    ];
-    final total = report.customerSegments.fold<int>(0, (s, e) => s + e.count);
-    return CareCard(
-      child: Row(
-        children: [
-          DonutChart(
-            slices: [
-              for (var i = 0; i < report.customerSegments.length; i++)
-                (report.customerSegments[i].count.toDouble(), colors[i % colors.length]),
-            ],
-            size: 96,
-            stroke: 15,
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Text('$total', style: CareType.mono(context.scheme.onSurface, size: 17, w: FontWeight.w600)),
-              Text('customers', style: CareType.mono(context.care.inkMuted, size: 9)),
-            ]),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              children: [
-                for (var i = 0; i < report.customerSegments.length; i++)
-                  LegendRow(
-                    color: colors[i % colors.length],
-                    label: report.customerSegments[i].label,
-                    value: '${report.customerSegments[i].count} · ${report.customerSegments[i].pct.toStringAsFixed(0)}%',
-                  ),
-              ],
-            ),
-          ),
         ],
       ),
     );
@@ -314,149 +284,58 @@ class _ComplaintsCard extends StatelessWidget {
   final ReportBundle report;
   @override
   Widget build(BuildContext context) {
-    final totalComplaints = report.complaintReasons.fold<int>(0, (s, e) => s + e.count);
-    final avgHrs = report.complaintReasons.isEmpty
-        ? 0.0
-        : report.complaintReasons.fold<double>(0, (s, e) => s + e.avgResolutionHrs * e.count) /
-            totalComplaints;
+    final list = [...report.complaintsByStatus]..sort((a, b) => b.count.compareTo(a.count));
+    final max = list.first.count;
+    ChipTone toneFor(String status) => switch (status) {
+          'Resolved' => ChipTone.success,
+          'Open' => ChipTone.danger,
+          _ => ChipTone.warning,
+        };
     return CareCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              StatusChip('$totalComplaints complaints', tone: ChipTone.danger, height: 26),
-              Text('Avg resolution ${avgHrs.toStringAsFixed(0)}h', style: context.type.bodySmall),
-            ],
-          ),
-          const Divider(height: 24),
-          for (final c in report.complaintReasons)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                      child: Text(c.label,
-                          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600))),
-                  Text('${c.count} · ${c.avgResolutionHrs.toStringAsFixed(0)}h',
-                      style: CareType.mono(context.care.inkMuted, size: 11.5)),
-                ],
-              ),
+          for (final c in list)
+            HBarRow(
+              label: c.status,
+              value: '${c.count}',
+              fraction: max <= 0 ? 0 : c.count / max,
+              color: toneFor(c.status) == ChipTone.success
+                  ? context.care.success
+                  : toneFor(c.status) == ChipTone.danger
+                      ? context.scheme.error
+                      : context.scheme.secondary,
             ),
         ],
       ),
     );
   }
-}
-
-class _PaymentMixCard extends StatelessWidget {
-  const _PaymentMixCard({required this.report});
-  final ReportBundle report;
-  @override
-  Widget build(BuildContext context) {
-    final colors = [
-      context.scheme.primary,
-      context.scheme.secondary,
-      context.care.success,
-      context.care.inkMuted,
-    ];
-    final total = report.paymentMix.fold<int>(0, (s, e) => s + e.amountPaise);
-    return CareCard(
-      child: Row(
-        children: [
-          DonutChart(
-            slices: [
-              for (var i = 0; i < report.paymentMix.length; i++)
-                (report.paymentMix[i].amountPaise.toDouble(), colors[i % colors.length]),
-            ],
-            size: 96,
-            stroke: 15,
-            child: Text(Money.rupees(total),
-                textAlign: TextAlign.center,
-                style: CareType.mono(context.scheme.onSurface, size: 13, w: FontWeight.w600)),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              children: [
-                for (var i = 0; i < report.paymentMix.length; i++)
-                  LegendRow(
-                    color: colors[i % colors.length],
-                    label: report.paymentMix[i].method,
-                    value: '${report.paymentMix[i].pct.toStringAsFixed(0)}%',
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CouponsCard extends StatelessWidget {
-  const _CouponsCard({required this.report});
-  final ReportBundle report;
-  @override
-  Widget build(BuildContext context) => CareCard(
-        padding: EdgeInsets.zero,
-        child: Column(
-          children: [
-            for (var i = 0; i < report.coupons.length; i++)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  border: i == report.coupons.length - 1
-                      ? null
-                      : Border(bottom: BorderSide(color: context.care.hairline)),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Mono(report.coupons[i].code, size: 12.5, weight: FontWeight.w700),
-                    Text('${report.coupons[i].redemptions} redemptions',
-                        style: context.type.bodySmall),
-                    Text('-${Money.rupees(report.coupons[i].discountGivenPaise)}',
-                        style: CareType.mono(context.scheme.error, size: 12, w: FontWeight.w600)),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      );
 }
 
 class _FinancialsCard extends StatelessWidget {
-  const _FinancialsCard({required this.report});
-  final ReportBundle report;
+  const _FinancialsCard({required this.financials});
+  final FinancialSummary financials;
   @override
   Widget build(BuildContext context) {
-    final f = report.financials;
+    final f = financials;
     return CareCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _line(context, 'Gross revenue', f.grossRevenuePaise, positive: true),
-          _line(context, 'Technician payouts', -f.technicianPayoutsPaise),
-          _line(context, 'Parts cost', -f.partsCostPaise),
-          _line(context, 'Discounts given', -f.discountsGivenPaise),
-          _line(context, 'Refunds', -f.refundsPaise),
+          _line(context, 'Technician payouts (estimated)', -f.technicianPayoutEstimatePaise),
           const Divider(height: 24),
-          _line(context, 'Net margin', f.netMarginPaise, positive: true, bold: true),
+          _line(context, 'Net margin (estimated)', f.netMarginEstimatePaise,
+              positive: true, bold: true),
           const SizedBox(height: 4),
           Text('${f.netMarginPct.toStringAsFixed(1)}% of gross revenue',
               style: context.type.bodySmall),
-          const Divider(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('GST collected (pass-through)', style: context.type.bodySmall),
-              Text(Money.rupees(f.taxCollectedPaise),
-                  style: CareType.mono(context.care.inkMuted, size: 12)),
-            ],
-          ),
+          const SizedBox(height: 10),
+          Text(
+              'Technician payout is estimated at ${(f.payoutRateAssumed * 100).toStringAsFixed(0)}% '
+              'of gross revenue — there is no real per-job payout ledger yet, so this is an '
+              'assumed rate, not an actual figure.',
+              style: context.type.bodySmall),
         ],
       ),
     );
@@ -499,7 +378,7 @@ class _OwnerOnlyLock extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-                'Payouts, parts cost and margin are visible to the Owner account only.',
+                'Payouts and margin are visible to the Owner account only.',
                 style: context.type.bodySmall),
           ),
         ]),

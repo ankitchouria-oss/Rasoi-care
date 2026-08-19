@@ -1,5 +1,11 @@
 // Domain models for Rasoi Care Admin — the owner/staff-facing operations and
-// analytics app.
+// analytics app. Every field here is backed by a real column or a real
+// aggregation query in app.py/database.py at the repo root — there is no
+// mock/demo data source behind this app any more (see api_repository.dart's
+// header). A metric with no real backend source (SLA targets, first-time-fix
+// tracking, customer segmentation, payment-method mix, coupon usage) has no
+// model field for it — better to leave it off the screen than show an
+// invented number.
 //
 // Money is stored in paise (integer) everywhere and only formatted at the
 // edge. See [Money] for the formatter.
@@ -16,6 +22,8 @@ abstract final class Money {
 }
 
 /// Owner sees financials and staff management; Staff gets operations only.
+/// This is only ever set from the real role the backend's `/api/staff`
+/// tables assigns — see StaffBootstrapService.
 enum AdminRole { owner, staff }
 
 extension AdminRoleX on AdminRole {
@@ -25,50 +33,49 @@ extension AdminRoleX on AdminRole {
 enum LineTone { neutral, success }
 
 // ============================================================ OVERVIEW
-/// A single item on the "needs attention" list — unassigned jobs, complaints,
-/// refunds queued.
+/// A single item on the "needs attention" list — derived from real
+/// unassigned bookings and open complaints, not a canned list.
 class AttentionItem {
-  const AttentionItem(this.jobId, this.title, this.detail, this.tone);
+  const AttentionItem({
+    required this.jobId,
+    required this.title,
+    required this.detail,
+    required this.tone,
+    this.isComplaint = false,
+  });
   final String jobId;
   final String title;
   final String detail;
   final LineTone tone;
+  final bool isComplaint;
 }
 
 /// Cluster-wide KPIs for the overview tab.
 class AdminOverview {
   const AdminOverview({
     required this.revenuePaise,
-    required this.revenueDeltaPct,
-    required this.jobsClosed,
-    required this.jobsClosedDeltaPct,
-    required this.slaBreaches,
-    required this.slaBreachesToday,
+    required this.completedJobs,
+    required this.openComplaints,
     required this.avgRating,
     required this.ratingCount,
     required this.weekBars,
     required this.weekLabels,
     required this.technicianUtilisationPct,
-    required this.firstTimeFixPct,
     required this.attention,
   });
   final int revenuePaise;
-  final double revenueDeltaPct;
-  final int jobsClosed;
-  final double jobsClosedDeltaPct;
-  final int slaBreaches;
-  final int slaBreachesToday;
+  final int completedJobs;
+  final int openComplaints;
   final double avgRating;
   final int ratingCount;
-  final List<int> weekBars; // 0..100, one per day
+  final List<int> weekBars; // 0..100, one per of the last 7 calendar days
   final List<String> weekLabels;
   final int technicianUtilisationPct;
-  final int firstTimeFixPct;
   final List<AttentionItem> attention;
 }
 
 // ============================================================ BOOKINGS
-enum BookingCategory { unassigned, inProgress, scheduled, closed }
+enum BookingCategory { unassigned, inProgress, closed }
 
 /// One row in the admin bookings queue.
 class AdminBooking {
@@ -78,12 +85,24 @@ class AdminBooking {
     required this.meta,
     required this.statusLabel,
     required this.category,
+    required this.totalPaise,
+    this.createdAt,
+    this.area,
+    this.customerName,
+    this.directions,
+    this.technicianName,
   });
   final String jobId;
   final String title;
   final String meta;
   final String statusLabel;
   final BookingCategory category;
+  final int totalPaise;
+  final DateTime? createdAt;
+  final String? area;
+  final String? customerName;
+  final String? directions;
+  final String? technicianName;
 }
 
 // ============================================================ TEAM
@@ -115,9 +134,6 @@ class AdminTeamMember {
   final String statsLabel;
   final double rating;
   final DutyStatus duty;
-
-  /// Null for mock rows (nothing to verify against a real backend) — see
-  /// TeamScreen, which hides the verify action when this is null.
   final String? id;
   final String? area;
   final bool verified;
@@ -130,12 +146,15 @@ class AdminTeamMember {
   final String? bankIfsc;
 }
 
-enum StaffStatus { active, invited, suspended }
+/// The backend only tracks active/suspended — there's no "invited" state
+/// (an invite just creates an already-active account with a PIN).
+enum StaffStatus { active, suspended }
 
 /// A back-office staff account (owner-only "Staff & access" screen) — not a
 /// field technician, but someone who signs into this app.
 class StaffAccount {
   const StaffAccount({
+    required this.id,
     required this.name,
     required this.initials,
     required this.phone,
@@ -143,6 +162,7 @@ class StaffAccount {
     required this.status,
     required this.lastActive,
   });
+  final String id;
   final String name;
   final String initials;
   final String phone;
@@ -152,24 +172,24 @@ class StaffAccount {
 }
 
 // ============================================================ STOCK
-/// One SKU on the stock tab, with a burn-rate forecast for the reports view.
+/// One SKU on the stock tab.
 class AdminStockItem {
   const AdminStockItem({
+    required this.id,
     required this.name,
     required this.sku,
     required this.inStock,
     required this.reorderAt,
     required this.low,
-    required this.burnPerDay,
   });
+  final String id;
   final String name;
   final String sku;
   final int inStock;
   final int reorderAt;
   final bool low;
-  final double burnPerDay;
-  double get fillFraction => (inStock / reorderAt).clamp(0, 1);
-  int get daysLeft => burnPerDay <= 0 ? 999 : (inStock / burnPerDay).floor();
+  double get fillFraction =>
+      reorderAt <= 0 ? (inStock > 0 ? 1 : 0) : (inStock / reorderAt).clamp(0, 1);
 }
 
 // ============================================================ REPORTS
@@ -192,11 +212,9 @@ class TrendPoint {
 
 /// Revenue and job count for one appliance category, for the mix breakdown.
 class CategoryRevenue {
-  const CategoryRevenue(this.label, this.glyph, this.revenuePaise, this.jobs);
+  const CategoryRevenue(this.label, this.revenuePaise);
   final String label;
-  final String glyph;
   final int revenuePaise;
-  final int jobs;
 }
 
 /// One row of the technician leaderboard report.
@@ -207,72 +225,47 @@ class TechnicianRow {
     required this.jobs,
     required this.revenuePaise,
     required this.rating,
-    required this.firstTimeFixPct,
   });
   final String name;
   final String initials;
   final int jobs;
   final int revenuePaise;
   final double rating;
-  final int firstTimeFixPct;
 }
 
-/// One customer segment slice (new / repeat / loyal / lapsed).
-class CustomerSegment {
-  const CustomerSegment(this.label, this.count, this.pct);
-  final String label;
+/// Real complaint counts grouped by status for the selected range (e.g.
+/// Open, In review, Resolved) — replaces an earlier invented "complaint
+/// reasons" taxonomy the backend never actually tracked.
+class ComplaintStatusCount {
+  const ComplaintStatusCount(this.status, this.count);
+  final String status;
   final int count;
-  final double pct;
 }
 
-/// One complaint reason slice, for the SLA & complaints report.
-class ComplaintReason {
-  const ComplaintReason(this.label, this.count, this.avgResolutionHrs);
-  final String label;
-  final int count;
-  final double avgResolutionHrs;
-}
-
-/// One payment method's share of collections.
-class PaymentMixItem {
-  const PaymentMixItem(this.method, this.amountPaise, this.pct);
-  final String method;
-  final int amountPaise;
-  final double pct;
-}
-
-/// One coupon/discount code's usage for the period.
-class CouponUsage {
-  const CouponUsage(this.code, this.redemptions, this.discountGivenPaise);
-  final String code;
-  final int redemptions;
-  final int discountGivenPaise;
-}
-
-/// Owner-only P&L summary for the selected report range.
+/// Owner-only P&L summary for the selected report range. The backend only
+/// tracks gross revenue for real; technician payout is an assumed-rate
+/// estimate (see app.py's TECH_PAYOUT_RATE) — [payoutRateAssumed] is shown
+/// alongside it so it never reads as a real ledger figure. There is no
+/// parts-cost, tax, refund, or discount ledger to report — those simply
+/// aren't shown, rather than being displayed as an always-zero line.
 class FinancialSummary {
   const FinancialSummary({
     required this.grossRevenuePaise,
-    required this.technicianPayoutsPaise,
-    required this.partsCostPaise,
-    required this.taxCollectedPaise,
-    required this.refundsPaise,
-    required this.discountsGivenPaise,
+    required this.technicianPayoutEstimatePaise,
+    required this.payoutRateAssumed,
   });
   final int grossRevenuePaise;
-  final int technicianPayoutsPaise;
-  final int partsCostPaise;
-  final int taxCollectedPaise;
-  final int refundsPaise;
-  final int discountsGivenPaise;
+  final int technicianPayoutEstimatePaise;
+  final double payoutRateAssumed;
 
-  int get netMarginPaise =>
-      grossRevenuePaise - technicianPayoutsPaise - partsCostPaise - refundsPaise - discountsGivenPaise;
+  int get netMarginEstimatePaise => grossRevenuePaise - technicianPayoutEstimatePaise;
   double get netMarginPct =>
-      grossRevenuePaise == 0 ? 0 : (netMarginPaise / grossRevenuePaise) * 100;
+      grossRevenuePaise == 0 ? 0 : (netMarginEstimatePaise / grossRevenuePaise) * 100;
 }
 
-/// Everything the Reports tab needs for one [ReportRange].
+/// Everything the Reports tab needs for one [ReportRange]. [financials] is
+/// null for a Staff account (the backend only computes P&L for the Owner
+/// role) as well as while it's still loading.
 class ReportBundle {
   const ReportBundle({
     required this.range,
@@ -280,20 +273,16 @@ class ReportBundle {
     required this.ratingTrend,
     required this.categoryRevenue,
     required this.technicianLeaderboard,
-    required this.customerSegments,
-    required this.complaintReasons,
-    required this.paymentMix,
-    required this.coupons,
-    required this.financials,
+    required this.complaintsByStatus,
+    required this.completedJobs,
+    this.financials,
   });
   final ReportRange range;
   final List<TrendPoint> revenueTrend;
   final List<TrendPoint> ratingTrend;
   final List<CategoryRevenue> categoryRevenue;
   final List<TechnicianRow> technicianLeaderboard;
-  final List<CustomerSegment> customerSegments;
-  final List<ComplaintReason> complaintReasons;
-  final List<PaymentMixItem> paymentMix;
-  final List<CouponUsage> coupons;
-  final FinancialSummary financials;
+  final List<ComplaintStatusCount> complaintsByStatus;
+  final int completedJobs;
+  final FinancialSummary? financials;
 }

@@ -1,18 +1,17 @@
-// Live [AdminRepository] backed by the Flask+SQLite backend at the repo
-// root (app.py / database.py), sharing real data with careplus_flutter
-// (customer) and careplus_partner (technician).
+// The one and only [AdminRepository] implementation — backed by the live
+// Flask+SQLite backend at the repo root (app.py / database.py), sharing real
+// data with careplus_flutter (customer) and careplus_partner (technician).
+// There is no mock fallback: every field either comes from a real fetch or
+// is null (not yet loaded / failed), and every screen shows a real loading
+// or empty state for null rather than ever inventing a number — see
+// repository.dart's header for why this app has no Mock implementation,
+// unlike its sibling apps.
 //
-// The interface is synchronous by design (see repository.dart's header), so
-// this class fetches in the background and caches whatever arrives; every
-// getter serves the freshest cached value it has and falls back to
-// [MockAdminRepository] — field by field — for anything not yet fetched,
-// not fetched-able at all (no backend concept), or that failed (backend not
-// deployed yet, timeout, 401, ...). It never throws and never blocks a
-// screen's build.
-//
-// It's a [ChangeNotifier] so `ChangeNotifierProvider` (see
-// lib/state/providers.dart) can rebuild watchers once background fetches
-// resolve, without turning the repository interface itself async.
+// The interface is synchronous by design, so this class fetches in the
+// background and caches whatever arrives. It's a [ChangeNotifier] so
+// `ChangeNotifierProvider` (see lib/state/providers.dart) can rebuild
+// watchers once background fetches resolve, without turning the repository
+// interface itself async.
 
 import 'dart:async';
 import 'dart:convert';
@@ -29,91 +28,161 @@ import 'api_config.dart';
 const _timeout = Duration(seconds: 8);
 
 class ApiRepository extends ChangeNotifier implements AdminRepository {
-  ApiRepository({http.Client? client, MockAdminRepository? mock})
-    : _client = client ?? http.Client(),
-      _mock = mock ?? MockAdminRepository() {
+  ApiRepository({http.Client? client}) : _client = client ?? http.Client() {
     // Open endpoints — no auth needed, safe to fetch as soon as the
     // repository is first used (see providers.dart).
-    unawaited(_fetchOverview());
+    unawaited(_fetchOverviewStats());
     unawaited(_fetchBookings());
     unawaited(_fetchTechnicians());
     unawaited(_fetchInventory());
-    // Staff-gated endpoints — by the time anything reads this repository the
-    // user has already completed sign-in (it's only ever watched from the
-    // post-auth dashboard shell), so a token should be available. If it
-    // isn't yet, these just fail quietly and fall back to Mock.
+    unawaited(_fetchComplaints());
+    // Staff-gated endpoints need a signed-in Firebase user's token. The
+    // repository can be constructed before Firebase Auth has restored
+    // `currentUser` on a cold start, so try once now and again the moment
+    // auth state actually settles, rather than only once at construction.
     unawaited(_fetchStaffAccounts());
     unawaited(_fetchReport(ReportRange.week));
+    _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
+      if (user == null) return;
+      unawaited(_fetchStaffAccounts());
+      unawaited(_fetchReport(_lastReportRange));
+    });
   }
 
   final http.Client _client;
-  final MockAdminRepository _mock;
+  StreamSubscription<User?>? _authSub;
+  ReportRange _lastReportRange = ReportRange.week;
 
   // ---- raw cached pieces (null = not yet fetched / fetch failed) --------
-  Map<String, dynamic>? _overviewRaw;
-  int? _weekCompletedJobs;
+  Map<String, dynamic>? _statsRaw;
   List<dynamic>? _bookingsRaw;
   List<dynamic>? _techniciansRaw;
   List<dynamic>? _inventoryRaw;
+  List<dynamic>? _complaintsRaw;
   List<dynamic>? _staffRaw;
   final Map<ReportRange, Map<String, dynamic>> _reportsRaw = {};
   final Set<ReportRange> _reportsFetching = {};
 
   // ============================================================ OVERVIEW
   @override
-  AdminOverview overview() {
-    final mock = _mock.overview();
-    final raw = _overviewRaw;
-    if (raw == null) return mock;
-    final totalTechnicians = _asInt(raw['totalTechnicians']);
-    final onlineTechnicians = _asInt(raw['onlineTechnicians']);
-    final utilisationPct = totalTechnicians == 0
-        ? 0
-        : ((onlineTechnicians / totalTechnicians) * 100).round();
+  AdminOverview? overview() {
+    final stats = _statsRaw;
+    final bookings = _bookingsRaw;
+    final technicians = _techniciansRaw;
+    if (stats == null || bookings == null || technicians == null) return null;
+
+    final completedJobs =
+        bookings.cast<Map<String, dynamic>>().where((b) => b['status'] == 'Completed').length;
+
+    var ratingWeightedSum = 0.0;
+    var ratingCount = 0;
+    for (final t in technicians.cast<Map<String, dynamic>>()) {
+      final count = _asInt(t['ratingCount']);
+      ratingWeightedSum += _asDouble(t['rating']) * count;
+      ratingCount += count;
+    }
+    final avgRating = ratingCount == 0 ? 0.0 : ratingWeightedSum / ratingCount;
+
+    final totalTechnicians = _asInt(stats['totalTechnicians']);
+    final onlineTechnicians = _asInt(stats['onlineTechnicians']);
+    final utilisationPct =
+        totalTechnicians == 0 ? 0 : ((onlineTechnicians / totalTechnicians) * 100).round();
+
     return AdminOverview(
-      revenuePaise: _asInt(raw['revenue']) * 100,
-      // No week-over-week delta from the backend — pass through Mock's.
-      revenueDeltaPct: mock.revenueDeltaPct,
-      // /api/stats/overview's totalBookings isn't "closed" jobs; use the
-      // period-scoped completedJobs from /api/stats/reports?period=week
-      // when it's arrived, else fall back to Mock.
-      jobsClosed: _weekCompletedJobs ?? mock.jobsClosed,
-      jobsClosedDeltaPct: mock.jobsClosedDeltaPct,
-      slaBreaches: mock.slaBreaches,
-      slaBreachesToday: mock.slaBreachesToday,
-      // No overall rating figure on this endpoint — Mock's.
-      avgRating: mock.avgRating,
-      ratingCount: mock.ratingCount,
-      weekBars: mock.weekBars,
-      weekLabels: mock.weekLabels,
+      revenuePaise: _asInt(stats['revenue']) * 100,
+      completedJobs: completedJobs,
+      openComplaints: _asInt(stats['openComplaints']),
+      avgRating: avgRating,
+      ratingCount: ratingCount,
+      weekBars: _weekBars(),
+      weekLabels: _weekLabels(),
       technicianUtilisationPct: utilisationPct,
-      firstTimeFixPct: mock.firstTimeFixPct,
-      attention: mock.attention,
+      attention: _attention(),
     );
   }
 
-  Future<void> _fetchOverview() async {
+  /// The last 7 calendar days (today last), zero-filled for any day with no
+  /// completed revenue — real data, not a canned week shape.
+  List<int> _weekBars() {
+    final byDay = <String, int>{};
+    for (final b in _bookingsRaw?.cast<Map<String, dynamic>>() ?? const []) {
+      if (b['status'] != 'Completed') continue;
+      final updatedAt = b['updatedAt'] as String?;
+      final dt = updatedAt == null ? null : DateTime.tryParse(updatedAt);
+      if (dt == null) continue;
+      final key = DateFormat('yyyy-MM-dd').format(dt.toLocal());
+      final amount = _asInt(b['total_amount'] ?? b['price']);
+      byDay[key] = (byDay[key] ?? 0) + amount;
+    }
+    final now = DateTime.now();
+    final amounts = [
+      for (var i = 6; i >= 0; i--)
+        byDay[DateFormat('yyyy-MM-dd').format(now.subtract(Duration(days: i)))] ?? 0,
+    ];
+    final max = amounts.fold<int>(0, (m, v) => v > m ? v : m);
+    if (max == 0) return List.filled(7, 0);
+    return [for (final v in amounts) ((v / max) * 100).round()];
+  }
+
+  List<String> _weekLabels() {
+    final now = DateTime.now();
+    return [for (var i = 6; i >= 0; i--) DateFormat('E').format(now.subtract(Duration(days: i)))[0]];
+  }
+
+  /// Real unassigned bookings and open complaints — nothing canned.
+  List<AttentionItem> _attention() {
+    final items = <AttentionItem>[];
+    for (final b in _bookingsRaw?.cast<Map<String, dynamic>>() ?? const []) {
+      if (b['status'] != 'Requested') continue;
+      final area = (b['area'] as String?)?.trim();
+      items.add(AttentionItem(
+        jobId: (b['id'] as String?) ?? '—',
+        title: 'Unassigned · ${(b['service'] as String?) ?? 'Service'}',
+        detail: area?.isNotEmpty == true ? area! : 'No area on file',
+        tone: LineTone.neutral,
+      ));
+      if (items.length >= 4) break;
+    }
+    for (final c in _complaintsRaw?.cast<Map<String, dynamic>>() ?? const []) {
+      if (c['status'] == 'Resolved') continue;
+      final text = (c['text'] as String?)?.trim();
+      items.add(AttentionItem(
+        jobId: (c['id'] as String?) ?? '—',
+        title: 'Complaint · ${(c['status'] as String?) ?? 'Open'}',
+        detail: text?.isNotEmpty == true ? text! : 'No details on file',
+        tone: LineTone.neutral,
+        isComplaint: true,
+      ));
+      if (items.length >= 6) break;
+    }
+    return items;
+  }
+
+  Future<void> _fetchOverviewStats() async {
     try {
-      final res = await _client
-          .get(Uri.parse('${ApiConfig.baseUrl}/api/stats/overview'))
-          .timeout(_timeout);
+      final res =
+          await _client.get(Uri.parse('${ApiConfig.baseUrl}/api/stats/overview')).timeout(_timeout);
       if (res.statusCode != 200) return;
-      _overviewRaw = jsonDecode(res.body) as Map<String, dynamic>;
+      _statsRaw = jsonDecode(res.body) as Map<String, dynamic>;
       notifyListeners();
     } catch (_) {
-      // Backend not deployed yet / offline / timed out — keep serving Mock.
+      // Backend not deployed yet / offline / timed out.
     }
   }
 
   // ============================================================ BOOKINGS
   @override
-  List<AdminBooking> bookings() {
+  List<AdminBooking>? bookings() {
     final raw = _bookingsRaw;
-    if (raw == null) return _mock.bookings();
-    return [for (final b in raw) _bookingFrom(b as Map<String, dynamic>)];
+    if (raw == null) return null;
+    final techNames = {
+      for (final t in _techniciansRaw?.cast<Map<String, dynamic>>() ?? const [])
+        t['id'] as String?: t['name'] as String?,
+    };
+    return [for (final b in raw) _bookingFrom(b as Map<String, dynamic>, techNames)];
   }
 
-  AdminBooking _bookingFrom(Map<String, dynamic> b) {
+  AdminBooking _bookingFrom(Map<String, dynamic> b, Map<String?, String?> techNames) {
     final area = (b['area'] as String?)?.trim();
     final customerName = (b['customerName'] as String?)?.trim();
     final meta = [
@@ -121,12 +190,20 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
       if (customerName != null && customerName.isNotEmpty) customerName,
     ].join(' · ');
     final status = (b['status'] as String?) ?? 'Requested';
+    final technicianId = b['technicianId'] as String?;
+    final directions = (b['directions'] as String?)?.trim();
     return AdminBooking(
       jobId: (b['id'] as String?) ?? '—',
       title: (b['service'] as String?) ?? 'Service request',
       meta: meta.isEmpty ? '—' : meta,
       statusLabel: status,
       category: _categoryForStatus(status),
+      totalPaise: _asInt(b['total_amount'] ?? b['price']) * 100,
+      createdAt: DateTime.tryParse((b['createdAt'] as String?) ?? ''),
+      area: area?.isNotEmpty == true ? area : null,
+      customerName: customerName?.isNotEmpty == true ? customerName : null,
+      directions: directions?.isNotEmpty == true ? directions : null,
+      technicianName: technicianId == null ? null : techNames[technicianId],
     );
   }
 
@@ -135,34 +212,35 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
   /// Anything unrecognised is treated as in-progress (an active job of some
   /// kind) rather than silently dropped.
   BookingCategory _categoryForStatus(String status) => switch (status) {
-    'Requested' => BookingCategory.unassigned,
-    'Accepted' || 'On the way' || 'In Progress' => BookingCategory.inProgress,
-    'Completed' => BookingCategory.closed,
-    _ => BookingCategory.inProgress,
-  };
+        'Requested' => BookingCategory.unassigned,
+        'Accepted' || 'On the way' || 'In Progress' => BookingCategory.inProgress,
+        'Completed' => BookingCategory.closed,
+        _ => BookingCategory.inProgress,
+      };
 
+  /// Deliberately unauthenticated — see list_bookings's docstring in
+  /// app.py: a Bearer token scopes the result to that token's *customer*
+  /// account (looked up in the `users` table), which has nothing to do
+  /// with this staff member's own bookings. Sending one here would silently
+  /// turn the admin queue into "my own customer bookings" (usually empty)
+  /// for any staff member who happens to also have a customer account on
+  /// the same Firebase project.
   Future<void> _fetchBookings() async {
     try {
-      final token = await _idToken();
-      final res = await _client
-          .get(
-            Uri.parse('${ApiConfig.baseUrl}/api/bookings'),
-            headers: _headers(token),
-          )
-          .timeout(_timeout);
+      final res = await _client.get(Uri.parse('${ApiConfig.baseUrl}/api/bookings')).timeout(_timeout);
       if (res.statusCode != 200) return;
       _bookingsRaw = jsonDecode(res.body) as List<dynamic>;
       notifyListeners();
     } catch (_) {
-      // keep serving Mock
+      // keep null — screen shows a loading state
     }
   }
 
   // ================================================================ TEAM
   @override
-  List<AdminTeamMember> team() {
+  List<AdminTeamMember>? team() {
     final raw = _techniciansRaw;
-    if (raw == null) return _mock.team();
+    if (raw == null) return null;
     return [for (final t in raw) _teamMemberFrom(t as Map<String, dynamic>)];
   }
 
@@ -194,14 +272,13 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
 
   Future<void> _fetchTechnicians() async {
     try {
-      final res = await _client
-          .get(Uri.parse('${ApiConfig.baseUrl}/api/technicians'))
-          .timeout(_timeout);
+      final res =
+          await _client.get(Uri.parse('${ApiConfig.baseUrl}/api/technicians')).timeout(_timeout);
       if (res.statusCode != 200) return;
       _techniciansRaw = jsonDecode(res.body) as List<dynamic>;
       notifyListeners();
     } catch (_) {
-      // keep serving Mock
+      // keep null
     }
   }
 
@@ -223,40 +300,70 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
 
   // =============================================================== STOCK
   @override
-  List<AdminStockItem> stock() {
+  List<AdminStockItem>? stock() {
     final raw = _inventoryRaw;
-    if (raw == null) return _mock.stock();
+    if (raw == null) return null;
     return [for (final s in raw) _stockItemFrom(s as Map<String, dynamic>)];
   }
 
   AdminStockItem _stockItemFrom(Map<String, dynamic> s) => AdminStockItem(
-    name: (s['name'] as String?) ?? 'Item',
-    sku: (s['sku'] as String?) ?? '—',
-    inStock: _asInt(s['quantity']),
-    reorderAt: _asInt(s['reorderLevel']),
-    low: s['lowStock'] == true,
-    // No burn-rate data from the backend — small placeholder constant.
-    burnPerDay: 1.0,
-  );
+        id: (s['id'] as String?) ?? '',
+        name: (s['name'] as String?) ?? 'Item',
+        sku: (s['sku'] as String?) ?? '—',
+        inStock: _asInt(s['quantity']),
+        reorderAt: _asInt(s['reorderLevel']),
+        low: s['lowStock'] == true,
+      );
 
   Future<void> _fetchInventory() async {
     try {
-      final res = await _client
-          .get(Uri.parse('${ApiConfig.baseUrl}/api/inventory'))
-          .timeout(_timeout);
+      final res =
+          await _client.get(Uri.parse('${ApiConfig.baseUrl}/api/inventory')).timeout(_timeout);
       if (res.statusCode != 200) return;
       _inventoryRaw = jsonDecode(res.body) as List<dynamic>;
       notifyListeners();
     } catch (_) {
-      // keep serving Mock
+      // keep null
+    }
+  }
+
+  @override
+  Future<bool> adjustStock(String itemId, {required int quantity}) async {
+    try {
+      final token = await _idToken();
+      final res = await _client
+          .patch(
+            Uri.parse('${ApiConfig.baseUrl}/api/inventory/$itemId'),
+            headers: {'Content-Type': 'application/json', ..._headers(token)},
+            body: jsonEncode({'quantity': quantity}),
+          )
+          .timeout(_timeout);
+      if (res.statusCode != 200) return false;
+      await _fetchInventory();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // ========================================================= COMPLAINTS
+  Future<void> _fetchComplaints() async {
+    try {
+      final res =
+          await _client.get(Uri.parse('${ApiConfig.baseUrl}/api/complaints')).timeout(_timeout);
+      if (res.statusCode != 200) return;
+      _complaintsRaw = jsonDecode(res.body) as List<dynamic>;
+      notifyListeners();
+    } catch (_) {
+      // keep null
     }
   }
 
   // ========================================================= STAFF ACCTS
   @override
-  List<StaffAccount> staffAccounts() {
+  List<StaffAccount>? staffAccounts() {
     final raw = _staffRaw;
-    if (raw == null) return _mock.staffAccounts();
+    if (raw == null) return null;
     return [for (final s in raw) _staffAccountFrom(s as Map<String, dynamic>)];
   }
 
@@ -264,13 +371,13 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
     final name = (s['name'] as String?) ?? 'Staff';
     final roleStr = (s['role'] as String?) ?? 'staff';
     return StaffAccount(
+      id: (s['id'] as String?) ?? '',
       name: name,
       initials: _initials(name),
       // May be a synthetic `fb-...` placeholder for Firebase-bootstrapped
       // accounts that never set a real phone — displayed as-is.
       phone: (s['phone'] as String?) ?? '—',
       role: roleStr == 'owner' ? AdminRole.owner : AdminRole.staff,
-      // The backend has no "invited" concept — only active/suspended.
       status: s['active'] == true ? StaffStatus.active : StaffStatus.suspended,
       lastActive: _formatCreatedAt(s['createdAt'] as String?),
     );
@@ -287,35 +394,82 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
       final token = await _idToken();
       if (token == null) return; // staff-gated — nothing to fetch without one
       final res = await _client
-          .get(
-            Uri.parse('${ApiConfig.baseUrl}/api/staff'),
-            headers: _headers(token),
-          )
+          .get(Uri.parse('${ApiConfig.baseUrl}/api/staff'), headers: _headers(token))
           .timeout(_timeout);
       if (res.statusCode != 200) return;
       _staffRaw = jsonDecode(res.body) as List<dynamic>;
       notifyListeners();
     } catch (_) {
-      // keep serving Mock
+      // keep null
+    }
+  }
+
+  @override
+  Future<bool> inviteStaff({
+    required String name,
+    required String phone,
+    required String pin,
+    required AdminRole role,
+  }) async {
+    try {
+      final token = await _idToken();
+      if (token == null) return false;
+      final res = await _client
+          .post(
+            Uri.parse('${ApiConfig.baseUrl}/api/staff'),
+            headers: {'Content-Type': 'application/json', ..._headers(token)},
+            body: jsonEncode({
+              'name': name,
+              'phone': phone,
+              'pin': pin,
+              'role': role == AdminRole.owner ? 'owner' : 'staff',
+            }),
+          )
+          .timeout(_timeout);
+      if (res.statusCode != 201) return false;
+      await _fetchStaffAccounts();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  @override
+  Future<bool> setStaffActive(String staffId, bool active) async {
+    try {
+      final token = await _idToken();
+      if (token == null) return false;
+      final res = await _client
+          .patch(
+            Uri.parse('${ApiConfig.baseUrl}/api/staff/$staffId'),
+            headers: {'Content-Type': 'application/json', ..._headers(token)},
+            body: jsonEncode({'active': active}),
+          )
+          .timeout(_timeout);
+      if (res.statusCode != 200) return false;
+      await _fetchStaffAccounts();
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 
   // ============================================================= REPORTS
   @override
-  ReportBundle report(ReportRange range) {
+  ReportBundle? report(ReportRange range) {
+    _lastReportRange = range;
     final raw = _reportsRaw[range];
     if (raw == null) {
       // Kick off a fetch for whichever range was just asked for (the week
       // range is already fetched eagerly in the constructor) — at most one
-      // attempt per range per app session.
+      // in-flight attempt per range at a time.
       if (!_reportsFetching.contains(range)) unawaited(_fetchReport(range));
-      return _mock.report(range);
+      return null;
     }
     return _reportBundleFrom(range, raw);
   }
 
   ReportBundle _reportBundleFrom(ReportRange range, Map<String, dynamic> raw) {
-    final mock = _mock.report(range);
     final pnl = raw['pnl'] as Map<String, dynamic>?;
     return ReportBundle(
       range: range,
@@ -332,21 +486,22 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
         for (final c in (raw['revenueByCategory'] as List<dynamic>? ?? []))
           CategoryRevenue(
             (c as Map<String, dynamic>)['category'] as String? ?? '—',
-            '●', // no glyph data server-side
             _asInt(c['revenue']) * 100,
-            0, // no per-category job count in this payload
           ),
       ],
       technicianLeaderboard: [
         for (final t in (raw['technicianLeaderboard'] as List<dynamic>? ?? []))
           _technicianRowFrom(t as Map<String, dynamic>),
       ],
-      // No server data at all for these four — pass Mock through unchanged.
-      customerSegments: mock.customerSegments,
-      complaintReasons: mock.complaintReasons,
-      paymentMix: mock.paymentMix,
-      coupons: mock.coupons,
-      financials: pnl == null ? mock.financials : _financialsFrom(pnl),
+      complaintsByStatus: [
+        for (final c in (raw['complaintStatusBreakdown'] as List<dynamic>? ?? []))
+          ComplaintStatusCount(
+            (c as Map<String, dynamic>)['status'] as String? ?? '—',
+            _asInt(c['count']),
+          ),
+      ],
+      completedJobs: _asInt(raw['completedJobs']),
+      financials: pnl == null ? null : _financialsFrom(pnl),
     );
   }
 
@@ -358,25 +513,13 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
       jobs: _asInt(t['jobsInPeriod']),
       revenuePaise: _asInt(t['revenueInPeriod']) * 100,
       rating: _asDouble(t['rating']),
-      // No real first-time-fix data per technician per period — placeholder.
-      firstTimeFixPct: 90,
     );
   }
 
-  /// [FinancialSummary.netMarginPaise] is a derived getter (gross - payouts
-  /// - parts - refunds - discounts), and the backend's pnl block only
-  /// breaks out gross revenue and technician payout — parts cost, tax,
-  /// refunds and discounts aren't tracked there. Those four are left at 0,
-  /// so the derived net margin is gross-minus-payout, the closest available
-  /// approximation of the backend's own `netMargin` figure.
-  FinancialSummary _financialsFrom(Map<String, dynamic> pnl) =>
-      FinancialSummary(
+  FinancialSummary _financialsFrom(Map<String, dynamic> pnl) => FinancialSummary(
         grossRevenuePaise: _asInt(pnl['grossRevenue']) * 100,
-        technicianPayoutsPaise: _asInt(pnl['technicianPayout']) * 100,
-        partsCostPaise: 0,
-        taxCollectedPaise: 0,
-        refundsPaise: 0,
-        discountsGivenPaise: 0,
+        technicianPayoutEstimatePaise: _asInt(pnl['technicianPayout']) * 100,
+        payoutRateAssumed: _asDouble(pnl['payoutRateAssumed']),
       );
 
   List<TrendPoint> _normalizedTrend(
@@ -415,14 +558,10 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
           )
           .timeout(_timeout);
       if (res.statusCode != 200) return;
-      final json = jsonDecode(res.body) as Map<String, dynamic>;
-      _reportsRaw[range] = json;
-      if (range == ReportRange.week) {
-        _weekCompletedJobs = _asInt(json['completedJobs']);
-      }
+      _reportsRaw[range] = jsonDecode(res.body) as Map<String, dynamic>;
       notifyListeners();
     } catch (_) {
-      // keep serving Mock
+      // keep null
     } finally {
       _reportsFetching.remove(range);
     }
@@ -438,26 +577,22 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
   }
 
   Map<String, String> _headers(String? token) => {
-    if (token != null) 'Authorization': 'Bearer $token',
-  };
+        if (token != null) 'Authorization': 'Bearer $token',
+      };
 
   String _initials(String name) {
-    final parts = name
-        .trim()
-        .split(RegExp(r'\s+'))
-        .where((p) => p.isNotEmpty)
-        .toList();
+    final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
     if (parts.isEmpty) return '?';
     if (parts.length == 1) return parts[0].substring(0, 1).toUpperCase();
     return (parts[0].substring(0, 1) + parts[1].substring(0, 1)).toUpperCase();
   }
 
   int _asInt(Object? v) => v is num ? v.toInt() : int.tryParse('$v') ?? 0;
-  double _asDouble(Object? v) =>
-      v is num ? v.toDouble() : double.tryParse('$v') ?? 0;
+  double _asDouble(Object? v) => v is num ? v.toDouble() : double.tryParse('$v') ?? 0;
 
   @override
   void dispose() {
+    _authSub?.cancel();
     _client.close();
     super.dispose();
   }
