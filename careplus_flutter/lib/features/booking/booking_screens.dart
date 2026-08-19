@@ -260,8 +260,10 @@ class SlotScreen extends ConsumerWidget {
     ];
   }
 
-  static const _am = ['8:00 – 9:00 am', '9:00 – 10:00 am', '10:00 – 11:00 am', '11:00 – 12:00 pm'];
-  static const _pm = ['12:00 – 2:00 pm', '2:00 – 4:00 pm', '4:00 – 6:00 pm', '6:00 – 8:00 pm'];
+  // Business hours 10 am–7 pm, 90-minute slots — was 8 am–8 pm in 1–2 hour
+  // blocks that didn't match the actual service window.
+  static const _am = ['10:00 – 11:30 am', '11:30 am – 1:00 pm'];
+  static const _pm = ['1:00 – 2:30 pm', '2:30 – 4:00 pm', '4:00 – 5:30 pm', '5:30 – 7:00 pm'];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -333,24 +335,6 @@ class SlotScreen extends ConsumerWidget {
           _slotGrid(context, ref, draft, _am),
           const SectionHeader('Afternoon and evening'),
           _slotGrid(context, ref, draft, _pm),
-          const SizedBox(height: 16),
-          CareCard(
-            child: Row(children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Ask for Sandeep P.',
-                        style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 3),
-                    Text('He did your last chimney visit · ★ 4.94',
-                        style: context.type.bodySmall),
-                  ],
-                ),
-              ),
-              const _MiniSwitch(initial: true),
-            ]),
-          ),
         ],
       ),
     );
@@ -364,13 +348,14 @@ class SlotScreen extends ConsumerWidget {
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: 10,
       crossAxisSpacing: 10,
-      childAspectRatio: 3.1,
+      childAspectRatio: 2.5,
       children: [
         for (final s in slots)
           Pressable(
             onTap: () => vm.setSlot(draft.day, s),
             child: Container(
               alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(horizontal: 6),
               decoration: BoxDecoration(
                 color: draft.slot == s ? context.scheme.primary : context.scheme.surface,
                 borderRadius: Radii.rMd,
@@ -378,8 +363,11 @@ class SlotScreen extends ConsumerWidget {
                     color: draft.slot == s ? context.scheme.primary : context.care.hairline),
               ),
               child: Text(s,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                      fontSize: 12.5,
+                      fontSize: 11.5,
                       fontWeight: FontWeight.w600,
                       color: draft.slot == s
                           ? context.scheme.onPrimary
@@ -389,20 +377,6 @@ class SlotScreen extends ConsumerWidget {
       ],
     );
   }
-}
-
-class _MiniSwitch extends StatefulWidget {
-  const _MiniSwitch({this.initial = false});
-  final bool initial;
-  @override
-  State<_MiniSwitch> createState() => _MiniSwitchState();
-}
-
-class _MiniSwitchState extends State<_MiniSwitch> {
-  late bool _v = widget.initial;
-  @override
-  Widget build(BuildContext context) =>
-      Switch(value: _v, onChanged: (x) => setState(() => _v = x));
 }
 
 // ============================================================ 3 · ADDRESS
@@ -481,8 +455,10 @@ class AddressScreen extends ConsumerWidget {
                 child: const Text('+ Add a new address')),
           ),
           const SizedBox(height: 16),
-          const CareField('Directions for the technician',
-              initial: 'Gate code 4402, lift on the left'),
+          CareField('Directions for the technician (optional)',
+              initial: draft.directions,
+              maxLines: 2,
+              onChanged: vm.setDirections),
         ],
       ),
     );
@@ -490,10 +466,60 @@ class AddressScreen extends ConsumerWidget {
 }
 
 // ============================================================ 4 · PAYMENT
-class PaymentScreen extends ConsumerWidget {
+class PaymentScreen extends ConsumerStatefulWidget {
   const PaymentScreen({super.key});
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PaymentScreen> createState() => _PaymentScreenState();
+}
+
+class _PaymentScreenState extends ConsumerState<PaymentScreen> {
+  bool _submitting = false;
+
+  Future<void> _pay(BookingDraft draft) async {
+    setState(() => _submitting = true);
+    SavedAddress? selected;
+    for (final a in [
+      ...ref.read(savedAddressesProvider),
+      if (draft.pickedAddress != null) draft.pickedAddress!,
+    ]) {
+      if (a.id == draft.addressId) {
+        selected = a;
+        break;
+      }
+    }
+    // One real booking per selected service — each keeps its own real
+    // price and gets routed/tracked independently on the Partner side.
+    // Awaited (not fire-and-forget) because the confirmation screen needs
+    // the real booking id(s) that come back — it used to always link to
+    // the same hardcoded "CP-2481-NSK" no matter what was actually
+    // created, which is exactly why "the actual booking" never showed up.
+    final directions = draft.directions.trim();
+    final created = <Booking>[];
+    for (final service in draft.services) {
+      final booking = await ref.read(apiRepositoryProvider).createBooking(
+            service: service,
+            totalPaise: service.pricePaise,
+            areaLabel: selected?.label,
+            lat: selected?.lat,
+            lng: selected?.lng,
+            directions: directions.isEmpty ? null : directions,
+          );
+      if (booking != null) created.add(booking);
+    }
+    if (!mounted) return;
+    setState(() => _submitting = false);
+    if (created.isEmpty) {
+      // Honest failure — no fake "you're booked" when nothing was actually
+      // created (e.g. the backend has no technician to route to yet).
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text("Couldn't confirm your booking — check your connection and try again.")));
+      return;
+    }
+    context.go('/booking/${created.first.id}/confirmed', extra: created.length);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final repo = ref.watch(repositoryProvider);
     final draft = ref.watch(bookingDraftProvider);
     final vm = ref.read(bookingDraftProvider.notifier);
@@ -514,45 +540,13 @@ class PaymentScreen extends ConsumerWidget {
           ),
         ),
         FilledButton(
-          onPressed: draft.services.isEmpty
-              ? null
-              : () {
-                  // Razorpay checkout opens here in production, then the app
-                  // listens to the booking doc for payment.status before
-                  // advancing.
-                  SavedAddress? selected;
-                  for (final a in [
-                    ...ref.read(savedAddressesProvider),
-                    if (draft.pickedAddress != null) draft.pickedAddress!,
-                  ]) {
-                    if (a.id == draft.addressId) {
-                      selected = a;
-                      break;
-                    }
-                  }
-                  // One real booking per selected service — each keeps its
-                  // own price and gets routed/tracked independently on the
-                  // Partner side; the shared visit fee, discount, and tax
-                  // above are what the customer actually pays up front and
-                  // aren't split across bookings, there being no per-visit
-                  // field on a booking row to hold them.
-                  //
-                  // Fire-and-forget — this booking flow always completes
-                  // locally regardless of whether the real backend is
-                  // reachable, same "never block a flow" philosophy as the
-                  // Firestore profile write in firestore_user_profile_service.dart.
-                  for (final service in draft.services) {
-                    unawaited(ref.read(apiRepositoryProvider).createBooking(
-                          service: service,
-                          totalPaise: service.pricePaise,
-                          areaLabel: selected?.label,
-                          lat: selected?.lat,
-                          lng: selected?.lng,
-                        ));
-                  }
-                  context.go('/booking/CP-2481-NSK/confirmed');
-                },
-          child: Text('Pay ${Money.rupees(draft.totalPaise)}'),
+          onPressed: draft.services.isEmpty || _submitting ? null : () => _pay(draft),
+          child: _submitting
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : Text('Pay ${Money.rupees(draft.totalPaise)}'),
         ),
       ]),
       body: Column(
@@ -578,16 +572,6 @@ class PaymentScreen extends ConsumerWidget {
                 ],
                 Text('${draft.day} · ${draft.slot}', style: context.type.bodySmall),
                 const Divider(height: 24),
-                _line(context, 'Item total', Money.rupees(draft.itemPaise)),
-                _line(context, 'Visit and safety kit', Money.rupees(draft.visitPaise)),
-                if (draft.couponApplied)
-                  _line(context, 'CARE30 discount', '−${Money.rupees(draft.discountPaise)}',
-                      color: context.care.success),
-                if (draft.useCoins)
-                  _line(context, '200 Care Coins', '−${Money.rupees(draft.coinsPaise)}',
-                      color: context.care.success),
-                _line(context, 'GST 18%', Money.rupees(draft.taxPaise)),
-                const Divider(height: 24),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -600,46 +584,6 @@ class PaymentScreen extends ConsumerWidget {
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 12),
-          CareCard(
-            onTap: vm.toggleCoupon,
-            color: draft.couponApplied ? context.scheme.primaryContainer : null,
-            borderColor: draft.couponApplied ? Colors.transparent : null,
-            child: Row(children: [
-              const Text('🎟', style: TextStyle(fontSize: 16)),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                    draft.couponApplied ? 'CARE30 applied' : 'Apply a coupon',
-                    style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: draft.couponApplied
-                            ? context.scheme.primary
-                            : context.scheme.onSurface)),
-              ),
-              Text(draft.couponApplied ? 'Remove' : 'Add',
-                  style: TextStyle(fontSize: 12, color: context.scheme.primary)),
-            ]),
-          ),
-          const SizedBox(height: 10),
-          CareCard(
-            child: Row(children: [
-              const Text('◍', style: TextStyle(fontSize: 16)),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Use 200 Care Coins',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
-                    Text('₹200 off · 440 will remain', style: context.type.bodySmall),
-                  ],
-                ),
-              ),
-              Switch(value: draft.useCoins, onChanged: (_) => vm.toggleCoins()),
-            ]),
           ),
           const SectionHeader('Pay with'),
           for (final m in repo.paymentMethods()) ...[
@@ -695,29 +639,27 @@ class PaymentScreen extends ConsumerWidget {
     );
   }
 
-  Widget _line(BuildContext context, String label, String value, {Color? color}) =>
-      Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label,
-                style: context.type.bodySmall!
-                    .copyWith(color: color ?? context.care.inkMuted)),
-            Text(value,
-                style: CareType.mono(color ?? context.scheme.onSurface, size: 11)),
-          ],
-        ),
-      );
 }
 
 // ============================================================ CONFIRMED
+// Previously always showed the same hardcoded "JOB CP-2481-NSK", a fixed
+// mock technician's name/rating (with call/chat buttons that didn't do
+// anything), and a fabricated "start code 4402" — regardless of what was
+// actually booked. Now built from the real booking the backend just
+// created; no technician identity is shown at all until one is genuinely
+// assigned, since the Customer app has no real way to know who that is yet.
 class ConfirmedScreen extends ConsumerWidget {
-  const ConfirmedScreen({super.key, required this.bookingId});
+  const ConfirmedScreen({super.key, required this.bookingId, this.totalBooked = 1});
   final String bookingId;
+  final int totalBooked;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final tech = ref.watch(repositoryProvider).preferredTechnician;
+    ref.watch(bookingsRefreshProvider);
+    final booking = ref.watch(repositoryProvider).bookingById(bookingId);
+    final summary = booking == null
+        ? 'A technician is being assigned now.'
+        : '${booking.title}${totalBooked > 1 ? ' + ${totalBooked - 1} more' : ''} at '
+            '${booking.addressLabel}.\nA technician is being assigned now.';
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -738,49 +680,10 @@ class ConfirmedScreen extends ConsumerWidget {
                         const SizedBox(height: 22),
                         Text("You're booked", style: context.type.headlineMedium),
                         const SizedBox(height: 10),
-                        Text('Sat 25 Jul, 10:00–11:00 am at Home.\nA technician is being assigned now.',
+                        Text(summary,
                             textAlign: TextAlign.center, style: context.type.bodyMedium),
                         const SizedBox(height: 14),
                         Mono('JOB $bookingId', color: context.scheme.secondary, size: 13),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 26),
-                  CareCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Eyebrow('Your technician'),
-                        const SizedBox(height: 12),
-                        Row(children: [
-                          Blob(tech.initials,
-                              bg: context.scheme.primary, fg: context.scheme.onPrimary),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(tech.name,
-                                    style: const TextStyle(
-                                        fontSize: 14, fontWeight: FontWeight.w700)),
-                                Text('★ ${tech.rating} · ${tech.jobsDone} jobs · ${tech.years} yrs',
-                                    style: context.type.bodySmall),
-                              ],
-                            ),
-                          ),
-                          _RoundIcon(icon: Icons.call, onTap: () {}),
-                          const SizedBox(width: 8),
-                          _RoundIcon(icon: Icons.chat_bubble_outline, onTap: () {}),
-                        ]),
-                        const Divider(height: 24),
-                        Text.rich(TextSpan(children: [
-                          TextSpan(text: 'Share the start code ', style: context.type.bodySmall),
-                          TextSpan(
-                              text: '4402',
-                              style: CareType.mono(context.scheme.onSurface,
-                                  size: 12, w: FontWeight.w600)),
-                          TextSpan(text: ' only when he begins work.', style: context.type.bodySmall),
-                        ])),
                       ],
                     ),
                   ),
@@ -808,24 +711,3 @@ class ConfirmedScreen extends ConsumerWidget {
   }
 }
 
-class _RoundIcon extends StatelessWidget {
-  const _RoundIcon({required this.icon, required this.onTap});
-  final IconData icon;
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) => Pressable(
-        onTap: onTap,
-        scale: 0.9,
-        child: Container(
-          width: 38,
-          height: 38,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: context.scheme.surface,
-            shape: BoxShape.circle,
-            border: Border.all(color: context.care.hairline),
-          ),
-          child: Icon(icon, size: 18),
-        ),
-      );
-}

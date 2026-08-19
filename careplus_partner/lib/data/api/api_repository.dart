@@ -293,7 +293,11 @@ class ApiRepository implements PartnerRepository {
       customerName: b.customerName,
       customerInitials: _initials(b.customerName),
       addressLine: (b.area?.trim().isNotEmpty ?? false) ? b.area! : base.addressLine,
-      directions: base.directions,
+      // The customer's own real "directions for the technician" text —
+      // previously this always showed the mock job's fabricated "Gate code
+      // 4402, lift on the left" for every real booking too, regardless of
+      // what the customer actually typed (or didn't).
+      directions: b.directions ?? 'No directions given by the customer.',
       reportedTags: base.reportedTags,
       reportedQuote: base.reportedQuote,
       checklist: base.checklist,

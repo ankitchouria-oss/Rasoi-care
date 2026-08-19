@@ -341,9 +341,13 @@ def now():
 
 
 def seed(conn):
-    """Populate fresh tables with the same starting story used across
-    the RasoiCare prototypes, so this backend slots in as a drop-in
-    replacement for the in-memory demo."""
+    """Used to populate demo technicians/bookings for local development.
+    Production no longer calls this automatically (see init_db) — a real
+    deployment should start with zero technicians and zero bookings, not
+    four invented technicians who'd silently keep winning every real
+    customer's auto-routing and a couple of fake "Amit Sharma" bookings
+    sitting in real customers' history. Kept only as an explicit opt-in
+    for local/dev use via `python database.py --seed-demo`."""
     conn.executescript(
         "DELETE FROM complaints; DELETE FROM bookings; "
         "DELETE FROM technicians; DELETE FROM counters;"
@@ -389,6 +393,35 @@ def seed(conn):
     conn.commit()
 
 
+# The exact demo rows `seed()` used to insert into every fresh production
+# database. Kept as plain IDs (not a blanket DELETE) so a one-time cleanup
+# can remove precisely these, and nothing a real customer or technician has
+# since created, from a database that already picked up the old seed.
+_DEMO_TECHNICIAN_IDS = ("ramesh", "suresh", "deepak", "anjali")
+_DEMO_BOOKING_IDS = ("RC-2291", "RC-1987")
+_DEMO_COMPLAINT_IDS = ("CMP-1",)
+
+
+def purge_demo_seed_rows(conn):
+    """One-time cleanup for a database that already ran the old
+    always-seeds-fake-data `init_db` — deletes exactly the four demo
+    technicians and two demo bookings (+ their complaint) by id, and
+    nothing else. Safe to call repeatedly: a no-op once they're gone."""
+    conn.execute(
+        f"DELETE FROM complaints WHERE id IN ({','.join('?' * len(_DEMO_COMPLAINT_IDS))})",
+        _DEMO_COMPLAINT_IDS,
+    )
+    conn.execute(
+        f"DELETE FROM bookings WHERE id IN ({','.join('?' * len(_DEMO_BOOKING_IDS))})",
+        _DEMO_BOOKING_IDS,
+    )
+    conn.execute(
+        f"DELETE FROM technicians WHERE id IN ({','.join('?' * len(_DEMO_TECHNICIAN_IDS))})",
+        _DEMO_TECHNICIAN_IDS,
+    )
+    conn.commit()
+
+
 def migrate_bookings_columns(conn):
     """Older rasoicare.db files predate the auth/catalog work and lack
     these columns. SQLite's ALTER TABLE ADD COLUMN is safe to run on an
@@ -420,6 +453,8 @@ def migrate_bookings_columns(conn):
         conn.execute("ALTER TABLE bookings ADD COLUMN cancelled_at TEXT")
     if "cancellation_fee" not in cols:
         conn.execute("ALTER TABLE bookings ADD COLUMN cancellation_fee INTEGER")
+    if "directions" not in cols:
+        conn.execute("ALTER TABLE bookings ADD COLUMN directions TEXT")
     conn.commit()
 
 
@@ -593,7 +628,7 @@ def seed_home_services(conn):
     conn.commit()
 
 
-def init_db(reset=False):
+def init_db():
     conn = get_db()
     conn.executescript(SCHEMA)
     conn.commit()
@@ -604,15 +639,26 @@ def init_db(reset=False):
     seed_staff(conn)
     seed_inventory(conn)
     seed_home_services(conn)
-    row = conn.execute("SELECT COUNT(*) AS n FROM technicians").fetchone()
-    if reset or row["n"] == 0:
-        seed(conn)
+    # Cleans up the four demo technicians and two demo bookings any
+    # deployment before this fix already picked up from the old
+    # always-seed-fake-data behavior in seed() above. Idempotent — a
+    # no-op once they're gone — so it's safe to run on every boot rather
+    # than needing a one-time migration step.
+    purge_demo_seed_rows(conn)
     conn.close()
 
 
 def next_id(conn, counter_name, prefix):
     row = conn.execute("SELECT value FROM counters WHERE name = ?", (counter_name,)).fetchone()
-    value = row["value"]
+    if row is None:
+        # Used to always exist because seed() unconditionally inserted the
+        # 'order'/'complaint' counters alongside its demo data. Now that a
+        # fresh database starts with no demo data at all, the first real
+        # booking/complaint has to create its own counter starting at 1.
+        conn.execute("INSERT INTO counters (name, value) VALUES (?, 1)", (counter_name,))
+        value = 1
+    else:
+        value = row["value"]
     conn.execute("UPDATE counters SET value = ? WHERE name = ?", (value + 1, counter_name))
     return f"{prefix}-{value}"
 

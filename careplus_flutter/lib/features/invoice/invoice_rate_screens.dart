@@ -162,6 +162,14 @@ class _PaidStamp extends StatelessWidget {
 }
 
 // ============================================================ RATE
+// Previously showed a fixed mock technician's name/photo (booking.technician
+// is never actually populated, so this always fell back to the same
+// "preferred technician" persona regardless of who did the job), had a
+// pre-checked set of praise tags and a review text box that went nowhere,
+// a fake "100% goes to <name>" tip selector with no real payout behind it,
+// and "Submit rating" only ever showed a fabricated "60 Care Coins added"
+// toast — the star rating itself was never sent to the backend, even
+// though a real /api/bookings/<id>/rating endpoint already existed for it.
 class RateScreen extends ConsumerStatefulWidget {
   const RateScreen({super.key, required this.bookingId});
   final String bookingId;
@@ -171,19 +179,27 @@ class RateScreen extends ConsumerStatefulWidget {
 
 class _RateScreenState extends ConsumerState<RateScreen> {
   int _rating = 5;
-  final _tags = {'On time', 'Left it spotless', 'Fair pricing'};
-  int _tip = 50;
+  bool _submitting = false;
 
   static const _words = ['', 'Not good', 'Below par', 'Fine', 'Good', 'Excellent'];
-  static const _allTags = [
-    'On time', 'Left it spotless', 'Explained clearly',
-    'Fair pricing', 'Polite', 'Fixed first time',
-  ];
+
+  Future<void> _submit() async {
+    setState(() => _submitting = true);
+    final ok = await ref
+        .read(apiRepositoryProvider)
+        .rateBooking(bookingId: widget.bookingId, rating: _rating);
+    if (!mounted) return;
+    setState(() => _submitting = false);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(ok
+            ? 'Thanks for rating your visit.'
+            : "Couldn't submit your rating — check your connection and try again.")));
+    if (ok) context.go('/');
+  }
 
   @override
   Widget build(BuildContext context) {
     final booking = ref.watch(repositoryProvider).bookingById(widget.bookingId);
-    final tech = booking?.technician ?? ref.watch(repositoryProvider).preferredTechnician;
     return Scaffold(
       appBar: AppBar(
           leading: BackButton(onPressed: context.pop),
@@ -200,15 +216,6 @@ class _RateScreenState extends ConsumerState<RateScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 18),
                     child: Column(
                       children: [
-                        Blob(tech.initials,
-                            size: 62,
-                            bg: context.scheme.primary,
-                            fg: context.scheme.onPrimary),
-                        const SizedBox(height: 12),
-                        Text(tech.name,
-                            style: const TextStyle(
-                                fontSize: 15, fontWeight: FontWeight.w700)),
-                        const SizedBox(height: 3),
                         Text(
                             booking != null
                                 ? '${booking.title} · ${booking.whenLabel}'
@@ -240,46 +247,6 @@ class _RateScreenState extends ConsumerState<RateScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 22),
-                  Eyebrow('What stood out?'),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final t in _allTags)
-                        ChoiceTag(t,
-                            selected: _tags.contains(t),
-                            onTap: () => setState(() =>
-                                _tags.contains(t) ? _tags.remove(t) : _tags.add(t))),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    maxLines: 3,
-                    decoration:
-                        const InputDecoration(labelText: 'Write a review (optional)'),
-                  ),
-                  const SizedBox(height: 16),
-                  CareCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Eyebrow('Add a tip — 100% goes to ${tech.name.split(' ').first}'),
-                        const SizedBox(height: 11),
-                        Row(
-                          children: [
-                            for (final t in const [0, 50, 100, 200]) ...[
-                              ChoiceTag('₹$t',
-                                  selected: _tip == t,
-                                  onTap: () => setState(() => _tip = t)),
-                              const SizedBox(width: 8),
-                            ],
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -287,12 +254,13 @@ class _RateScreenState extends ConsumerState<RateScreen> {
               child: SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                        content: Text('Thanks — 60 Care Coins added')));
-                    context.go('/');
-                  },
-                  child: const Text('Submit rating'),
+                  onPressed: _submitting ? null : _submit,
+                  child: _submitting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Text('Submit rating'),
                 ),
               ),
             ),

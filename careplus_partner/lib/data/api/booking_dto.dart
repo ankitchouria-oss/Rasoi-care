@@ -16,6 +16,7 @@ class BookingDto {
     this.lat,
     this.lng,
     this.cancellationFeePaise,
+    this.directions,
   });
 
   final String id;
@@ -26,6 +27,9 @@ class BookingDto {
   final int totalAmountPaise;
   final String? area;
   final DateTime? createdAt;
+  /// Free text the customer actually typed on the address step of their
+  /// booking — null when they left it blank, never a fabricated fallback.
+  final String? directions;
   /// Last status-transition time — for a Completed booking, this is when it
   /// was actually finished, which the earnings screen uses to bucket a job
   /// into "today"/"this week" rather than its (possibly much earlier)
@@ -64,6 +68,9 @@ class BookingDto {
       cancellationFeePaise: (json['cancellationFee'] as num?) == null
           ? null
           : (json['cancellationFee'] as num).round() * 100,
+      directions: (json['directions'] as String?)?.trim().isNotEmpty == true
+          ? json['directions'] as String
+          : null,
     );
   }
 
@@ -80,6 +87,7 @@ class BookingDto {
         lat: lat,
         lng: lng,
         cancellationFeePaise: cancellationFeePaise,
+        directions: directions,
       );
 }
 
