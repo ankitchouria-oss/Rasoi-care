@@ -10,6 +10,8 @@ separate devices.
 import os
 import json
 import re
+import secrets
+import sys
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 
@@ -21,7 +23,34 @@ from database import get_db, init_db, next_id, now, new_uuid_id
 app = Flask(__name__)
 FRONTEND_DIR = os.path.dirname(os.path.abspath(__file__))
 
-JWT_SECRET = os.environ.get("JWT_SECRET", "rasoicare-dev-secret-change-in-prod")
+# Previously fell back to a hardcoded, publicly-committed string
+# ("rasoicare-dev-secret-change-in-prod") — anyone reading this source
+# file knew the exact secret signing every backend-issued JWT (customer
+# email/password sessions AND staff sessions, including Owner). If that
+# fallback was ever actually in effect on the live deployment, anyone
+# could forge a token for any user_id/staff_id they could learn (e.g.
+# user_id leaks via the intentionally-unauthenticated GET /api/bookings)
+# and fully impersonate them — including an Owner account.
+#
+# Deliberately does NOT hard-exit when the env var is missing: this
+# process doesn't know whether it's the live deployment or a fresh dev
+# checkout, and refusing to boot at all would turn a config gap into a
+# full outage. Instead it falls back to a fresh random secret every
+# process start — never a fixed, knowable value — which closes the
+# actual forgery hole immediately even before the env var is set, at the
+# cost of invalidating sessions across restarts until it is. Set
+# JWT_SECRET in the deployment's environment variables for stable,
+# non-invalidating sessions.
+JWT_SECRET = os.environ.get("JWT_SECRET")
+if not JWT_SECRET:
+    JWT_SECRET = secrets.token_hex(32)
+    print(
+        "WARNING: JWT_SECRET is not set — using a random secret generated for this "
+        "process only. Every existing session (customer and staff) will be signed "
+        "out on the next restart. Set JWT_SECRET in the environment for a stable "
+        "production deployment.",
+        file=sys.stderr,
+    )
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_DAYS = 7
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -1085,14 +1114,22 @@ def create_booking():
 
 
 @app.route("/api/bookings/<booking_id>/advance", methods=["PATCH"])
+@require_technician_auth
 def advance_booking(booking_id):
-    """Called by the Technician app to move a job to its next status."""
+    """Called by the Technician app to move a job to its next status.
+    Previously had no auth at all, so anyone could drive any booking id to
+    Completed with no real job done — which, since Care Coins are earned
+    here, was a direct free-money path. Now requires a real technician
+    session and that the booking is actually theirs."""
     data = request.get_json(force=True, silent=True) or {}
     conn = get_db()
     row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
     if not row:
         conn.close()
         return jsonify({"error": "not found"}), 404
+    if row["technician_id"] != request.technician["id"]:
+        conn.close()
+        return jsonify({"error": "Forbidden", "message": "Not your job"}), 403
 
     idx = STATUS_ORDER.index(row["status"]) if row["status"] in STATUS_ORDER else 0
     if idx >= len(STATUS_ORDER) - 1:
@@ -1308,7 +1345,17 @@ def update_complaint(complaint_id):
 
 
 # ---------------------------------------------------------------- technicians
+# These three routes used to have no auth at all — technician_row_to_dict
+# includes bank account/IFSC/PAN/Aadhaar/DOB/address/emergency-contact,
+# i.e. a full KYC dossier, and verify/create had no gate either (so anyone
+# could self-register a "technician" and immediately self-verify it,
+# completely bypassing the Admin app's document-review step before it
+# starts receiving real customer bookings). All three now require a real
+# signed-in staff session — matches the Admin app's own access model,
+# which already lets any signed-in staff member (not just Owner) review
+# and verify technicians.
 @app.route("/api/technicians", methods=["GET"])
+@require_staff_auth
 def list_technicians():
     conn = get_db()
     rows = conn.execute("SELECT * FROM technicians ORDER BY name").fetchall()
@@ -1317,6 +1364,7 @@ def list_technicians():
 
 
 @app.route("/api/technicians", methods=["POST"])
+@require_staff_auth
 def create_technician():
     """Called by the Admin app to add a new technician. New hires start
     unverified and offline — they're excluded from auto-routing and from
@@ -1342,6 +1390,7 @@ def create_technician():
 
 
 @app.route("/api/technicians/<technician_id>/verify", methods=["PATCH"])
+@require_staff_auth
 def verify_technician(technician_id):
     """Called by the Admin app once it has checked a new technician's
     documents/background — flips them verified and brings them online so

@@ -33,17 +33,21 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
     // repository is first used (see providers.dart).
     unawaited(_fetchOverviewStats());
     unawaited(_fetchBookings());
-    unawaited(_fetchTechnicians());
     unawaited(_fetchInventory());
     unawaited(_fetchComplaints());
     // Staff-gated endpoints need a signed-in Firebase user's token. The
     // repository can be constructed before Firebase Auth has restored
     // `currentUser` on a cold start, so try once now and again the moment
     // auth state actually settles, rather than only once at construction.
+    // GET /api/technicians moved here from the open group above once it
+    // started requiring staff auth (it used to serve a technician's full
+    // KYC dossier — bank account, PAN, Aadhaar — to anyone with no token).
+    unawaited(_fetchTechnicians());
     unawaited(_fetchStaffAccounts());
     unawaited(_fetchReport(ReportRange.week));
     _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
       if (user == null) return;
+      unawaited(_fetchTechnicians());
       unawaited(_fetchStaffAccounts());
       unawaited(_fetchReport(_lastReportRange));
     });
@@ -272,8 +276,11 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
 
   Future<void> _fetchTechnicians() async {
     try {
-      final res =
-          await _client.get(Uri.parse('${ApiConfig.baseUrl}/api/technicians')).timeout(_timeout);
+      final token = await _idToken();
+      if (token == null) return; // staff-gated — nothing to fetch without one
+      final res = await _client
+          .get(Uri.parse('${ApiConfig.baseUrl}/api/technicians'), headers: _headers(token))
+          .timeout(_timeout);
       if (res.statusCode != 200) return;
       _techniciansRaw = jsonDecode(res.body) as List<dynamic>;
       notifyListeners();
@@ -285,8 +292,13 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
   @override
   Future<bool> verifyTechnician(String technicianId) async {
     try {
+      final token = await _idToken();
+      if (token == null) return false;
       final res = await _client
-          .patch(Uri.parse('${ApiConfig.baseUrl}/api/technicians/$technicianId/verify'))
+          .patch(
+            Uri.parse('${ApiConfig.baseUrl}/api/technicians/$technicianId/verify'),
+            headers: _headers(token),
+          )
           .timeout(_timeout);
       if (res.statusCode != 200) return false;
       // Refresh the cache so the Team screen reflects the change immediately
