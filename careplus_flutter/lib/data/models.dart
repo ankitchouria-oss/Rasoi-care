@@ -109,6 +109,20 @@ class SavedAddress {
   final double? lng;
 }
 
+/// A selectable entry on the checkout "Pay with" list. Purely a display
+/// choice — no gateway is wired up behind any of these (see
+/// PaymentScreen's build method), so the selection is never read by
+/// booking creation. Shown because the customer explicitly asked to see
+/// the familiar option list again, with the understanding that actual
+/// payment collection is UPI-to-technician after the visit regardless of
+/// which one is picked here.
+class PaymentMethod {
+  const PaymentMethod(this.id, this.name, this.detail, this.glyph);
+  final String id;
+  final String name;
+  final String detail;
+  final String glyph;
+}
 
 enum BookingStatus { scheduled, onTheWay, inProgress, completed, cancelled }
 
