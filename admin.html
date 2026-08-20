@@ -599,7 +599,7 @@ function renderBookings(){
 /* ---------------- team ---------------- */
 async function loadTeam(){
   try{
-    STATE.technicians = await apiGet('/api/technicians');
+    STATE.technicians = await apiGetAuth('/api/technicians');
     const onDuty = STATE.technicians.filter(t=>t.online).length;
     document.getElementById('teamOnDuty').textContent = onDuty + ' / ' + STATE.technicians.length;
     const avg = STATE.technicians.length ? (STATE.technicians.reduce((s,t)=>s+t.rating,0)/STATE.technicians.length).toFixed(2) : '—';
@@ -642,7 +642,7 @@ async function submitAddTechnician(){
   const area = document.getElementById('newTechArea').value.trim();
   if(!name || !area){ toast('Name and area are required'); return; }
   try{
-    await apiPost('/api/technicians', { name, category, area });
+    await apiPostAuth('/api/technicians', { name, category, area });
     toast('Technician added — pending verification');
     closeSheet();
     await loadTeam();
@@ -650,7 +650,7 @@ async function submitAddTechnician(){
 }
 async function verifyTechnician(id){
   try{
-    await apiPatch('/api/technicians/'+id+'/verify', {});
+    await apiPatchAuth('/api/technicians/'+id+'/verify', {});
     toast('Technician verified and online');
     await loadTeam();
   }catch(e){ toast('Could not verify technician'); }

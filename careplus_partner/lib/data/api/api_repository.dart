@@ -118,10 +118,15 @@ class ApiRepository implements PartnerRepository {
   /// waiting on another round trip.
   Future<bool> advanceJob(String jobId, {int? suctionBefore, int? suctionAfter}) async {
     try {
+      final token = await _idToken();
+      if (token == null) return false;
       final res = await http
           .patch(
             Uri.parse('${ApiConfig.baseUrl}/api/bookings/$jobId/advance'),
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
             body: jsonEncode({
               if (suctionBefore != null) 'suctionBefore': suctionBefore,
               if (suctionAfter != null) 'suctionAfter': suctionAfter,
