@@ -90,6 +90,7 @@ class BookingDraft {
     this.pickedAddress,
     this.directions = '',
     this.useCoins = false,
+    this.paymentId = 'upi',
   });
 
   /// Every service the customer added on the service-detail screen —
@@ -123,6 +124,10 @@ class BookingDraft {
   /// whatever's really available and really needed.
   final bool useCoins;
 
+  /// Which "Pay with" option is highlighted on checkout — display only,
+  /// see [PaymentMethod]'s doc comment. Never read by booking creation.
+  final String paymentId;
+
   /// The real, unmodified total of what was actually selected — no
   /// invented visit fee, coupon, loyalty-coin discount, or GST used to be
   /// layered on top of this by default (CARE30 was even pre-applied),
@@ -141,6 +146,7 @@ class BookingDraft {
     SavedAddress? pickedAddress,
     String? directions,
     bool? useCoins,
+    String? paymentId,
   }) =>
       BookingDraft(
         services: services ?? this.services,
@@ -152,6 +158,7 @@ class BookingDraft {
         pickedAddress: pickedAddress ?? this.pickedAddress,
         directions: directions ?? this.directions,
         useCoins: useCoins ?? this.useCoins,
+        paymentId: paymentId ?? this.paymentId,
       );
 }
 
@@ -267,4 +274,5 @@ class BookingDraftVM extends Notifier<BookingDraft> {
       state = state.copyWith(addressId: address.id, pickedAddress: address);
   void setDirections(String v) => state = state.copyWith(directions: v);
   void toggleUseCoins() => state = state.copyWith(useCoins: !state.useCoins);
+  void setPayment(String id) => state = state.copyWith(paymentId: id);
 }

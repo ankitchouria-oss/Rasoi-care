@@ -296,6 +296,9 @@ class ApiRepository implements CareRepository {
   List<SavedAddress> addresses() => _mock.addresses();
 
   @override
+  List<PaymentMethod> paymentMethods() => _mock.paymentMethods();
+
+  @override
   Technician get preferredTechnician => _mock.preferredTechnician;
 
   @override

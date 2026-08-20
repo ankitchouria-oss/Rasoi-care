@@ -565,6 +565,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   Widget build(BuildContext context) {
     final draft = ref.watch(bookingDraftProvider);
     final vm = ref.read(bookingDraftProvider.notifier);
+    final repo = ref.watch(repositoryProvider);
     final pricing = ref.watch(pricingProvider);
     final coinsBalance = ref.watch(apiRepositoryProvider).coinsBalance;
     return _StepScaffold(
@@ -670,40 +671,53 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
               ]),
             ),
           ],
-          const SectionHeader('Payment'),
-          // There's no card/UPI/wallet payment gateway wired up yet (no
+          const SectionHeader('Pay with'),
+          // No card/UPI/wallet payment gateway is actually wired up (no
           // Razorpay or any other processor exists in this app or the
-          // backend) — the previous "Pay with" selector offered five
-          // choices (including a specific fake card number and a fake
-          // Care+ wallet balance) that all did exactly nothing; whichever
-          // one was picked was never even read by the booking call. The
-          // real, only-actually-true payment model is this: the technician
-          // collects payment via UPI once the job is done.
-          CareCard(
-            child: Row(children: [
-              Container(
-                width: 34,
-                height: 34,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                    color: context.scheme.surfaceContainerHigh,
-                    borderRadius: BorderRadius.circular(10)),
-                child: const Text('₹', style: TextStyle(fontSize: 14)),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Pay after the visit',
-                        style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
-                    Text('UPI to the technician, once the job is done',
-                        style: context.type.bodySmall),
-                  ],
+          // backend) — every option below is a display choice only, never
+          // read by booking creation. Real payment collection is UPI to
+          // the technician after the visit regardless of what's selected
+          // here. Shown because this list was asked for back explicitly;
+          // deliberately not restoring the old "Payments run through
+          // Razorpay" line, since that asserted something false rather
+          // than just being an unbuilt feature.
+          for (final m in repo.paymentMethods()) ...[
+            CareCard(
+              onTap: () => vm.setPayment(m.id),
+              borderColor: draft.paymentId == m.id ? context.scheme.primary : null,
+              child: Row(children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                      color: context.scheme.surfaceContainerHigh,
+                      borderRadius: BorderRadius.circular(10)),
+                  child: Text(m.glyph, style: const TextStyle(fontSize: 14)),
                 ),
-              ),
-            ]),
-          ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(m.name,
+                          style: const TextStyle(
+                              fontSize: 13.5, fontWeight: FontWeight.w700)),
+                      Text(m.detail, style: context.type.bodySmall),
+                    ],
+                  ),
+                ),
+                Icon(
+                    draft.paymentId == m.id
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_off,
+                    color: draft.paymentId == m.id
+                        ? context.scheme.primary
+                        : context.care.hairline),
+              ]),
+            ),
+            const SizedBox(height: 10),
+          ],
         ],
       ),
     );
