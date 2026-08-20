@@ -174,4 +174,56 @@ class BackendClient {
       return false;
     }
   }
+
+  /// GET /api/auth/me — the real signed-in customer's backend profile,
+  /// including their real Care Coins balance (`coinsBalance`). Returns
+  /// null on any failure; the caller treats that as "balance unknown yet"
+  /// rather than zero, so the checkout screen doesn't briefly claim a real
+  /// customer has no coins before the fetch lands.
+  Future<Map<String, dynamic>?> fetchMe({required String idToken}) async {
+    try {
+      final res = await http
+          .get(
+            Uri.parse('${ApiConfig.baseUrl}/api/auth/me'),
+            headers: {'Authorization': 'Bearer $idToken'},
+          )
+          .timeout(_timeout);
+      if (res.statusCode == 200) {
+        final decoded = jsonDecode(res.body);
+        if (decoded is Map<String, dynamic>) return decoded;
+      }
+    } catch (_) {
+      // Best-effort — see file header.
+    }
+    return null;
+  }
+
+  /// POST /api/me/coins/redeem — deducts real Care Coins from the
+  /// customer's balance right before checkout creates the booking(s), so
+  /// redemption happens exactly once per order regardless of how many
+  /// booking rows a multi-service cart creates. Returns the updated
+  /// profile (with the new `coinsBalance`) on success, or null if the
+  /// redemption was rejected (e.g. insufficient balance) or the request
+  /// failed outright.
+  Future<Map<String, dynamic>?> redeemCoins({
+    required String idToken,
+    required int amount,
+  }) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('${ApiConfig.baseUrl}/api/me/coins/redeem'),
+            headers: _headers(idToken),
+            body: jsonEncode({'amount': amount}),
+          )
+          .timeout(_timeout);
+      if (res.statusCode == 200) {
+        final decoded = jsonDecode(res.body);
+        if (decoded is Map<String, dynamic>) return decoded;
+      }
+    } catch (_) {
+      // Best-effort — see file header.
+    }
+    return null;
+  }
 }

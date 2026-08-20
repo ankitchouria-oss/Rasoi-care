@@ -16,6 +16,11 @@ import 'firestore_providers.dart';
 /// BookingsScreen in lib/features/account/account_screens.dart.
 final bookingsRefreshProvider = StateProvider<int>((ref) => 0);
 
+/// Bumped every time [ApiRepository]'s real Care Coins balance changes
+/// (initial fetch lands, or a redemption succeeds) — see [pricingProvider],
+/// which watches this to recompute the checkout total.
+final coinsRefreshProvider = StateProvider<int>((ref) => 0);
+
 /// The concrete repository, exposed separately from [repositoryProvider] so
 /// call sites that need to *write* (creating a booking) can reach methods
 /// outside the read-only [CareRepository] interface — e.g. PaymentScreen in
@@ -23,6 +28,7 @@ final bookingsRefreshProvider = StateProvider<int>((ref) => 0);
 final apiRepositoryProvider = Provider<ApiRepository>((ref) {
   return ApiRepository(
     onBookingsChanged: () => ref.read(bookingsRefreshProvider.notifier).state++,
+    onCoinsChanged: () => ref.read(coinsRefreshProvider.notifier).state++,
   );
 });
 
@@ -83,6 +89,7 @@ class BookingDraft {
     this.addressId = 'a_home',
     this.pickedAddress,
     this.directions = '',
+    this.useCoins = false,
   });
 
   /// Every service the customer added on the service-detail screen —
@@ -111,10 +118,17 @@ class BookingDraft {
   /// wasn't wired to the backend even if you could have edited it.
   final String directions;
 
+  /// Whether the customer opted to redeem their real Care Coins balance at
+  /// checkout — see [pricingProvider], which caps the actual redemption at
+  /// whatever's really available and really needed.
+  final bool useCoins;
+
   /// The real, unmodified total of what was actually selected — no
   /// invented visit fee, coupon, loyalty-coin discount, or GST used to be
   /// layered on top of this by default (CARE30 was even pre-applied),
-  /// none of which reflected an actual pricing or tax policy.
+  /// none of which reflected an actual pricing or tax policy. Used for the
+  /// pre-checkout cart preview; [pricingProvider] computes the real
+  /// payable total shown at checkout.
   int get totalPaise => services.fold(0, (sum, s) => sum + s.pricePaise);
 
   BookingDraft copyWith({
@@ -126,6 +140,7 @@ class BookingDraft {
     String? addressId,
     SavedAddress? pickedAddress,
     String? directions,
+    bool? useCoins,
   }) =>
       BookingDraft(
         services: services ?? this.services,
@@ -136,8 +151,86 @@ class BookingDraft {
         addressId: addressId ?? this.addressId,
         pickedAddress: pickedAddress ?? this.pickedAddress,
         directions: directions ?? this.directions,
+        useCoins: useCoins ?? this.useCoins,
       );
 }
+
+// ---------------------------------------------------------------------------
+// Checkout pricing — visit fee, an auto-applied coupon above a real
+// threshold, real 18% GST, and (optionally) real Care Coins redemption.
+// Every figure here is a fixed, disclosed business rule, not an invented
+// number: ₹49 visit fee, ₹200 off once the pre-GST subtotal passes ₹1,700,
+// 18% GST (the standard rate for services in India), 1 Care Coin = ₹1,
+// earned server-side at 2% of a booking's real total once it's actually
+// completed (see advance_booking in app.py) and redeemed server-side via
+// POST /api/me/coins/redeem right before checkout creates the booking(s).
+// ---------------------------------------------------------------------------
+const kVisitFeePaise = 4900;
+const kCouponThresholdPaise = 170000;
+const kCouponDiscountPaise = 20000;
+const kGstRate = 0.18;
+
+class PricingBreakdown {
+  const PricingBreakdown({
+    required this.subtotalPaise,
+    required this.visitFeePaise,
+    required this.couponDiscountPaise,
+    required this.gstPaise,
+    required this.coinsRedeemed,
+    required this.grandTotalPaise,
+  });
+  final int subtotalPaise;
+  final int visitFeePaise;
+  final int couponDiscountPaise;
+  final int gstPaise;
+
+  /// Whole coins (= rupees) actually redeemed — capped at both the real
+  /// balance and what's left to pay, so this can never exceed either.
+  final int coinsRedeemed;
+  final int grandTotalPaise;
+}
+
+PricingBreakdown computePricing(
+  List<ServiceItem> services, {
+  required bool useCoins,
+  required int coinsBalance,
+}) {
+  final subtotal = services.fold(0, (sum, s) => sum + s.pricePaise);
+  if (subtotal == 0) {
+    return const PricingBreakdown(
+      subtotalPaise: 0,
+      visitFeePaise: 0,
+      couponDiscountPaise: 0,
+      gstPaise: 0,
+      coinsRedeemed: 0,
+      grandTotalPaise: 0,
+    );
+  }
+  final preGstBase = subtotal + kVisitFeePaise;
+  final coupon = preGstBase > kCouponThresholdPaise ? kCouponDiscountPaise : 0;
+  final afterCoupon = preGstBase - coupon;
+  final gst = (afterCoupon * kGstRate).round();
+  final beforeCoins = afterCoupon + gst;
+  final coinsRedeemed = useCoins ? coinsBalance.clamp(0, beforeCoins ~/ 100) : 0;
+  return PricingBreakdown(
+    subtotalPaise: subtotal,
+    visitFeePaise: kVisitFeePaise,
+    couponDiscountPaise: coupon,
+    gstPaise: gst,
+    coinsRedeemed: coinsRedeemed,
+    grandTotalPaise: beforeCoins - coinsRedeemed * 100,
+  );
+}
+
+/// The real checkout total for the current [bookingDraftProvider], factoring
+/// in the visit fee, auto-coupon, GST, and any Care Coins redemption —
+/// recomputed whenever the draft or the real coins balance changes.
+final pricingProvider = Provider<PricingBreakdown>((ref) {
+  final draft = ref.watch(bookingDraftProvider);
+  ref.watch(coinsRefreshProvider);
+  final coinsBalance = ref.watch(apiRepositoryProvider).coinsBalance ?? 0;
+  return computePricing(draft.services, useCoins: draft.useCoins, coinsBalance: coinsBalance);
+});
 
 final bookingDraftProvider =
     NotifierProvider<BookingDraftVM, BookingDraft>(BookingDraftVM.new);
@@ -173,4 +266,5 @@ class BookingDraftVM extends Notifier<BookingDraft> {
   void setPickedAddress(SavedAddress address) =>
       state = state.copyWith(addressId: address.id, pickedAddress: address);
   void setDirections(String v) => state = state.copyWith(directions: v);
+  void toggleUseCoins() => state = state.copyWith(useCoins: !state.useCoins);
 }

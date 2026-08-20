@@ -183,12 +183,14 @@ def technician_row_to_dict(row):
 
 
 def user_row_to_dict(row):
+    keys = row.keys()
     return {
         "id": row["id"],
         "email": row["email"],
         "name": row["name"],
         "phone": row["phone"],
         "created_at": row["created_at"],
+        "coinsBalance": row["coins_balance"] if "coins_balance" in keys else 0,
     }
 
 
@@ -696,6 +698,40 @@ def bootstrap_customer():
     return jsonify(user_row_to_dict(row))
 
 
+@app.route("/api/me/coins/redeem", methods=["POST"])
+@require_auth
+def redeem_coins():
+    """Called by the Customer app's checkout when the customer opts to use
+    Care Coins — deducts up to their real balance and returns the updated
+    profile, so the client can knock that many rupees off the payable
+    total (1 coin = ₹1). Decoupled from booking creation (a multi-service
+    cart creates one booking row per service) so redemption happens
+    exactly once per checkout regardless of how many bookings follow."""
+    data = request.get_json(force=True, silent=True) or {}
+    try:
+        amount = int(data.get("amount", 0))
+    except (TypeError, ValueError):
+        return jsonify({"error": "amount must be a whole number of coins"}), 400
+    if amount <= 0:
+        return jsonify({"error": "amount must be positive"}), 400
+
+    conn = get_db()
+    row = conn.execute(
+        "SELECT coins_balance FROM users WHERE id = ?", (request.user["id"],)
+    ).fetchone()
+    if row["coins_balance"] < amount:
+        conn.close()
+        return jsonify({"error": "Not enough Care Coins"}), 400
+    conn.execute(
+        "UPDATE users SET coins_balance = coins_balance - ? WHERE id = ?",
+        (amount, request.user["id"]),
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM users WHERE id = ?", (request.user["id"],)).fetchone()
+    conn.close()
+    return jsonify(user_row_to_dict(row))
+
+
 # ---------------------------------------------------------------- health
 @app.route("/api/health", methods=["GET"])
 def health():
@@ -1078,6 +1114,18 @@ def advance_booking(booking_id):
             "UPDATE technicians SET jobs_completed = jobs_completed + 1 WHERE id = ?",
             (row["technician_id"],),
         )
+        # Care Coins — 2% of the real total, credited only once the job is
+        # actually done (not at booking time, so a cancelled or never-
+        # completed booking earns nothing). The idx guard above already
+        # makes this whole branch run at most once per booking, since
+        # Completed is the terminal status.
+        if row["user_id"] and row["total_amount"]:
+            coins_earned = (row["total_amount"] * 2) // 100
+            if coins_earned > 0:
+                conn.execute(
+                    "UPDATE users SET coins_balance = coins_balance + ? WHERE id = ?",
+                    (coins_earned, row["user_id"]),
+                )
         suction_before = data.get("suctionBefore")
         suction_after = data.get("suctionAfter")
         if suction_before is not None or suction_after is not None:

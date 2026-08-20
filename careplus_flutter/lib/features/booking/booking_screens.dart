@@ -475,8 +475,43 @@ class PaymentScreen extends ConsumerStatefulWidget {
 class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   bool _submitting = false;
 
-  Future<void> _pay(BookingDraft draft) async {
+  /// Splits [grandTotalPaise] across each service in proportion to its own
+  /// share of the pre-fee subtotal, so each booking row still carries a
+  /// real, individually-meaningful price (visible to its own technician)
+  /// while the sum across all of them matches the real checkout total
+  /// exactly — the last line absorbs whatever a penny of rounding leaves
+  /// over rather than losing or inventing a paisa.
+  List<int> _allocate(List<ServiceItem> services, int grandTotalPaise) {
+    final subtotal = services.fold(0, (s, i) => s + i.pricePaise);
+    if (subtotal == 0) return List.filled(services.length, 0);
+    final shares = <int>[];
+    var allocated = 0;
+    for (var i = 0; i < services.length; i++) {
+      if (i == services.length - 1) {
+        shares.add(grandTotalPaise - allocated);
+      } else {
+        final share = (grandTotalPaise * services[i].pricePaise / subtotal).round();
+        shares.add(share);
+        allocated += share;
+      }
+    }
+    return shares;
+  }
+
+  Future<void> _pay(BookingDraft draft, PricingBreakdown pricing) async {
     setState(() => _submitting = true);
+    // Redeemed once for the whole order — before any bookings are created —
+    // so a multi-service cart never redeems the same coins once per row.
+    if (pricing.coinsRedeemed > 0) {
+      final ok = await ref.read(apiRepositoryProvider).redeemCoins(pricing.coinsRedeemed);
+      if (!ok) {
+        if (!mounted) return;
+        setState(() => _submitting = false);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text("Couldn't redeem your Care Coins — check your connection and try again.")));
+        return;
+      }
+    }
     SavedAddress? selected;
     for (final a in [
       ...ref.read(savedAddressesProvider),
@@ -488,18 +523,20 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       }
     }
     // One real booking per selected service — each keeps its own real
-    // price and gets routed/tracked independently on the Partner side.
-    // Awaited (not fire-and-forget) because the confirmation screen needs
-    // the real booking id(s) that come back — it used to always link to
-    // the same hardcoded "CP-2481-NSK" no matter what was actually
-    // created, which is exactly why "the actual booking" never showed up.
+    // allocated price and gets routed/tracked independently on the
+    // Partner side. Awaited (not fire-and-forget) because the
+    // confirmation screen needs the real booking id(s) that come back —
+    // it used to always link to the same hardcoded "CP-2481-NSK" no
+    // matter what was actually created, which is exactly why "the actual
+    // booking" never showed up.
     final directions = draft.directions.trim();
+    final allocations = _allocate(draft.services, pricing.grandTotalPaise);
     final created = <Booking>[];
     String? lastError;
-    for (final service in draft.services) {
+    for (var i = 0; i < draft.services.length; i++) {
       final result = await ref.read(apiRepositoryProvider).createBooking(
-            service: service,
-            totalPaise: service.pricePaise,
+            service: draft.services[i],
+            totalPaise: allocations[i],
             areaLabel: selected?.label,
             lat: selected?.lat,
             lng: selected?.lng,
@@ -527,6 +564,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   @override
   Widget build(BuildContext context) {
     final draft = ref.watch(bookingDraftProvider);
+    final vm = ref.read(bookingDraftProvider.notifier);
+    final pricing = ref.watch(pricingProvider);
+    final coinsBalance = ref.watch(apiRepositoryProvider).coinsBalance;
     return _StepScaffold(
       title: 'Review and pay',
       progress: 1,
@@ -537,20 +577,21 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Eyebrow('Payable now'),
-              Text(Money.rupees(draft.totalPaise),
+              Text(Money.rupees(pricing.grandTotalPaise),
                   style: CareType.mono(context.scheme.onSurface,
                       size: 17, w: FontWeight.w600)),
             ],
           ),
         ),
         FilledButton(
-          onPressed: draft.services.isEmpty || _submitting ? null : () => _pay(draft),
+          onPressed:
+              draft.services.isEmpty || _submitting ? null : () => _pay(draft, pricing),
           child: _submitting
               ? const SizedBox(
                   width: 18,
                   height: 18,
                   child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : Text('Pay ${Money.rupees(draft.totalPaise)}'),
+              : Text('Pay ${Money.rupees(pricing.grandTotalPaise)}'),
         ),
       ]),
       body: Column(
@@ -576,12 +617,23 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                 ],
                 Text('${draft.day} · ${draft.slot}', style: context.type.bodySmall),
                 const Divider(height: 24),
+                _priceLine(context, 'Visit fee', Money.rupees(pricing.visitFeePaise)),
+                if (pricing.couponDiscountPaise > 0)
+                  _priceLine(
+                      context, 'CARE200 applied', '-${Money.rupees(pricing.couponDiscountPaise)}',
+                      color: context.care.success),
+                _priceLine(context, 'GST (18%)', Money.rupees(pricing.gstPaise)),
+                if (pricing.coinsRedeemed > 0)
+                  _priceLine(context, 'Care Coins used',
+                      '-${Money.rupees(pricing.coinsRedeemed * 100)}',
+                      color: context.care.success),
+                const Divider(height: 24),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text('Total',
                         style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
-                    Text(Money.rupees(draft.totalPaise),
+                    Text(Money.rupees(pricing.grandTotalPaise),
                         style: CareType.mono(context.scheme.onSurface,
                             size: 18, w: FontWeight.w600)),
                   ],
@@ -589,6 +641,35 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
               ],
             ),
           ),
+          if (coinsBalance != null && coinsBalance > 0) ...[
+            const SizedBox(height: 12),
+            CareCard(
+              onTap: vm.toggleUseCoins,
+              child: Row(children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                      color: context.scheme.surfaceContainerHigh,
+                      borderRadius: BorderRadius.circular(10)),
+                  child: const Text('◍', style: TextStyle(fontSize: 14)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Use my Care Coins',
+                          style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+                      Text('₹$coinsBalance available', style: context.type.bodySmall),
+                    ],
+                  ),
+                ),
+                Switch(value: draft.useCoins, onChanged: (_) => vm.toggleUseCoins()),
+              ]),
+            ),
+          ],
           const SectionHeader('Payment'),
           // There's no card/UPI/wallet payment gateway wired up yet (no
           // Razorpay or any other processor exists in this app or the
@@ -628,6 +709,17 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     );
   }
 
+  Widget _priceLine(BuildContext context, String label, String value, {Color? color}) =>
+      Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: context.type.bodySmall),
+            Text(value, style: CareType.mono(color ?? context.scheme.onSurface, size: 12)),
+          ],
+        ),
+      );
 }
 
 // ============================================================ CONFIRMED
