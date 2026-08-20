@@ -628,6 +628,16 @@ def seed_home_services(conn):
     conn.commit()
 
 
+def migrate_users_columns(conn):
+    """Care Coins loyalty balance — earned automatically when a booking is
+    marked Completed (2% of its real total, see advance_booking in app.py),
+    redeemable at checkout via POST /api/me/coins/redeem. 1 coin = ₹1."""
+    cols = _table_columns(conn, "users")
+    if "coins_balance" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN coins_balance INTEGER NOT NULL DEFAULT 0")
+    conn.commit()
+
+
 def init_db():
     conn = get_db()
     conn.executescript(SCHEMA)
@@ -635,6 +645,7 @@ def init_db():
     migrate_bookings_columns(conn)
     migrate_technicians_columns(conn)
     migrate_firebase_columns(conn)
+    migrate_users_columns(conn)
     seed_catalog(conn)
     seed_staff(conn)
     seed_inventory(conn)

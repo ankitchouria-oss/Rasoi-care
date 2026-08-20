@@ -17,10 +17,11 @@ import 'appliance_category.dart';
 import 'backend_client.dart';
 
 class ApiRepository implements CareRepository {
-  ApiRepository({BackendClient? client, this.onBookingsChanged})
+  ApiRepository({BackendClient? client, this.onBookingsChanged, this.onCoinsChanged})
       : _client = client ?? BackendClient(),
         _mock = MockRepository() {
     unawaited(_loadInitialBookings());
+    unawaited(_fetchMe());
   }
 
   final BackendClient _client;
@@ -32,12 +33,23 @@ class ApiRepository implements CareRepository {
   /// lib/state/providers.dart.
   final void Function()? onBookingsChanged;
 
+  /// Called whenever the real Care Coins balance changes (initial fetch
+  /// lands, or a redemption succeeds). See coinsRefreshProvider in
+  /// lib/state/providers.dart.
+  final void Function()? onCoinsChanged;
+
   /// null until the first successful GET /api/bookings — at which point we
   /// switch over from MockRepository's canned demo bookings to real ones
   /// entirely (see the build brief: "favor simplicity"). A failed or
   /// not-yet-completed fetch leaves this null and [bookings] keeps
   /// serving the mock list, same as before this class existed.
   List<Booking>? _realBookings;
+
+  /// null until the first successful GET /api/auth/me — the checkout
+  /// screen treats null as "balance unknown yet" (hides the Care Coins
+  /// option) rather than assuming zero.
+  int? _coinsBalance;
+  int? get coinsBalance => _coinsBalance;
 
   Future<String?> _idToken({bool forceRefresh = false}) async {
     if (Firebase.apps.isEmpty) return null; // mock auth mode — nothing to send
@@ -66,6 +78,36 @@ class ApiRepository implements CareRepository {
   /// app's lifetime with nothing to retry it. This gives the UI a way to
   /// ask again once a real signed-in user is actually available.
   Future<void> refreshBookings() => _loadInitialBookings();
+
+  Future<void> _fetchMe() async {
+    final token = await _idToken();
+    if (token == null) return;
+    final json = await _client.fetchMe(idToken: token);
+    if (json == null) return;
+    _coinsBalance = (json['coinsBalance'] as num?)?.toInt() ?? 0;
+    onCoinsChanged?.call();
+  }
+
+  /// Public re-fetch — same cold-start-race reasoning as [refreshBookings].
+  Future<void> refreshCoins() => _fetchMe();
+
+  /// Redeems [amount] real Care Coins (1 coin = ₹1) right before checkout
+  /// creates the booking(s) — called once per order, decoupled from how
+  /// many booking rows a multi-service cart creates. Returns true and
+  /// updates the cached balance on success; false if the backend rejected
+  /// it (e.g. balance changed since it was last fetched) or the request
+  /// failed outright — the caller should treat false as "redeemed nothing"
+  /// and charge the full price rather than guessing.
+  Future<bool> redeemCoins(int amount) async {
+    if (amount <= 0) return true; // nothing to redeem
+    final token = await _idToken();
+    if (token == null) return false;
+    final json = await _client.redeemCoins(idToken: token, amount: amount);
+    if (json == null) return false;
+    _coinsBalance = (json['coinsBalance'] as num?)?.toInt() ?? _coinsBalance;
+    onCoinsChanged?.call();
+    return true;
+  }
 
   /// Called from the booking flow's final confirm/pay step
   /// (PaymentScreen in lib/features/booking/booking_screens.dart). Posts
