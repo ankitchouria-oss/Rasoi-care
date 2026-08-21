@@ -49,7 +49,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
               child: const Icon(Icons.add, color: CareColors.porcelain, size: 34),
             ),
             const SizedBox(height: 26),
-            Text('Care+', style: CareType.display(CareColors.porcelain, size: 46)),
+            Text('Rasoi Care', style: CareType.display(CareColors.porcelain, size: 36)),
             const SizedBox(height: 14),
             Text('EXPERT CARE FOR THE\nHEART OF YOUR HOME',
                 textAlign: TextAlign.center,
@@ -347,7 +347,7 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text('New to Care+? ', style: context.type.bodySmall),
+                    Text('New to Rasoi Care? ', style: context.type.bodySmall),
                     GestureDetector(
                       onTap: () => context.push('/register'),
                       child: Text('Create an account',
@@ -684,7 +684,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                              'Care+ never asks for your OTP over a call. Share it only inside this app.',
+                              'Rasoi Care never asks for your OTP over a call. Share it only inside this app.',
                               style: context.type.bodySmall),
                         ),
                       ]),

@@ -110,6 +110,7 @@ class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
   int _tab = 0;
   final Set<String> _selectedIds = {};
   final Set<String> _expandedIncluded = {};
+  bool _seeded = false;
 
   @override
   Widget build(BuildContext context) {
@@ -121,7 +122,13 @@ class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
     }
 
     final services = repo.servicesFor(widget.appliance);
-    if (_selectedIds.isEmpty) _selectedIds.add(services.first.id);
+    // Pre-select the most-booked service once, on first load only — not
+    // "whenever nothing's selected", or removing the last pick (allowed
+    // below) would just get silently re-added on the next rebuild.
+    if (!_seeded) {
+      _selectedIds.add(services.first.id);
+      _seeded = true;
+    }
     final selected = [for (final s in services) if (_selectedIds.contains(s.id)) s];
     final selectedTotalPaise = selected.fold<int>(0, (sum, s) => sum + s.pricePaise);
     final avgDurationMin =
@@ -247,13 +254,12 @@ class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
                         onTap: () => setState(() {
                               // A real multi-add, not a single radio pick —
                               // the "Add"/"Added" wording always implied you
-                              // could pick more than one service in a visit,
-                              // but this used to just replace the selection
-                              // each tap, silently dropping the first pick.
-                              // The last item can't be un-added: Continue
-                              // needs at least one service selected.
+                              // could pick more than one service in a visit.
+                              // Deselecting the last one is allowed too —
+                              // Continue just disables until something's
+                              // picked again (see the FilledButton below).
                               if (_selectedIds.contains(s.id)) {
-                                if (_selectedIds.length > 1) _selectedIds.remove(s.id);
+                                _selectedIds.remove(s.id);
                               } else {
                                 _selectedIds.add(s.id);
                               }
