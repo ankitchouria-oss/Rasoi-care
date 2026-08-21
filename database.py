@@ -157,6 +157,15 @@ CREATE TABLE IF NOT EXISTS appliance_health (
     UNIQUE(user_id, appliance_id)
 );
 
+CREATE TABLE IF NOT EXISTS shop_orders (
+    id              TEXT PRIMARY KEY,
+    user_id         TEXT NOT NULL REFERENCES users(id),
+    items_json      TEXT NOT NULL,
+    total_paise     INTEGER NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'Placed',
+    created_at      TEXT NOT NULL
+);
+
 -- Standalone Home Services app (separate from the RasoiCare tables
 -- above). Single-user prototype for now, so wallet/profile are one
 -- fixed row (id=1) rather than keyed by an authenticated user.

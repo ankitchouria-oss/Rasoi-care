@@ -226,4 +226,34 @@ class BackendClient {
     }
     return null;
   }
+
+  /// POST /api/shop/orders — places a real order for one or more cleaning
+  /// kits from ShopScreen's cart. `items` is a list of
+  /// `{'productId': ..., 'qty': ...}` maps; prices are looked up
+  /// server-side from the real catalog, never trusted from the client.
+  /// Returns the created order (with its real total) on success, or
+  /// `error` with the backend's rejection reason (e.g. an unknown product
+  /// id) so the checkout screen can show why instead of a generic failure.
+  Future<({Map<String, dynamic>? order, String? error})> placeShopOrder({
+    required String idToken,
+    required List<Map<String, dynamic>> items,
+  }) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('${ApiConfig.baseUrl}/api/shop/orders'),
+            headers: _headers(idToken),
+            body: jsonEncode({'items': items}),
+          )
+          .timeout(_timeout);
+      final decoded = jsonDecode(res.body);
+      if (res.statusCode == 201 && decoded is Map<String, dynamic>) {
+        return (order: decoded, error: null);
+      }
+      final message = decoded is Map<String, dynamic> ? decoded['error'] as String? : null;
+      return (order: null, error: message ?? 'Could not place your order.');
+    } catch (_) {
+      return (order: null, error: 'Could not reach the server — check your connection.');
+    }
+  }
 }

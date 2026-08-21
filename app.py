@@ -223,6 +223,16 @@ def user_row_to_dict(row):
     }
 
 
+def shop_order_row_to_dict(row):
+    return {
+        "id": row["id"],
+        "items": json.loads(row["items_json"]),
+        "totalPaise": row["total_paise"],
+        "status": row["status"],
+        "createdAt": row["created_at"],
+    }
+
+
 def appliance_row_to_dict(row):
     return {
         "id": row["id"],
@@ -725,6 +735,76 @@ def bootstrap_customer():
     row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     conn.close()
     return jsonify(user_row_to_dict(row))
+
+
+SHOP_PRODUCTS = {
+    "chimney_kit": {"name": "Chimney Cleaning Kit", "price_paise": 14900},
+    "cooktop_kit": {"name": "Cooktop & Hob Cleaning Kit", "price_paise": 11900},
+    "dishwasher_kit": {"name": "Dishwasher Cleaning Kit", "price_paise": 12900},
+    "microwave_kit": {"name": "Microwave Cleaning Kit", "price_paise": 11900},
+    "refrigerator_kit": {"name": "Refrigerator Cleaning Kit", "price_paise": 9900},
+}
+
+
+@app.route("/api/shop/orders", methods=["POST"])
+@require_auth
+def create_shop_order():
+    """Places a real order for one or more cleaning kits — prices are looked
+    up from SHOP_PRODUCTS server-side (never trusted from the client) so a
+    tampered request can't under-charge. No payment gateway exists in this
+    codebase (see PaymentScreen), so like bookings this is pay-on-delivery:
+    placing the order just records it for fulfillment."""
+    data = request.get_json(force=True, silent=True) or {}
+    items = data.get("items")
+    if not isinstance(items, list) or not items:
+        return jsonify({"error": "items must be a non-empty list"}), 400
+
+    order_items = []
+    total_paise = 0
+    for entry in items:
+        product_id = entry.get("productId") if isinstance(entry, dict) else None
+        product = SHOP_PRODUCTS.get(product_id)
+        if not product:
+            return jsonify({"error": f"Unknown product: {product_id}"}), 400
+        try:
+            qty = int(entry.get("qty", 0))
+        except (TypeError, ValueError):
+            return jsonify({"error": "qty must be a whole number"}), 400
+        if qty <= 0:
+            return jsonify({"error": "qty must be positive"}), 400
+        subtotal = product["price_paise"] * qty
+        order_items.append({
+            "productId": product_id,
+            "name": product["name"],
+            "qty": qty,
+            "unitPricePaise": product["price_paise"],
+            "subtotalPaise": subtotal,
+        })
+        total_paise += subtotal
+
+    order_id = new_uuid_id("ORD")
+    conn = get_db()
+    conn.execute(
+        "INSERT INTO shop_orders (id, user_id, items_json, total_paise, status, created_at) "
+        "VALUES (?,?,?,?,?,?)",
+        (order_id, request.user["id"], json.dumps(order_items), total_paise, "Placed", now()),
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM shop_orders WHERE id = ?", (order_id,)).fetchone()
+    conn.close()
+    return jsonify(shop_order_row_to_dict(row)), 201
+
+
+@app.route("/api/shop/orders", methods=["GET"])
+@require_auth
+def list_shop_orders():
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM shop_orders WHERE user_id = ? ORDER BY created_at DESC",
+        (request.user["id"],),
+    ).fetchall()
+    conn.close()
+    return jsonify([shop_order_row_to_dict(r) for r in rows])
 
 
 @app.route("/api/me/coins/redeem", methods=["POST"])

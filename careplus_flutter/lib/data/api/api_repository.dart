@@ -98,6 +98,26 @@ class ApiRepository implements CareRepository {
   /// it (e.g. balance changed since it was last fetched) or the request
   /// failed outright — the caller should treat false as "redeemed nothing"
   /// and charge the full price rather than guessing.
+  /// Places a real shop order (see ShopScreen's cart/checkout) — `items` is
+  /// `{productId: qty}`. Returns the placed order's total on success, or an
+  /// error message on failure; never throws.
+  Future<({int? totalPaise, String? error})> placeShopOrder(Map<String, int> items) async {
+    final token = await _idToken();
+    if (token == null) {
+      return (totalPaise: null, error: 'Sign in again to place an order.');
+    }
+    final result = await _client.placeShopOrder(
+      idToken: token,
+      items: [
+        for (final e in items.entries) {'productId': e.key, 'qty': e.value},
+      ],
+    );
+    if (result.order == null) {
+      return (totalPaise: null, error: result.error);
+    }
+    return (totalPaise: (result.order!['totalPaise'] as num).toInt(), error: null);
+  }
+
   Future<bool> redeemCoins(int amount) async {
     if (amount <= 0) return true; // nothing to redeem
     final token = await _idToken();
