@@ -16,7 +16,8 @@
     <application
         android:label="Rasoi Care Partner"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round">
         <!-- Job-tracking map (TechJobScreen) — key sourced from the
              ${mapsApiKey} placeholder in build.gradle.kts, defaults to an
              empty string so the build never fails for its absence. See
