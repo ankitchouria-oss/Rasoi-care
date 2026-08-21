@@ -288,7 +288,9 @@ class _MapPickerBodyState extends State<_MapPickerBody> {
         if (silent) await _reverseGeocode(_center);
         return;
       }
-      final position = await Geolocator.getCurrentPosition().timeout(_timeout);
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.best),
+      ).timeout(_timeout);
       final point = LatLng(position.latitude, position.longitude);
       setState(() => _center = point);
       await _mapController?.animateCamera(CameraUpdate.newLatLng(point));
