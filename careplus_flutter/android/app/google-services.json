@@ -1,6 +1,7 @@
 {
   "project_info": {
     "project_number": "1064653219482",
+    "firebase_url": "https://rasoi-care-default-rtdb.firebaseio.com",
     "project_id": "rasoi-care",
     "storage_bucket": "rasoi-care.firebasestorage.app"
   },
@@ -14,11 +15,11 @@
       },
       "oauth_client": [
         {
-          "client_id": "1064653219482-qai148ljp4799rsof4lj76q7mq5lh559.apps.googleusercontent.com",
+          "client_id": "1064653219482-lskdvtln58jsjmgk57jkp1vsjf3v5369.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.careplus.care_plus",
-            "certificate_hash": "9277034870e52715c2c449e4f2fadf6c5059a9ba"
+            "certificate_hash": "a12be527c5dacc2f4e9ffb4831f6ecd3b7b30a6b"
           }
         },
         {
@@ -51,6 +52,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "1064653219482-6k5d6kbskoa2biaevq2nbfm7h7sq9i9q.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.rasoicare.care_plus_admin",
+            "certificate_hash": "a12be527c5dacc2f4e9ffb4831f6ecd3b7b30a6b"
+          }
+        },
+        {
           "client_id": "1064653219482-hb2hshp1lid889lefb0ac8ks7kvvf828.apps.googleusercontent.com",
           "client_type": 3
         }
@@ -79,6 +88,14 @@
         }
       },
       "oauth_client": [
+        {
+          "client_id": "1064653219482-mtsi7g8pa4hronlht8j7qi89d0qguo49.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.rasoicare.care_plus_partner",
+            "certificate_hash": "a12be527c5dacc2f4e9ffb4831f6ecd3b7b30a6b"
+          }
+        },
         {
           "client_id": "1064653219482-hb2hshp1lid889lefb0ac8ks7kvvf828.apps.googleusercontent.com",
           "client_type": 3
