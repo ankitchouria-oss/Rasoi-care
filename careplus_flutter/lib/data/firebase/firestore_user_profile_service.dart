@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -84,8 +85,32 @@ class UserProfileService {
         SetOptions(merge: true),
       ).timeout(const Duration(seconds: 6));
       return url;
-    } catch (_) {
+    } catch (e) {
+      // Swallowed for the UI (which just shows the initials-blob fallback),
+      // but logged here because the two most common causes — Storage not
+      // enabled for the project, or default "deny all" security rules —
+      // are invisible otherwise. Look for this in `flutter logs`/logcat.
+      debugPrint('Profile photo upload failed: $e');
       return null;
+    }
+  }
+
+  /// Sets just the display name — the only field AccountScreen lets someone
+  /// edit after the fact (registration's "about you" step sets the rest,
+  /// but people who sign in with phone OTP alone never see that step).
+  Future<bool> updateName(String name) async {
+    if (Firebase.apps.isEmpty) return false;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return false;
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
+        {'name': name, 'updatedAt': FieldValue.serverTimestamp()},
+        SetOptions(merge: true),
+      ).timeout(const Duration(seconds: 6));
+      return true;
+    } catch (e) {
+      debugPrint('Profile name update failed: $e');
+      return false;
     }
   }
 

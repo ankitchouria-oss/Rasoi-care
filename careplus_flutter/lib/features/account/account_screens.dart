@@ -286,8 +286,21 @@ class AccountScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(name,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                      Row(children: [
+                        Flexible(
+                          child: Text(name,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                        ),
+                        if (!isMock) ...[
+                          const SizedBox(width: 6),
+                          GestureDetector(
+                            onTap: () => _editName(context, ref, name),
+                            child: Icon(Icons.edit_outlined,
+                                size: 15, color: context.care.inkMuted),
+                          ),
+                        ],
+                      ]),
                       if (phone.isNotEmpty) ...[
                         const SizedBox(height: 3),
                         Text(phone, style: context.type.bodySmall),
@@ -407,6 +420,39 @@ class AccountScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  /// The only place someone can set their name after signing in with phone
+  /// OTP alone — registration's "about you" step covers everyone else, but
+  /// OTP-only sign-in skips straight into the app with no name on file.
+  Future<void> _editName(BuildContext context, WidgetRef ref, String current) async {
+    final controller = TextEditingController(text: current == 'Your name' ? '' : current);
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Your name'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(hintText: 'e.g. Rohan Deshpande'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(controller.text.trim()),
+              child: const Text('Save')),
+        ],
+      ),
+    );
+    if (newName == null || newName.isEmpty || !context.mounted) return;
+    final ok = await ref.read(userProfileServiceProvider).updateName(newName);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content:
+            Text(ok ? 'Name updated.' : 'Could not save your name — check connection.')));
   }
 }
 
