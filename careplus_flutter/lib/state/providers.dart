@@ -38,13 +38,17 @@ final apiRepositoryProvider = Provider<ApiRepository>((ref) {
 final repositoryProvider =
     Provider<CareRepository>((ref) => ref.watch(apiRepositoryProvider));
 
-/// The addresses screens actually show: the real one collected at signup
-/// (if any) first, followed by `repo.addresses()` — which is always empty
-/// today, but kept as the seam for a future multi-address feature. No more
-/// hardcoded demo "Home"/"Parents" entries for every customer.
+/// The addresses screens actually show: real ones saved through the map
+/// picker's address-details step (SelectLocationScreen's "Saved
+/// addresses"), falling back to the single address collected at signup
+/// only if nothing's been explicitly saved yet. No more hardcoded demo
+/// "Home"/"Parents" entries for every customer.
 final savedAddressesProvider = Provider<List<SavedAddress>>((ref) {
   final repo = ref.watch(repositoryProvider);
   final profile = ref.watch(userProfileStreamProvider).valueOrNull;
+  if (profile != null && profile.addresses.isNotEmpty) {
+    return profile.addresses;
+  }
   final signupAddress = (profile != null && profile.address.isNotEmpty)
       ? [SavedAddress('a_signup', 'Home', profile.address, '🏠', profile.lat, profile.lng)]
       : const <SavedAddress>[];

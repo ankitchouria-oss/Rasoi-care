@@ -11,6 +11,7 @@ import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
 import '../../data/models.dart';
 import '../../state/providers.dart';
+import 'select_location_screen.dart';
 
 // A thin frame every booking step shares: progress bar + step caption + dock.
 class _StepScaffold extends StatelessWidget {
@@ -382,18 +383,31 @@ class SlotScreen extends ConsumerWidget {
 // ============================================================ 3 · ADDRESS
 class AddressScreen extends ConsumerWidget {
   const AddressScreen({super.key});
+
+  // Prefers the exact object just picked (carries structured fields the
+  // saved-addresses list lookup below wouldn't have yet on the very same
+  // frame it's set), falling back to a lookup by id for whatever was
+  // already selected coming into this step.
+  SavedAddress? _currentAddress(WidgetRef ref, BookingDraft draft) {
+    if (draft.pickedAddress?.id == draft.addressId) return draft.pickedAddress;
+    for (final a in ref.read(savedAddressesProvider)) {
+      if (a.id == draft.addressId) return a;
+    }
+    return draft.pickedAddress;
+  }
+
+  Future<void> _selectAddress(BuildContext context, BookingDraftVM vm, String? currentId) async {
+    final picked = await Navigator.of(context).push<SavedAddress>(
+      MaterialPageRoute(builder: (_) => SelectLocationScreen(currentId: currentId)),
+    );
+    if (picked != null) vm.setPickedAddress(picked);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final draft = ref.watch(bookingDraftProvider);
     final vm = ref.read(bookingDraftProvider.notifier);
-    // A newly map-picked address (see AddressPickerScreen) isn't part of
-    // savedAddressesProvider's list, so it's appended here — the same
-    // selection UI (radio dot compared against draft.addressId) handles it
-    // unchanged.
-    final addresses = [
-      ...ref.watch(savedAddressesProvider),
-      if (draft.pickedAddress != null) draft.pickedAddress!,
-    ];
+    final current = _currentAddress(ref, draft);
     return _StepScaffold(
       title: 'Where should we come?',
       progress: 0.75,
@@ -401,59 +415,46 @@ class AddressScreen extends ConsumerWidget {
       dock: SizedBox(
         width: double.infinity,
         child: FilledButton(
-            onPressed: () => context.push('/book/payment'),
+            onPressed: current == null ? null : () => context.push('/book/payment'),
             child: const Text('Review and pay')),
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            height: 150,
-            decoration: BoxDecoration(
-                color: context.scheme.surfaceContainerHigh, borderRadius: Radii.rLg),
-            alignment: Alignment.center,
-            child: Icon(Icons.location_on, size: 40, color: context.scheme.primary),
-          ),
-          const SizedBox(height: 16),
-          for (final ad in addresses) ...[
+          if (current == null)
             CareCard(
-              onTap: () => vm.setAddress(ad.id),
-              borderColor: draft.addressId == ad.id ? context.scheme.primary : null,
+              onTap: () => _selectAddress(context, vm, draft.addressId),
               child: Row(children: [
-                Text(ad.glyph, style: const TextStyle(fontSize: 17)),
+                Icon(Icons.add_location_alt_outlined, color: context.scheme.primary),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text('Select your location',
+                      style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+                ),
+                const Icon(Icons.chevron_right),
+              ]),
+            )
+          else
+            CareCard(
+              onTap: () => _selectAddress(context, vm, draft.addressId),
+              child: Row(children: [
+                Text(current.glyph, style: const TextStyle(fontSize: 17)),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(ad.label,
-                          style: const TextStyle(
-                              fontSize: 13.5, fontWeight: FontWeight.w700)),
+                      Text(current.label,
+                          style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
                       const SizedBox(height: 3),
-                      Text(ad.line, style: context.type.bodySmall),
+                      Text(current.line, style: context.type.bodySmall),
                     ],
                   ),
                 ),
-                Icon(
-                    draft.addressId == ad.id
-                        ? Icons.radio_button_checked
-                        : Icons.radio_button_off,
-                    color: draft.addressId == ad.id
-                        ? context.scheme.primary
-                        : context.care.hairline),
+                const Text('Change',
+                    style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
               ]),
             ),
-            const SizedBox(height: 10),
-          ],
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-                onPressed: () async {
-                  final picked = await context.push<SavedAddress>('/book/address/pick');
-                  if (picked != null) vm.setPickedAddress(picked);
-                },
-                child: const Text('+ Add a new address')),
-          ),
           const SizedBox(height: 16),
           CareField('Directions for the technician (optional)',
               initial: draft.directions,

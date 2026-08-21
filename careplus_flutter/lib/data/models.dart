@@ -100,13 +100,44 @@ class SavedAddress {
   /// only when an address is confirmed through the real map picker — see
   /// AddressPickerScreen in lib/features/booking/address_picker_screen.dart.
   const SavedAddress(this.id, this.label, this.line, this.glyph,
-      [this.lat, this.lng]);
+      [this.lat, this.lng, this.pincode, this.photoUrl]);
   final String id;
   final String label;
   final String line;
   final String glyph;
   final double? lat;
   final double? lng;
+  final String? pincode;
+  final String? photoUrl;
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'label': label,
+        'line': line,
+        'glyph': glyph,
+        if (lat != null) 'lat': lat,
+        if (lng != null) 'lng': lng,
+        if (pincode != null) 'pincode': pincode,
+        if (photoUrl != null) 'photoUrl': photoUrl,
+      };
+
+  static SavedAddress? fromMap(Map<String, dynamic> map) {
+    final id = map['id'] as String?;
+    final label = map['label'] as String?;
+    final line = map['line'] as String?;
+    final glyph = map['glyph'] as String?;
+    if (id == null || label == null || line == null || glyph == null) return null;
+    return SavedAddress(
+      id,
+      label,
+      line,
+      glyph,
+      (map['lat'] as num?)?.toDouble(),
+      (map['lng'] as num?)?.toDouble(),
+      map['pincode'] as String?,
+      map['photoUrl'] as String?,
+    );
+  }
 }
 
 /// A selectable entry on the checkout "Pay with" list. Purely a display
