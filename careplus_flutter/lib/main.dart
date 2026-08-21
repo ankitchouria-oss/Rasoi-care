@@ -31,7 +31,7 @@ class CarePlusApp extends ConsumerWidget {
     final mode = ref.watch(themeModeProvider);
     final locale = ref.watch(localeProvider);
     return MaterialApp.router(
-      title: 'Care+',
+      title: 'Rasoi Care',
       debugShowCheckedModeBanner: false,
       theme: CarePlusTheme.light(),
       darkTheme: CarePlusTheme.dark(),

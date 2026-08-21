@@ -402,7 +402,7 @@ class AccountScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 6),
-            Center(child: Text('Care+ 0.1.0 · build 1', style: context.type.bodySmall)),
+            Center(child: Text('Rasoi Care 0.1.0 · build 1', style: context.type.bodySmall)),
           ],
         ),
       ),

@@ -46,7 +46,7 @@ class InvoiceScreen extends ConsumerWidget {
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Eyebrow('Care+ tax invoice'),
+                                Eyebrow('Rasoi Care tax invoice'),
                                 const SizedBox(height: 6),
                                 Mono(bookingId, size: 12, weight: FontWeight.w600),
                                 const SizedBox(height: 5),
