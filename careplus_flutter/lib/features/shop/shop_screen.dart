@@ -79,7 +79,6 @@ class ShopScreen extends ConsumerStatefulWidget {
 
 class _ShopScreenState extends ConsumerState<ShopScreen> {
   final Map<String, int> _cart = {};
-  bool _placing = false;
 
   int get _itemCount => _cart.values.fold(0, (a, b) => a + b);
   int get _totalPaise => _cart.entries.fold(
@@ -96,27 +95,14 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
   }
 
   Future<void> _checkout() async {
-    final confirmed = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => _CheckoutSheet(cart: _cart, products: _products, totalPaise: _totalPaise),
+    final totalPaise = await Navigator.of(context).push<int>(
+      MaterialPageRoute(
+          builder: (_) => ShopPaymentScreen(cart: Map.of(_cart), products: _products)),
     );
-    if (confirmed != true || !mounted) return;
-
-    setState(() => _placing = true);
-    final result = await ref.read(apiRepositoryProvider).placeShopOrder(_cart);
-    if (!mounted) return;
-    setState(() => _placing = false);
-
-    if (result.error != null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(result.error!)));
-      return;
-    }
+    if (totalPaise == null || !mounted) return;
     setState(() => _cart.clear());
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Order placed — ${Money.rupees(result.totalPaise!)}, '
-            'pay on delivery.')));
+        content: Text('Order placed — ${Money.rupees(totalPaise)}, pay on delivery.')));
   }
 
   @override
@@ -154,16 +140,11 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 10, 20, 14),
                 child: FilledButton(
-                  onPressed: _placing ? null : _checkout,
+                  onPressed: _checkout,
                   style: FilledButton.styleFrom(
                       minimumSize: const Size.fromHeight(50)),
-                  child: _placing
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : Text('Checkout · $_itemCount ${_itemCount == 1 ? 'item' : 'items'} · '
-                          '${Money.rupees(_totalPaise)}'),
+                  child: Text('Checkout · $_itemCount ${_itemCount == 1 ? 'item' : 'items'} · '
+                      '${Money.rupees(_totalPaise)}'),
                 ),
               ),
             ),
@@ -260,63 +241,156 @@ class _QtyStepper extends StatelessWidget {
   }
 }
 
-class _CheckoutSheet extends StatelessWidget {
-  const _CheckoutSheet({required this.cart, required this.products, required this.totalPaise});
+/// A real payment/review page for the shop cart — mirrors the service
+/// booking flow's "Review and pay" screen (same grouped payment-method
+/// list, same "display-only, no gateway wired up" honesty) instead of the
+/// lightweight confirm sheet this used to be. Kit MRPs are the final,
+/// all-inclusive price — unlike a service booking there's no visit fee or
+/// GST stacked on top, so the order total here is just the cart subtotal.
+/// Pops with the real placed total on success so ShopScreen can clear its
+/// cart and show a confirmation; pops with null if cancelled or it failed.
+class ShopPaymentScreen extends ConsumerStatefulWidget {
+  const ShopPaymentScreen({super.key, required this.cart, required this.products});
   final Map<String, int> cart;
   final List<CleaningProduct> products;
-  final int totalPaise;
+
+  @override
+  ConsumerState<ShopPaymentScreen> createState() => _ShopPaymentScreenState();
+}
+
+class _ShopPaymentScreenState extends ConsumerState<ShopPaymentScreen> {
+  bool _placing = false;
+  String _paymentId = 'cod';
+
+  int get _totalPaise => widget.cart.entries.fold(
+      0, (sum, e) => sum + widget.products.firstWhere((p) => p.id == e.key).mrpPaise * e.value);
+
+  Future<void> _place() async {
+    setState(() => _placing = true);
+    final result = await ref.read(apiRepositoryProvider).placeShopOrder(widget.cart);
+    if (!mounted) return;
+    setState(() => _placing = false);
+    if (result.error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.error!)));
+      return;
+    }
+    Navigator.of(context).pop(result.totalPaise);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final entries = cart.entries.toList();
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+    final paymentMethodsList = ref.watch(repositoryProvider).paymentMethods();
+    final itemCount = widget.cart.values.fold(0, (a, b) => a + b);
+    return Scaffold(
+      appBar: AppBar(
+        leading: BackButton(onPressed: () => Navigator.of(context).pop()),
+        title: Text('Payment options'),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(20),
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text('$itemCount ${itemCount == 1 ? 'item' : 'items'} · Total: '
+                '${Money.rupees(_totalPaise)}'),
+          ),
+        ),
+      ),
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
           children: [
-            Text('Your order', style: context.type.titleMedium),
-            const SizedBox(height: 14),
-            for (final e in entries) ...[
-              Builder(builder: (context) {
-                final p = products.firstWhere((p) => p.id == e.key);
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Row(children: [
-                    Expanded(
-                      child: Text('${p.name} × ${e.value}',
-                          style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
-                    ),
-                    Text(Money.rupees(p.mrpPaise * e.value), style: context.type.bodyMedium),
-                  ]),
-                );
-              }),
-            ],
-            const Divider(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Total', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-                Text(Money.rupees(totalPaise),
-                    style: CareType.mono(context.scheme.onSurface, size: 16, w: FontWeight.w700)),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Pay on delivery, same as a service visit — there\'s no card/UPI '
-              'checkout wired up for shop orders yet.',
-              style: context.type.bodySmall,
-            ),
-            const SizedBox(height: 18),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('Place order'),
+            CareCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final e in widget.cart.entries) ...[
+                    Builder(builder: (context) {
+                      final p = widget.products.firstWhere((p) => p.id == e.key);
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Row(children: [
+                          Expanded(
+                            child: Text('${p.name} × ${e.value}',
+                                style: const TextStyle(
+                                    fontSize: 13.5, fontWeight: FontWeight.w600)),
+                          ),
+                          Text(Money.rupees(p.mrpPaise * e.value), style: context.type.bodyMedium),
+                        ]),
+                      );
+                    }),
+                  ],
+                  const Divider(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Total (MRP, all-inclusive)',
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                      Text(Money.rupees(_totalPaise),
+                          style: CareType.mono(context.scheme.onSurface,
+                              size: 17, w: FontWeight.w600)),
+                    ],
+                  ),
+                ],
               ),
             ),
+            // Same honesty as the booking flow's PaymentScreen: no card/UPI/
+            // wallet gateway is wired up anywhere in this app. Real payment
+            // collection is pay-on-delivery regardless of what's selected.
+            for (var i = 0; i < paymentMethodsList.length; i++) ...[
+              if (i == 0 || paymentMethodsList[i].section != paymentMethodsList[i - 1].section)
+                SectionHeader(paymentMethodsList[i].section),
+              CareCard(
+                onTap: () => setState(() => _paymentId = paymentMethodsList[i].id),
+                borderColor:
+                    _paymentId == paymentMethodsList[i].id ? context.scheme.primary : null,
+                child: Row(children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                        color: context.scheme.surfaceContainerHigh,
+                        borderRadius: BorderRadius.circular(10)),
+                    child: Text(paymentMethodsList[i].glyph, style: const TextStyle(fontSize: 14)),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(paymentMethodsList[i].name,
+                            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+                        Text(paymentMethodsList[i].detail, style: context.type.bodySmall),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                      _paymentId == paymentMethodsList[i].id
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_off,
+                      color: _paymentId == paymentMethodsList[i].id
+                          ? context.scheme.primary
+                          : context.care.hairline),
+                ]),
+              ),
+              const SizedBox(height: 10),
+            ],
           ],
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 14),
+          child: FilledButton(
+            onPressed: _placing ? null : _place,
+            style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+            child: _placing
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : Text('Place order · ${Money.rupees(_totalPaise)}'),
+          ),
         ),
       ),
     );
