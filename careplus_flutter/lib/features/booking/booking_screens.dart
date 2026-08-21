@@ -568,6 +568,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     final repo = ref.watch(repositoryProvider);
     final pricing = ref.watch(pricingProvider);
     final coinsBalance = ref.watch(apiRepositoryProvider).coinsBalance;
+    final paymentMethodsList = repo.paymentMethods();
     return _StepScaffold(
       title: 'Review and pay',
       progress: 1,
@@ -671,20 +672,24 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
               ]),
             ),
           ],
-          const SectionHeader('Pay with'),
           // No card/UPI/wallet payment gateway is actually wired up (no
           // Razorpay or any other processor exists in this app or the
           // backend) — every option below is a display choice only, never
           // read by booking creation. Real payment collection is UPI to
           // the technician after the visit regardless of what's selected
-          // here. Shown because this list was asked for back explicitly;
-          // deliberately not restoring the old "Payments run through
-          // Razorpay" line, since that asserted something false rather
-          // than just being an unbuilt feature.
-          for (final m in repo.paymentMethods()) ...[
+          // here. Grouped into sections (Pay on delivery / UPI apps /
+          // Cards / More options) to match how every major delivery app
+          // lays this screen out, but deliberately not restoring the old
+          // "Payments run through Razorpay" line or a fake saved card/
+          // wallet balance — those asserted something false rather than
+          // just being an unbuilt feature.
+          for (var i = 0; i < paymentMethodsList.length; i++) ...[
+            if (i == 0 || paymentMethodsList[i].section != paymentMethodsList[i - 1].section)
+              SectionHeader(paymentMethodsList[i].section),
             CareCard(
-              onTap: () => vm.setPayment(m.id),
-              borderColor: draft.paymentId == m.id ? context.scheme.primary : null,
+              onTap: () => vm.setPayment(paymentMethodsList[i].id),
+              borderColor:
+                  draft.paymentId == paymentMethodsList[i].id ? context.scheme.primary : null,
               child: Row(children: [
                 Container(
                   width: 34,
@@ -693,25 +698,25 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                   decoration: BoxDecoration(
                       color: context.scheme.surfaceContainerHigh,
                       borderRadius: BorderRadius.circular(10)),
-                  child: Text(m.glyph, style: const TextStyle(fontSize: 14)),
+                  child: Text(paymentMethodsList[i].glyph, style: const TextStyle(fontSize: 14)),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(m.name,
+                      Text(paymentMethodsList[i].name,
                           style: const TextStyle(
                               fontSize: 13.5, fontWeight: FontWeight.w700)),
-                      Text(m.detail, style: context.type.bodySmall),
+                      Text(paymentMethodsList[i].detail, style: context.type.bodySmall),
                     ],
                   ),
                 ),
                 Icon(
-                    draft.paymentId == m.id
+                    draft.paymentId == paymentMethodsList[i].id
                         ? Icons.radio_button_checked
                         : Icons.radio_button_off,
-                    color: draft.paymentId == m.id
+                    color: draft.paymentId == paymentMethodsList[i].id
                         ? context.scheme.primary
                         : context.care.hairline),
               ]),

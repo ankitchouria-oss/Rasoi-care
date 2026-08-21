@@ -619,11 +619,16 @@ class MockRepository implements CareRepository {
   // option once payment collection became visibly UPI-only.
   @override
   List<PaymentMethod> paymentMethods() => const [
-        PaymentMethod('upi', 'UPI — GPay, PhonePe, Paytm', 'Instant · no fee', '▲'),
-        PaymentMethod('card', 'HDFC •••• 4471', 'Visa credit', '▭'),
-        PaymentMethod('wallet', 'Care+ wallet', '₹1,240 available', '◍'),
-        PaymentMethod('netbank', 'Net banking', '12 banks', '▤'),
-        PaymentMethod('cod', 'Pay after the visit', 'UPI to technician', '₹'),
+        PaymentMethod('cod', 'Pay after the visit', 'UPI to technician', '₹',
+            section: 'Pay on delivery'),
+        PaymentMethod('upi_gpay', 'Google Pay', 'Pay by UPI', '▲', section: 'UPI apps'),
+        PaymentMethod('upi_phonepe', 'PhonePe', 'Pay by UPI', '▲', section: 'UPI apps'),
+        PaymentMethod('upi_paytm', 'Paytm', 'Pay by UPI', '▲', section: 'UPI apps'),
+        PaymentMethod('card', 'Add a card', 'Credit or debit', '▭',
+            section: 'Credit & debit cards'),
+        PaymentMethod('netbank', 'Net banking', '12+ banks', '▤', section: 'More options'),
+        PaymentMethod('wallet', 'Wallets', 'PhonePe, Amazon Pay & more', '◍',
+            section: 'More options'),
       ];
 
   @override

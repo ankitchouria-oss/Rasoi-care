@@ -120,6 +120,125 @@ class _ManualEntryBodyState extends State<_ManualEntryBody> {
       );
 }
 
+// ============================================================ ADDRESS DETAILS
+// Pushed once a pin is confirmed on the map — a structured form (type,
+// building/floor, street, a custom label) instead of handing back nothing
+// but a raw reverse-geocoded line. Pops with the final [SavedAddress];
+// _MapPickerBody._confirm forwards that result on as its own pop, so
+// nothing about the caller (AddressScreen / HomeScreen) changes.
+class AddressDetailsScreen extends StatefulWidget {
+  const AddressDetailsScreen(
+      {super.key, required this.lat, required this.lng, required this.resolvedArea});
+  final double lat;
+  final double lng;
+  final String resolvedArea;
+
+  @override
+  State<AddressDetailsScreen> createState() => _AddressDetailsScreenState();
+}
+
+class _AddressDetailsScreenState extends State<AddressDetailsScreen> {
+  static const _types = ['House', 'Office', 'Other'];
+  static const _glyphByType = {'House': '🏠', 'Office': '💼', 'Other': '📍'};
+
+  final _formKey = GlobalKey<FormState>();
+  final _building = TextEditingController();
+  final _street = TextEditingController();
+  late final _saveAs = TextEditingController(text: _type);
+  String _type = 'House';
+
+  @override
+  void dispose() {
+    _building.dispose();
+    _street.dispose();
+    _saveAs.dispose();
+    super.dispose();
+  }
+
+  void _confirm() {
+    if (!_formKey.currentState!.validate()) return;
+    final line = [
+      if (_building.text.trim().isNotEmpty) _building.text.trim(),
+      if (_street.text.trim().isNotEmpty) _street.text.trim(),
+      widget.resolvedArea,
+    ].join(', ');
+    final label = _saveAs.text.trim().isEmpty ? _type : _saveAs.text.trim();
+    Navigator.pop(
+      context,
+      SavedAddress('a_picked_${DateTime.now().millisecondsSinceEpoch}', label, line,
+          _glyphByType[_type]!, widget.lat, widget.lng),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(
+          leading: BackButton(onPressed: () => Navigator.pop(context)),
+          title: const Text('Address details'),
+        ),
+        body: SafeArea(
+          top: false,
+          child: Form(
+            key: _formKey,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+              children: [
+                const SectionHeader('Location type'),
+                Row(children: [
+                  for (final t in _types) ...[
+                    ChoiceTag(t, selected: _type == t, onTap: () => setState(() => _type = t)),
+                    const SizedBox(width: 8),
+                  ],
+                ]),
+                const SizedBox(height: 20),
+                CareField('Building / Floor',
+                    controller: _building,
+                    validator: (v) =>
+                        (v == null || v.trim().isEmpty) ? 'Add the building or floor' : null),
+                const SizedBox(height: 14),
+                CareField('Street (recommended)', controller: _street),
+                const SizedBox(height: 14),
+                CareCard(
+                  child: Row(children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Eyebrow('Area'),
+                          const SizedBox(height: 4),
+                          Text(widget.resolvedArea, style: context.type.bodyMedium),
+                        ],
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.edit_location_alt_outlined, size: 16),
+                      label: const Text('Change'),
+                    ),
+                  ]),
+                ),
+                const SizedBox(height: 14),
+                CareField('Save address as',
+                    controller: _saveAs,
+                    validator: (v) =>
+                        (v == null || v.trim().isEmpty) ? 'Give this address a name' : null),
+              ],
+            ),
+          ),
+        ),
+        bottomNavigationBar: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 14),
+            child: FilledButton(
+              onPressed: _confirm,
+              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+              child: const Text('Save address'),
+            ),
+          ),
+        ),
+      );
+}
+
 // ============================================================ MAP PICKER
 // Only reachable once MapsConfig.isConfigured is true — every call here
 // assumes a working API key.
@@ -307,18 +426,20 @@ class _MapPickerBodyState extends State<_MapPickerBody> {
     }
   }
 
-  void _confirm() {
+  // The pin only gives a rough reverse-geocoded line — pushes into a
+  // details form (building/floor, street, a House/Office/Other type, a
+  // custom label) before this screen itself pops with the fully composed
+  // address, same as before from the caller's point of view.
+  Future<void> _confirm() async {
     final line = _resolvedLine ??
         '${_center.latitude.toStringAsFixed(5)}, ${_center.longitude.toStringAsFixed(5)}';
-    final address = SavedAddress(
-      'a_picked_${DateTime.now().millisecondsSinceEpoch}',
-      'New address',
-      line,
-      '📍',
-      _center.latitude,
-      _center.longitude,
+    final result = await Navigator.of(context).push<SavedAddress>(
+      MaterialPageRoute(
+        builder: (_) => AddressDetailsScreen(
+            lat: _center.latitude, lng: _center.longitude, resolvedArea: line),
+      ),
     );
-    context.pop(address);
+    if (result != null && context.mounted) context.pop(result);
   }
 
   @override
