@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
+import '../../data/api/api_repository.dart';
 import '../../data/models.dart';
 import '../../l10n/app_localizations.dart';
 import '../../l10n/l10n_extensions.dart';
@@ -20,6 +21,10 @@ class TechCloseScreen extends ConsumerStatefulWidget {
 class _TechCloseScreenState extends ConsumerState<TechCloseScreen> {
   final _sigKey = GlobalKey<SignaturePadState>();
   int _payMethod = 0; // 0 UPI QR · 1 Card · 2 Cash · 3 Send link
+  bool _closing = false;
+
+  // Matches the strings app.py's /api/bookings/<id>/payment accepts.
+  static const _methodCodes = ['upi', 'card', 'cash', 'link'];
 
   List<(String, String)> _methods(AppLocalizations t) => [
         (t.closeMethodUpiTitle, t.closeMethodUpiSub),
@@ -27,6 +32,27 @@ class _TechCloseScreenState extends ConsumerState<TechCloseScreen> {
         (t.closeMethodCashTitle, t.closeMethodCashSub),
         (t.closeMethodLinkTitle, t.closeMethodLinkSub),
       ];
+
+  /// Records which payment method was actually used — previously this
+  /// button called nothing at all (the booking was already Completed by
+  /// the prior screen's advance-to-Completed call), so "Mark paid" had no
+  /// real effect beyond a SnackBar. A failure here still lets the
+  /// technician leave (the job itself is genuinely done either way) but
+  /// says so honestly rather than pretending it was recorded.
+  Future<void> _markPaid() async {
+    setState(() => _closing = true);
+    final repo = ref.read(repositoryProvider);
+    var ok = false;
+    if (repo is ApiRepository) {
+      ok = await repo.setPaymentMethod(widget.jobId, _methodCodes[_payMethod]);
+    }
+    if (!mounted) return;
+    setState(() => _closing = false);
+    final t = context.l10n;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(ok ? t.closePaidToast : t.closePaymentError)));
+    context.go('/tech/jobs');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -159,12 +185,13 @@ class _TechCloseScreenState extends ConsumerState<TechCloseScreen> {
               child: SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(t.closePaidToast)));
-                    context.go('/tech/jobs');
-                  },
-                  child: Text(t.closeMarkPaid),
+                  onPressed: _closing ? null : _markPaid,
+                  child: _closing
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : Text(t.closeMarkPaid),
                 ),
               ),
             ),

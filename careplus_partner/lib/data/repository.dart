@@ -22,9 +22,8 @@ class MockPartnerRepository implements PartnerRepository {
         earningsTodayPaise: 318000,
         jobsDone: 4,
         jobsTotal: 6,
-        tipsPaise: 42000,
         rating: 4.94,
-        firstTimeFixPct: 91,
+        jobsCompletedTotal: 212,
         onDuty: true,
       );
 
@@ -32,6 +31,7 @@ class MockPartnerRepository implements PartnerRepository {
   JobRequest? incomingRequest() => const JobRequest(
         jobId: 'CP-2481',
         serviceTitle: 'Chimney · deep clean',
+        areaLabel: 'Gangapur Road, Nashik',
         distanceKm: 2.4,
         timeWindow: '10:00–11:00 am',
         payoutPaise: 64000,

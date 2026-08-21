@@ -151,6 +151,8 @@ class ApiRepository implements CareRepository {
     double? lat,
     double? lng,
     String? directions,
+    String? notes,
+    List<String>? issues,
   }) async {
     final token = await _idToken();
     if (token == null) return (booking: null, error: 'You need to be signed in to book.');
@@ -164,6 +166,8 @@ class ApiRepository implements CareRepository {
       lat: lat,
       lng: lng,
       directions: directions,
+      notes: notes,
+      issues: issues,
     );
     // A 401 here is almost always a stale cached ID token (Firebase tokens
     // expire hourly; getIdToken() without forceRefresh can hand back one
@@ -184,6 +188,8 @@ class ApiRepository implements CareRepository {
           lat: lat,
           lng: lng,
           directions: directions,
+          notes: notes,
+          issues: issues,
         );
       }
     }

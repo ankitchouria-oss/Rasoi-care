@@ -1,4 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Every real network call this app makes (Firebase Auth/Firestore/
+         Storage, the RasoiCare backend) needs this — previously only
+         declared in the debug/profile manifest variants, so a release
+         build depended entirely on some bundled dependency merging its
+         own INTERNET permission in rather than this app declaring it. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- Live GPS reporting to Firestore while on duty and working a job, so
          the Customer app's tracking screen can show this technician on a
          map — see lib/state/technician_location_reporter.dart. -->
@@ -73,6 +80,13 @@
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="google.navigation" />
+        </intent>
+        <!-- url_launcher's real "Call" action on the job screen (a plain
+             tel: dialer intent, no telephony integration needed) — Android
+             11+ package visibility again. -->
+        <intent>
+            <action android:name="android.intent.action.DIAL" />
+            <data android:scheme="tel" />
         </intent>
     </queries>
 </manifest>

@@ -536,6 +536,15 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     // matter what was actually created, which is exactly why "the actual
     // booking" never showed up.
     final directions = draft.directions.trim();
+    final notes = draft.notes.trim();
+    // What the customer actually ticked on the Issue screen — previously
+    // collected in this exact draft and then never sent anywhere, so a
+    // technician's job screen had nothing real to show and fell back to a
+    // canned, identical symptom list for every booking.
+    final selectedIssues = [
+      for (final issue in draft.issues)
+        if (issue.selected) issue.label,
+    ];
     final allocations = _allocate(draft.services, pricing.grandTotalPaise);
     final created = <Booking>[];
     String? bookingError;
@@ -547,6 +556,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             lat: selected?.lat,
             lng: selected?.lng,
             directions: directions.isEmpty ? null : directions,
+            notes: notes.isEmpty ? null : notes,
+            issues: selectedIssues,
           );
       if (result.booking != null) created.add(result.booking!);
       if (result.error != null) bookingError = result.error;

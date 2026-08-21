@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -50,11 +51,58 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
     final repo = ref.read(repositoryProvider);
     if (repo is ApiRepository) {
       await repo.refreshAll();
+      unawaited(_refreshMyPosition(repo));
       if (mounted) ref.read(jobsFeedTickProvider.notifier).bump();
     }
     final me = await fetchTechnicianMe();
     if (mounted && me != null)
       ref.read(technicianMeProvider.notifier).state = me;
+  }
+
+  /// Best-effort real distance for an incoming request's card — see
+  /// ApiRepository.setMyPosition/incomingRequest. Never blocks the rest of
+  /// the screen: a denied permission or a timeout just leaves distance
+  /// unset rather than ever showing a made-up figure.
+  Future<void> _refreshMyPosition(ApiRepository repo) async {
+    try {
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return;
+      }
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.reduced),
+      ).timeout(const Duration(seconds: 8));
+      repo.setMyPosition(pos.latitude, pos.longitude);
+      if (mounted) ref.read(jobsFeedTickProvider.notifier).bump();
+    } catch (_) {
+      // Best-effort — the request card just shows area without a distance.
+    }
+  }
+
+  bool _passing = false;
+
+  Future<void> _passRequest(String jobId) async {
+    setState(() => _passing = true);
+    final repo = ref.read(repositoryProvider);
+    bool? reassigned;
+    if (repo is ApiRepository) reassigned = await repo.declineJob(jobId);
+    if (!mounted) return;
+    setState(() {
+      _passing = false;
+      if (reassigned != null) _requestOpen = false;
+    });
+    ref.read(jobsFeedTickProvider.notifier).bump();
+    final t = context.l10n;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(switch (reassigned) {
+      true => t.jobsPassedToast,
+      false => t.jobsPassedCancelledToast,
+      null => t.jobsPassError,
+    })));
   }
 
   Future<void> _acceptRequest(String jobId) async {
@@ -186,8 +234,7 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
                               ),
                               const SizedBox(height: 5),
                               Text(
-                                t.jobsSummary(stats.jobsDone, stats.jobsTotal,
-                                    Money.rupees(stats.tipsPaise)),
+                                t.jobsSummary(stats.jobsDone, stats.jobsTotal),
                                 style: TextStyle(
                                   fontSize: 11.5,
                                   color: CareColors.porcelain.withValues(
@@ -221,8 +268,8 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: _StatBox(
-                          label: t.jobsFirstTimeFix,
-                          value: '${stats.firstTimeFixPct}%',
+                          label: t.jobsCompletedTotal,
+                          value: '${stats.jobsCompletedTotal}',
                         ),
                       ),
                     ],
@@ -258,13 +305,19 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
                             ],
                           ),
                           const SizedBox(height: 11),
-                          Text(
-                            t.jobsRequestLocation('${request.distanceKm}'),
-                            style: const TextStyle(
-                              fontSize: 14.5,
-                              fontWeight: FontWeight.w700,
+                          if (request.areaLabel.isNotEmpty ||
+                              request.distanceKm != null)
+                            Text(
+                              [
+                                if (request.areaLabel.isNotEmpty) request.areaLabel,
+                                if (request.distanceKm != null)
+                                  t.jobsRequestDistance(request.distanceKm!.toStringAsFixed(1)),
+                              ].join(' · '),
+                              style: const TextStyle(
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
-                          ),
                           const SizedBox(height: 4),
                           Text(
                             '${request.timeWindow} · payout ${Money.rupees(request.payoutPaise)} · ${request.note}',
@@ -275,13 +328,16 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
                             children: [
                               Expanded(
                                 child: OutlinedButton(
-                                  onPressed: () {
-                                    setState(() => _requestOpen = false);
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text(t.jobsPassedToast)),
-                                    );
-                                  },
-                                  child: Text(t.jobsPass),
+                                  onPressed: _passing
+                                      ? null
+                                      : () => _passRequest(request.jobId),
+                                  child: _passing
+                                      ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        )
+                                      : Text(t.jobsPass),
                                 ),
                               ),
                               const SizedBox(width: 9),
