@@ -13,16 +13,15 @@ import '../../data/models.dart';
 import '../../state/providers.dart';
 import 'select_location_screen.dart';
 
-// A thin frame every booking step shares: progress bar + step caption + dock.
+// A thin frame every booking step shares: progress bar + dock.
 class _StepScaffold extends StatelessWidget {
   const _StepScaffold({
     required this.title,
     required this.progress,
-    required this.caption,
     required this.body,
     required this.dock,
   });
-  final String title, caption;
+  final String title;
   final double progress;
   final Widget body, dock;
 
@@ -39,8 +38,6 @@ class _StepScaffold extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
                   children: [
                     ProgressBar(progress),
-                    const SizedBox(height: 7),
-                    Mono(caption, color: context.care.inkMuted),
                     const SizedBox(height: 18),
                     body,
                   ],
@@ -63,7 +60,6 @@ class IssueScreen extends ConsumerWidget {
     return _StepScaffold(
       title: 'Describe the problem',
       progress: 0.25,
-      caption: 'Step 1 of 4 — issue',
       dock: SizedBox(
         width: double.infinity,
         child: FilledButton(
@@ -273,7 +269,6 @@ class SlotScreen extends ConsumerWidget {
     return _StepScaffold(
       title: 'Choose a slot',
       progress: 0.5,
-      caption: 'Step 2 of 4 — schedule',
       dock: Row(children: [
         Expanded(
           child: Column(
@@ -411,7 +406,6 @@ class AddressScreen extends ConsumerWidget {
     return _StepScaffold(
       title: 'Where should we come?',
       progress: 0.75,
-      caption: 'Step 3 of 4 — address',
       dock: SizedBox(
         width: double.infinity,
         child: FilledButton(
@@ -573,7 +567,6 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     return _StepScaffold(
       title: 'Review and pay',
       progress: 1,
-      caption: 'Step 4 of 4 — payment',
       dock: Row(children: [
         Expanded(
           child: Column(

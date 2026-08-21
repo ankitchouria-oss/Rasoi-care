@@ -16,7 +16,7 @@ dependencies:
   flutter_riverpod: ^2.6.1     # MVVM state, per the build spec
   go_router: ^14.6.2           # declarative routes + role/auth redirect
   google_fonts: ^6.2.1         # Fraunces · Plus Jakarta Sans · IBM Plex Mono
-  intl: ^0.19.0                # ₹ formatting via en_IN
+  intl: ^0.20.2                # ₹ formatting via en_IN, pinned by flutter_localizations
   http: ^1.2.2                 # REST calls to the Flask+SQLite backend — see lib/data/api
 
   firebase_core: ^3.8.0        # wired in — see lib/data/firebase/README or app §Firebase Auth
@@ -31,6 +31,8 @@ dependencies:
   shared_preferences: ^2.5.5
   image_picker: ^1.2.3         # profile photo upload — see AccountScreen
   firebase_storage: ^12.3.7    # profile photo upload — see UserProfileService
+  flutter_localizations:
+    sdk: flutter               # real English/Hindi/Marathi UI — see lib/l10n and Account > Language
 
   # --- Wire these in when you move the rest off mock data (see README §5) ---
   # firebase_messaging: ^15.1.6
@@ -44,3 +46,4 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  generate: true

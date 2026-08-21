@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
 
 import 'core/theme/care_plus_theme.dart';
+import 'l10n/app_localizations.dart';
 import 'state/providers.dart';
 import 'app/router.dart';
 import 'firebase_options.dart';
@@ -27,12 +29,21 @@ class CarePlusApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(themeModeProvider);
+    final locale = ref.watch(localeProvider);
     return MaterialApp.router(
       title: 'Care+',
       debugShowCheckedModeBanner: false,
       theme: CarePlusTheme.light(),
       darkTheme: CarePlusTheme.dark(),
       themeMode: mode,
+      locale: locale,
+      supportedLocales: supportedLocales,
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       routerConfig: router,
     );
   }

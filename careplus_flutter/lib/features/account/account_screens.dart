@@ -9,9 +9,11 @@ import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
 import '../../data/api/api_repository.dart';
 import '../../data/models.dart';
+import '../../l10n/l10n_extensions.dart';
 import '../../state/providers.dart';
 import '../../state/auth_providers.dart';
 import '../../state/firestore_providers.dart';
+import '../settings/language_screen.dart';
 
 /// True while a just-picked profile photo is uploading — the avatar shows a
 /// spinner instead of letting you fire off a second upload mid-flight.
@@ -272,9 +274,16 @@ class AccountScreen extends ConsumerWidget {
     final visitCount = ref.watch(repositoryProvider).bookings(completed: true).length;
     ref.watch(coinsRefreshProvider);
     final coinsBalance = ref.watch(apiRepositoryProvider).coinsBalance;
+    final locale = ref.watch(localeProvider);
+    final t = context.l10n;
+    final languageLabel = switch (locale.languageCode) {
+      'hi' => t.languageHindi,
+      'mr' => t.languageMarathi,
+      _ => t.languageEnglish,
+    };
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Account'),
+        title: Text(t.accountTitle),
         actions: [IconButton(onPressed: () {}, icon: const Icon(Icons.settings_outlined))],
       ),
       body: SafeArea(
@@ -320,34 +329,30 @@ class AccountScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
             Row(children: [
-              Expanded(child: _MiniStat(label: 'Visits', value: '$visitCount')),
+              Expanded(child: _MiniStat(label: t.accountVisits, value: '$visitCount')),
               const SizedBox(width: 10),
               Expanded(
                   child: _MiniStat(
-                      label: 'Care Coins',
+                      label: t.accountCareCoins,
                       value: coinsBalance == null ? '—' : '$coinsBalance')),
             ]),
-            const SectionHeader('Your Care+'),
+            SectionHeader(t.accountYourCarePlus),
             CareCard(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(children: [
-                _NavRow(icon: Icons.event_note, label: 'Bookings and history',
+                _NavRow(icon: Icons.event_note, label: t.accountBookingsHistory,
                     onTap: () => context.go('/bookings')),
                 _NavRow(icon: Icons.account_balance_wallet_outlined,
-                    label: 'Care Coins',
-                    onTap: () => _showComingSoon(context, 'Care Coins',
-                        "You really do earn Care Coins — 2% of every completed visit, "
-                        "shown above — and they're really redeemed for real rupees off "
-                        "at checkout. There's no separate cash wallet you can top up, "
-                        "though, and no history list here yet.")),
-                _NavRow(icon: Icons.chat_bubble_outline, label: 'Help and support',
-                    onTap: () => _showComingSoon(context, 'Help and support',
-                        "A dedicated support line isn't set up yet. For now, reach out "
-                        "through whichever channel you used to install this app."),
+                    label: t.accountCareCoins,
+                    onTap: () =>
+                        _showComingSoon(context, t.accountCareCoins, t.accountCareCoinsBody)),
+                _NavRow(icon: Icons.chat_bubble_outline, label: t.accountHelpSupport,
+                    onTap: () =>
+                        _showComingSoon(context, t.accountHelpSupport, t.accountHelpSupportBody),
                     last: true),
               ]),
             ),
-            const SectionHeader('Preferences'),
+            SectionHeader(t.accountPreferences),
             CareCard(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(children: [
@@ -356,26 +361,29 @@ class AccountScreen extends ConsumerWidget {
                   child: Row(children: [
                     const Icon(Icons.dark_mode_outlined, size: 20),
                     const SizedBox(width: 13),
-                    const Expanded(
-                        child: Text('Dark mode',
-                            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700))),
+                    Expanded(
+                        child: Text(t.accountDarkMode,
+                            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700))),
                     Switch(
                       value: mode == ThemeMode.dark,
                       onChanged: (_) => ref.read(themeModeProvider.notifier).toggle(),
                     ),
                   ]),
                 ),
-                _NavRow(icon: Icons.language, label: 'Language',
-                    trailing: 'English ›', onTap: () {}, last: true),
+                _NavRow(icon: Icons.language, label: t.accountLanguage,
+                    trailing: '$languageLabel ›',
+                    onTap: () => Navigator.of(context)
+                        .push(MaterialPageRoute(builder: (_) => const LanguageScreen())),
+                    last: true),
               ]),
             ),
-            const SectionHeader('Legal'),
+            SectionHeader(t.accountLegal),
             CareCard(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(children: [
                 _NavRow(
                     icon: Icons.description_outlined,
-                    label: 'Terms and conditions',
+                    label: t.accountTerms,
                     onTap: () => _showTerms(context),
                     last: true),
               ]),
@@ -390,7 +398,7 @@ class AccountScreen extends ConsumerWidget {
                   if (context.mounted) context.go('/login');
                 },
                 style: TextButton.styleFrom(foregroundColor: context.scheme.error),
-                child: const Text('Sign out'),
+                child: Text(t.accountSignOut),
               ),
             ),
             const SizedBox(height: 6),
@@ -401,11 +409,8 @@ class AccountScreen extends ConsumerWidget {
     );
   }
 
-  void _showTerms(BuildContext context) => _showComingSoon(
-      context,
-      'Terms and conditions',
-      "Rasoi Care's published terms of service aren't live yet. "
-      "Check back here once they are — we won't show placeholder legal text in the meantime.");
+  void _showTerms(BuildContext context) =>
+      _showComingSoon(context, context.l10n.accountTerms, context.l10n.accountTermsBody);
 
   void _showComingSoon(BuildContext context, String title, String body) {
     showModalBottomSheet<void>(

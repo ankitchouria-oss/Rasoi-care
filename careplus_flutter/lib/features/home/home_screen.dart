@@ -6,6 +6,7 @@ import '../../core/widgets/care_widgets.dart';
 import '../../core/widgets/appliance_illustration.dart';
 import '../../core/theme/care_plus_theme.dart';
 import '../../data/models.dart';
+import '../../l10n/l10n_extensions.dart';
 import '../../state/auth_providers.dart';
 import '../../state/firestore_providers.dart';
 import '../../state/providers.dart';
@@ -16,6 +17,7 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = context.l10n;
     final addresses = ref.watch(savedAddressesProvider);
     final selectedId = ref.watch(selectedAddressIdProvider);
     final override = ref.watch(homeAddressOverrideProvider);
@@ -55,11 +57,11 @@ class HomeScreen extends ConsumerWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Eyebrow('Serving'),
+                          Eyebrow(t.homeServing),
                           const SizedBox(height: 3),
                           Row(children: [
                             Flexible(
-                              child: Text(current?.line ?? 'Add your address',
+                              child: Text(current?.line ?? t.homeAddAddress,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: context.type.titleMedium),
@@ -97,7 +99,7 @@ class HomeScreen extends ConsumerWidget {
                       child: Row(children: [
                         Icon(Icons.search, color: context.care.inkFaint, size: 20),
                         const SizedBox(width: 10),
-                        Text('Search "chimney not sucking smoke"',
+                        Text(t.homeSearchHint,
                             style: context.type.bodyMedium),
                       ]),
                     ),
@@ -114,8 +116,8 @@ class HomeScreen extends ConsumerWidget {
                   // --- categories ---
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: SectionHeader('What needs care today?',
-                        actionLabel: 'All', onAction: () => context.go('/services')),
+                    child: SectionHeader(t.homeWhatNeedsCare,
+                        actionLabel: t.homeAll, onAction: () => context.go('/services')),
                   ),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -141,8 +143,8 @@ class HomeScreen extends ConsumerWidget {
                   if (lastCompleted != null) ...[
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: SectionHeader('Book it again',
-                          actionLabel: 'History',
+                      child: SectionHeader(t.homeBookItAgain,
+                          actionLabel: t.homeHistory,
                           onAction: () => context.go('/bookings')),
                     ),
                     Padding(
@@ -163,12 +165,12 @@ class HomeScreen extends ConsumerWidget {
                                     style: const TextStyle(
                                         fontSize: 13.5, fontWeight: FontWeight.w700)),
                                 const SizedBox(height: 3),
-                                Text('Last done ${lastCompleted.whenLabel}',
+                                Text(t.homeLastDone(lastCompleted.whenLabel),
                                     style: context.type.bodySmall),
                               ],
                             ),
                           ),
-                          const StatusChip('Rebook', height: 30),
+                          StatusChip(t.homeRebook, height: 30),
                         ]),
                       ),
                     ),
@@ -193,6 +195,7 @@ class HomeScreen extends ConsumerWidget {
   /// says so plainly, same as the Account screen's other not-built-yet
   /// features (Wallet and Care Coins, Help and support).
   void _notificationsComingSoon(BuildContext context) {
+    final t = context.l10n;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -202,14 +205,9 @@ class HomeScreen extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Notifications', style: context.type.titleMedium),
+            Text(t.notificationsTitle, style: context.type.titleMedium),
             const SizedBox(height: 12),
-            Text(
-              "There's no real notifications system set up yet — no push "
-              "alerts, no in-app feed. We'd rather show nothing here than "
-              "a made-up badge count.",
-              style: context.type.bodyMedium,
-            ),
+            Text(t.notificationsBody, style: context.type.bodyMedium),
           ],
         ),
       ),
@@ -259,7 +257,7 @@ class _HeroBanner extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Eyebrow('Most booked', color: context.scheme.secondary),
+              Eyebrow(context.l10n.homeMostBooked, color: context.scheme.secondary),
               const SizedBox(height: 8),
               SizedBox(
                 width: 240,
@@ -320,7 +318,7 @@ class _CategoryTile extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 2),
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
-                  child: Text(_short(appliance),
+                  child: Text(_short(context, appliance),
                       maxLines: 1,
                       textAlign: TextAlign.center,
                       style: const TextStyle(
@@ -332,16 +330,19 @@ class _CategoryTile extends StatelessWidget {
         ),
       );
 
-  String _short(Appliance a) => switch (a) {
-        Appliance.chimney => 'Chimney',
-        Appliance.hob => 'Hob',
-        Appliance.cooktop => 'Cooktop',
-        Appliance.dishwasher => 'Dishwasher',
-        Appliance.microwave => 'Microwave',
-        Appliance.refrigerator => 'Fridge',
-        Appliance.otg => 'OTG',
-        Appliance.purifier => 'Purifier',
-      };
+  String _short(BuildContext context, Appliance a) {
+    final t = context.l10n;
+    return switch (a) {
+      Appliance.chimney => t.applianceChimney,
+      Appliance.hob => t.applianceHob,
+      Appliance.cooktop => t.applianceCooktop,
+      Appliance.dishwasher => t.applianceDishwasher,
+      Appliance.microwave => t.applianceMicrowave,
+      Appliance.refrigerator => t.applianceFridge,
+      Appliance.otg => t.applianceOtg,
+      Appliance.purifier => t.appliancePurifier,
+    };
+  }
 }
 
 class _RoundBtn extends StatelessWidget {

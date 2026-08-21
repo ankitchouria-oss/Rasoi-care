@@ -1,9 +1,12 @@
 // Riverpod wiring. The repository provider is the single place you change to
 // go from mock data to Firebase.
 
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/models.dart';
 import '../data/mock_repository.dart';
@@ -79,6 +82,47 @@ class ThemeModeVM extends Notifier<ThemeMode> {
   void toggle() =>
       state = state == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
   set(ThemeMode m) => state = m;
+}
+
+/// The app's display language — a real, persisted device preference, not
+/// just a menu row. Defaults to the device's own language when it's one we
+/// support (English/Hindi/Marathi today), else falls back to English,
+/// until the real stored choice (if any) loads. Data that actually came
+/// from the server — a customer's name, an address someone typed — is
+/// never translated; only this app's own UI chrome changes.
+final localeProvider = NotifierProvider<LocaleVM, Locale>(LocaleVM.new);
+
+const supportedLocales = [Locale('en'), Locale('hi'), Locale('mr')];
+
+class LocaleVM extends Notifier<Locale> {
+  static const _key = 'app_locale';
+
+  @override
+  Locale build() {
+    _load();
+    return const Locale('en');
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final stored = prefs.getString(_key);
+    if (stored != null) {
+      final match = supportedLocales.where((l) => l.languageCode == stored);
+      if (match.isNotEmpty) {
+        state = match.first;
+        return;
+      }
+    }
+    final deviceCode = PlatformDispatcher.instance.locale.languageCode;
+    final deviceMatch = supportedLocales.where((l) => l.languageCode == deviceCode);
+    if (deviceMatch.isNotEmpty) state = deviceMatch.first;
+  }
+
+  Future<void> set(Locale locale) async {
+    state = locale;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_key, locale.languageCode);
+  }
 }
 
 /// Live ETA for a tracked booking.

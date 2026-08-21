@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/theme/care_plus_theme.dart';
+import '../l10n/l10n_extensions.dart';
 
 /// Bottom-nav shell for the four primary destinations. The center "+" FAB
 /// opens the Rasoi Care Shop directly — booking a service still lives under
@@ -10,11 +11,11 @@ class CustomerShell extends StatelessWidget {
   const CustomerShell({super.key, required this.navigationShell});
   final StatefulNavigationShell navigationShell;
 
-  static const _dests = [
-    (Icons.home_outlined, Icons.home, 'Home'),
-    (Icons.grid_view_outlined, Icons.grid_view, 'Services'),
-    (Icons.event_note_outlined, Icons.event_note, 'Bookings'),
-    (Icons.person_outline, Icons.person, 'Account'),
+  static const _icons = [
+    (Icons.home_outlined, Icons.home),
+    (Icons.grid_view_outlined, Icons.grid_view),
+    (Icons.event_note_outlined, Icons.event_note),
+    (Icons.person_outline, Icons.person),
   ];
 
   void _go(int i) => navigationShell.goBranch(
@@ -25,6 +26,8 @@ class CustomerShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final idx = navigationShell.currentIndex;
+    final t = context.l10n;
+    final labels = [t.navHome, t.navServices, t.navBookings, t.navAccount];
     // Without this, the system back button exits the app the moment you're
     // on any tab besides Home (Services/Bookings/Account) with nothing
     // pushed on top — StatefulShellRoute gives each tab its own navigation
@@ -51,11 +54,11 @@ class CustomerShell extends StatelessWidget {
           color: context.scheme.surface,
           child: Row(
             children: [
-              _navItem(context, 0, idx),
-              _navItem(context, 1, idx),
+              _navItem(context, 0, idx, labels),
+              _navItem(context, 1, idx, labels),
               const Expanded(child: SizedBox()), // FAB notch
-              _navItem(context, 2, idx),
-              _navItem(context, 3, idx),
+              _navItem(context, 2, idx, labels),
+              _navItem(context, 3, idx, labels),
             ],
           ),
         ),
@@ -63,20 +66,20 @@ class CustomerShell extends StatelessWidget {
     );
   }
 
-  Widget _navItem(BuildContext context, int i, int idx) {
+  Widget _navItem(BuildContext context, int i, int idx, List<String> labels) {
     final active = i == idx;
-    final d = _dests[i];
+    final icons = _icons[i];
     return Expanded(
       child: InkWell(
         onTap: () => _go(i),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(active ? d.$2 : d.$1,
+            Icon(active ? icons.$2 : icons.$1,
                 size: 23,
                 color: active ? context.scheme.primary : context.care.inkFaint),
             const SizedBox(height: 3),
-            Text(d.$3,
+            Text(labels[i],
                 style: TextStyle(
                     fontSize: 10.5,
                     fontWeight: active ? FontWeight.w700 : FontWeight.w500,
