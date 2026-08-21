@@ -28,7 +28,11 @@ class CleaningProduct {
   final int mrpPaise;
 }
 
-const _products = [
+/// Public (not file-private) because PaymentScreen (booking_screens.dart)
+/// needs to resolve `shopCartProvider`'s {productId: qty} map back to real
+/// names/prices to show product line items on the same bill as any booked
+/// service — see the module doc-comment on shopCartProvider.
+const shopProducts = [
   CleaningProduct(
     id: 'chimney_kit',
     appliance: Appliance.chimney,
@@ -68,45 +72,15 @@ const _products = [
   ),
 ];
 
-/// productId -> quantity, kept at the ShopScreen route level (not a global
-/// provider) so the cart resets when someone leaves the shop rather than
-/// silently persisting an old selection across visits.
-class ShopScreen extends ConsumerStatefulWidget {
+class ShopScreen extends ConsumerWidget {
   const ShopScreen({super.key});
-  @override
-  ConsumerState<ShopScreen> createState() => _ShopScreenState();
-}
-
-class _ShopScreenState extends ConsumerState<ShopScreen> {
-  final Map<String, int> _cart = {};
-
-  int get _itemCount => _cart.values.fold(0, (a, b) => a + b);
-  int get _totalPaise => _cart.entries.fold(
-      0, (sum, e) => sum + _products.firstWhere((p) => p.id == e.key).mrpPaise * e.value);
-
-  void _setQty(String productId, int qty) {
-    setState(() {
-      if (qty <= 0) {
-        _cart.remove(productId);
-      } else {
-        _cart[productId] = qty;
-      }
-    });
-  }
-
-  Future<void> _checkout() async {
-    final totalPaise = await Navigator.of(context).push<int>(
-      MaterialPageRoute(
-          builder: (_) => ShopPaymentScreen(cart: Map.of(_cart), products: _products)),
-    );
-    if (totalPaise == null || !mounted) return;
-    setState(() => _cart.clear());
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Order placed — ${Money.rupees(totalPaise)}, pay on delivery.')));
-  }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cart = ref.watch(shopCartProvider);
+    final itemCount = cart.values.fold(0, (a, b) => a + b);
+    final totalPaise = cart.entries.fold(
+        0, (sum, e) => sum + shopProducts.firstWhere((p) => p.id == e.key).mrpPaise * e.value);
     return Scaffold(
       appBar: AppBar(
         leading: BackButton(onPressed: context.pop),
@@ -115,36 +89,32 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
       body: SafeArea(
         top: false,
         child: ListView(
-          padding: EdgeInsets.fromLTRB(20, 0, 20, _itemCount > 0 ? 100 : 30),
+          padding: EdgeInsets.fromLTRB(20, 0, 20, itemCount > 0 ? 100 : 30),
           children: [
             Text(
               'Pre-measured, one-time-use cleaning kits for your appliances — '
-              'the same products our technicians carry.',
+              'the same products our technicians carry. Add them to your cart '
+              "and they're billed together with any service you book.",
               style: context.type.bodySmall,
             ),
             const SectionHeader('Cleaning kits'),
-            for (final p in _products) ...[
-              _ProductCard(
-                product: p,
-                qty: _cart[p.id] ?? 0,
-                onQtyChanged: (q) => _setQty(p.id, q),
-              ),
+            for (final p in shopProducts) ...[
+              _ProductCard(product: p, qty: cart[p.id] ?? 0),
               const SizedBox(height: 10),
             ],
           ],
         ),
       ),
-      bottomNavigationBar: _itemCount == 0
+      bottomNavigationBar: itemCount == 0
           ? null
           : SafeArea(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 10, 20, 14),
                 child: FilledButton(
-                  onPressed: _checkout,
-                  style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(50)),
-                  child: Text('Checkout · $_itemCount ${_itemCount == 1 ? 'item' : 'items'} · '
-                      '${Money.rupees(_totalPaise)}'),
+                  onPressed: () => context.push('/book/payment'),
+                  style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+                  child: Text('Checkout · $itemCount ${itemCount == 1 ? 'item' : 'items'} · '
+                      '${Money.rupees(totalPaise)}'),
                 ),
               ),
             ),
@@ -152,14 +122,13 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
   }
 }
 
-class _ProductCard extends StatelessWidget {
-  const _ProductCard({required this.product, required this.qty, required this.onQtyChanged});
+class _ProductCard extends ConsumerWidget {
+  const _ProductCard({required this.product, required this.qty});
   final CleaningProduct product;
   final int qty;
-  final ValueChanged<int> onQtyChanged;
 
   @override
-  Widget build(BuildContext context) => CareCard(
+  Widget build(BuildContext context, WidgetRef ref) => CareCard(
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -190,7 +159,11 @@ class _ProductCard extends StatelessWidget {
                       Text('MRP ${Money.rupees(product.mrpPaise)}',
                           style: CareType.mono(context.scheme.onSurface,
                               size: 14, w: FontWeight.w600)),
-                      _QtyStepper(qty: qty, onChanged: onQtyChanged),
+                      _QtyStepper(
+                        qty: qty,
+                        onChanged: (q) =>
+                            ref.read(shopCartProvider.notifier).setQty(product.id, q),
+                      ),
                     ],
                   ),
                 ],
@@ -236,162 +209,6 @@ class _QtyStepper extends StatelessWidget {
             onPressed: () => onChanged(qty + 1),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// A real payment/review page for the shop cart — mirrors the service
-/// booking flow's "Review and pay" screen (same grouped payment-method
-/// list, same "display-only, no gateway wired up" honesty) instead of the
-/// lightweight confirm sheet this used to be. Kit MRPs are the final,
-/// all-inclusive price — unlike a service booking there's no visit fee or
-/// GST stacked on top, so the order total here is just the cart subtotal.
-/// Pops with the real placed total on success so ShopScreen can clear its
-/// cart and show a confirmation; pops with null if cancelled or it failed.
-class ShopPaymentScreen extends ConsumerStatefulWidget {
-  const ShopPaymentScreen({super.key, required this.cart, required this.products});
-  final Map<String, int> cart;
-  final List<CleaningProduct> products;
-
-  @override
-  ConsumerState<ShopPaymentScreen> createState() => _ShopPaymentScreenState();
-}
-
-class _ShopPaymentScreenState extends ConsumerState<ShopPaymentScreen> {
-  bool _placing = false;
-  String _paymentId = 'cod';
-
-  int get _totalPaise => widget.cart.entries.fold(
-      0, (sum, e) => sum + widget.products.firstWhere((p) => p.id == e.key).mrpPaise * e.value);
-
-  Future<void> _place() async {
-    setState(() => _placing = true);
-    final result = await ref.read(apiRepositoryProvider).placeShopOrder(widget.cart);
-    if (!mounted) return;
-    setState(() => _placing = false);
-    if (result.error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.error!)));
-      return;
-    }
-    Navigator.of(context).pop(result.totalPaise);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final paymentMethodsList = ref.watch(repositoryProvider).paymentMethods();
-    final itemCount = widget.cart.values.fold(0, (a, b) => a + b);
-    return Scaffold(
-      appBar: AppBar(
-        leading: BackButton(onPressed: () => Navigator.of(context).pop()),
-        title: Text('Payment options'),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(20),
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Text('$itemCount ${itemCount == 1 ? 'item' : 'items'} · Total: '
-                '${Money.rupees(_totalPaise)}'),
-          ),
-        ),
-      ),
-      body: SafeArea(
-        top: false,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-          children: [
-            CareCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  for (final e in widget.cart.entries) ...[
-                    Builder(builder: (context) {
-                      final p = widget.products.firstWhere((p) => p.id == e.key);
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
-                        child: Row(children: [
-                          Expanded(
-                            child: Text('${p.name} × ${e.value}',
-                                style: const TextStyle(
-                                    fontSize: 13.5, fontWeight: FontWeight.w600)),
-                          ),
-                          Text(Money.rupees(p.mrpPaise * e.value), style: context.type.bodyMedium),
-                        ]),
-                      );
-                    }),
-                  ],
-                  const Divider(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Total (MRP, all-inclusive)',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
-                      Text(Money.rupees(_totalPaise),
-                          style: CareType.mono(context.scheme.onSurface,
-                              size: 17, w: FontWeight.w600)),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            // Same honesty as the booking flow's PaymentScreen: no card/UPI/
-            // wallet gateway is wired up anywhere in this app. Real payment
-            // collection is pay-on-delivery regardless of what's selected.
-            for (var i = 0; i < paymentMethodsList.length; i++) ...[
-              if (i == 0 || paymentMethodsList[i].section != paymentMethodsList[i - 1].section)
-                SectionHeader(paymentMethodsList[i].section),
-              CareCard(
-                onTap: () => setState(() => _paymentId = paymentMethodsList[i].id),
-                borderColor:
-                    _paymentId == paymentMethodsList[i].id ? context.scheme.primary : null,
-                child: Row(children: [
-                  Container(
-                    width: 34,
-                    height: 34,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                        color: context.scheme.surfaceContainerHigh,
-                        borderRadius: BorderRadius.circular(10)),
-                    child: Text(paymentMethodsList[i].glyph, style: const TextStyle(fontSize: 14)),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(paymentMethodsList[i].name,
-                            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
-                        Text(paymentMethodsList[i].detail, style: context.type.bodySmall),
-                      ],
-                    ),
-                  ),
-                  Icon(
-                      _paymentId == paymentMethodsList[i].id
-                          ? Icons.radio_button_checked
-                          : Icons.radio_button_off,
-                      color: _paymentId == paymentMethodsList[i].id
-                          ? context.scheme.primary
-                          : context.care.hairline),
-                ]),
-              ),
-              const SizedBox(height: 10),
-            ],
-          ],
-        ),
-      ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 10, 20, 14),
-          child: FilledButton(
-            onPressed: _placing ? null : _place,
-            style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
-            child: _placing
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : Text('Place order · ${Money.rupees(_totalPaise)}'),
-          ),
-        ),
       ),
     );
   }
