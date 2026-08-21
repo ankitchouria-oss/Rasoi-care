@@ -1,0 +1,53 @@
+{
+  "@@locale": "mr",
+
+  "navHome": "मुख्यपृष्ठ",
+  "navServices": "सेवा",
+  "navBookings": "बुकिंग",
+  "navAccount": "खाते",
+
+  "homeServing": "सेवा स्थान",
+  "homeAddAddress": "तुमचा पत्ता जोडा",
+  "homeSearchHint": "\"चिमणी धूर खेचत नाही\" शोधा",
+  "homeWhatNeedsCare": "आज कशाची काळजी हवी आहे?",
+  "homeAll": "सर्व",
+  "homeBookItAgain": "पुन्हा बुक करा",
+  "homeHistory": "इतिहास",
+  "homeLastDone": "शेवटचे {when} रोजी केले",
+  "homeRebook": "पुन्हा बुक करा",
+  "homeMostBooked": "सर्वाधिक बुक केलेले",
+
+  "notificationsTitle": "सूचना",
+  "notificationsBody": "अजून खरी सूचना प्रणाली सेट केलेली नाही — पुश अलर्ट नाही, अ‍ॅपमध्ये फीड नाही. खोटी बॅज संख्या दाखवण्यापेक्षा इथे काहीही न दाखवणे आम्हाला योग्य वाटते.",
+
+  "applianceChimney": "चिमणी",
+  "applianceHob": "हॉब",
+  "applianceCooktop": "कुकटॉप",
+  "applianceDishwasher": "डिशवॉशर",
+  "applianceMicrowave": "मायक्रोवेव्ह",
+  "applianceFridge": "फ्रीज",
+  "applianceOtg": "ओटीजी",
+  "appliancePurifier": "प्युरिफायर",
+
+  "accountTitle": "खाते",
+  "accountVisits": "भेटी",
+  "accountCareCoins": "केअर कॉइन्स",
+  "accountCareCoinsBody": "तुम्ही खरोखर केअर कॉइन्स कमावता — प्रत्येक पूर्ण झालेल्या भेटीच्या 2%, वर दाखवले आहे — आणि चेकआउटच्या वेळी खऱ्या रुपयांची सूट म्हणून वापरले जातात. मात्र, टॉप-अप करता येईल असे वेगळे रोख वॉलेट नाही आणि इथे अजून इतिहास यादीही नाही.",
+  "accountYourCarePlus": "तुमचे केअर+",
+  "accountBookingsHistory": "बुकिंग आणि इतिहास",
+  "accountHelpSupport": "मदत आणि सहाय्य",
+  "accountHelpSupportBody": "अजून समर्पित सहाय्य लाइन सेट केलेली नाही. सध्या, तुम्ही हे अ‍ॅप इन्स्टॉल करण्यासाठी वापरलेल्या माध्यमातून संपर्क साधा.",
+  "accountPreferences": "प्राधान्ये",
+  "accountDarkMode": "डार्क मोड",
+  "accountLanguage": "भाषा",
+  "accountLegal": "कायदेशीर",
+  "accountTerms": "अटी व शर्ती",
+  "accountTermsBody": "Rasoi Care च्या सेवा अटी अजून प्रकाशित झालेल्या नाहीत. त्या तयार झाल्यावर इथे पहा — तोपर्यंत आम्ही कोणताही प्लेसहोल्डर कायदेशीर मजकूर दाखवणार नाही.",
+  "accountSignOut": "साइन आउट",
+
+  "languagePickerTitle": "भाषा",
+  "languageEnglish": "English",
+  "languageHindi": "हिंदी (Hindi)",
+  "languageMarathi": "मराठी (Marathi)",
+  "languageNote": "फक्त या अ‍ॅपचे स्वतःचे लेबल, बटणे आणि संदेश बदलतात. तुमचे नाव, तुम्ही टाइप केलेला पत्ता, किंवा तुमच्याकडून किंवा सर्व्हरवरून आलेला इतर कोणताही डेटा कधीही यंत्र-अनुवादित केला जात नाही."
+}

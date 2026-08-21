@@ -1,0 +1,53 @@
+{
+  "@@locale": "hi",
+
+  "navHome": "होम",
+  "navServices": "सेवाएं",
+  "navBookings": "बुकिंग",
+  "navAccount": "खाता",
+
+  "homeServing": "सेवा स्थान",
+  "homeAddAddress": "अपना पता जोड़ें",
+  "homeSearchHint": "\"चिमनी धुआं नहीं खींच रही\" खोजें",
+  "homeWhatNeedsCare": "आज किसकी देखभाल चाहिए?",
+  "homeAll": "सभी",
+  "homeBookItAgain": "फिर से बुक करें",
+  "homeHistory": "इतिहास",
+  "homeLastDone": "पिछली बार {when} को किया गया",
+  "homeRebook": "दोबारा बुक करें",
+  "homeMostBooked": "सबसे ज्यादा बुक की गई",
+
+  "notificationsTitle": "सूचनाएं",
+  "notificationsBody": "अभी तक कोई असली सूचना प्रणाली सेट नहीं है — न पुश अलर्ट, न ऐप में फ़ीड। हम यहां झूठी बैज संख्या दिखाने के बजाय कुछ भी न दिखाना बेहतर समझते हैं।",
+
+  "applianceChimney": "चिमनी",
+  "applianceHob": "हॉब",
+  "applianceCooktop": "कुकटॉप",
+  "applianceDishwasher": "डिशवॉशर",
+  "applianceMicrowave": "माइक्रोवेव",
+  "applianceFridge": "फ्रिज",
+  "applianceOtg": "ओटीजी",
+  "appliancePurifier": "प्यूरीफायर",
+
+  "accountTitle": "खाता",
+  "accountVisits": "विज़िट",
+  "accountCareCoins": "केयर कॉइन्स",
+  "accountCareCoinsBody": "आप वाकई केयर कॉइन्स कमाते हैं — हर पूरी हुई विज़िट का 2%, ऊपर दिखाया गया है — और चेकआउट पर असली रुपयों की छूट के रूप में भुनाए जाते हैं। हालांकि, कोई अलग नकद वॉलेट नहीं है जिसे आप टॉप-अप कर सकें, और अभी यहां कोई इतिहास सूची भी नहीं है।",
+  "accountYourCarePlus": "आपका केयर+",
+  "accountBookingsHistory": "बुकिंग और इतिहास",
+  "accountHelpSupport": "सहायता और समर्थन",
+  "accountHelpSupportBody": "अभी तक कोई समर्पित सहायता लाइन सेट नहीं है। फिलहाल, जिस माध्यम से आपने यह ऐप इंस्टॉल किया था, उसी के ज़रिए संपर्क करें।",
+  "accountPreferences": "प्राथमिकताएं",
+  "accountDarkMode": "डार्क मोड",
+  "accountLanguage": "भाषा",
+  "accountLegal": "कानूनी",
+  "accountTerms": "नियम और शर्तें",
+  "accountTermsBody": "Rasoi Care की प्रकाशित सेवा शर्तें अभी लागू नहीं हैं। इनके तैयार होते ही यहां देखें — तब तक हम कोई प्लेसहोल्डर कानूनी पाठ नहीं दिखाएंगे।",
+  "accountSignOut": "साइन आउट",
+
+  "languagePickerTitle": "भाषा",
+  "languageEnglish": "English",
+  "languageHindi": "हिंदी (Hindi)",
+  "languageMarathi": "मराठी (Marathi)",
+  "languageNote": "केवल इस ऐप के अपने लेबल, बटन और संदेश बदलते हैं। आपका नाम, आपके द्वारा टाइप किया गया पता, या आपसे या सर्वर से आया कोई भी अन्य डेटा कभी मशीन-अनुवादित नहीं होता।"
+}
