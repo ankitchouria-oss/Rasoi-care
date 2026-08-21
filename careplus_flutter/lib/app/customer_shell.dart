@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../core/theme/care_plus_theme.dart';
+import '../core/widgets/care_widgets.dart';
 
-/// Bottom-nav shell for the four primary destinations. The center "Book" FAB
-/// jumps into the catalog to start a fresh booking.
+/// Bottom-nav shell for the four primary destinations. The center "+" FAB
+/// opens a sheet to either start a fresh booking or browse the cleaning-kit
+/// shop.
 class CustomerShell extends StatelessWidget {
   const CustomerShell({super.key, required this.navigationShell});
   final StatefulNavigationShell navigationShell;
@@ -40,7 +41,7 @@ class CustomerShell extends StatelessWidget {
       child: Scaffold(
         body: navigationShell,
         floatingActionButton: FloatingActionButton(
-          onPressed: () => context.go('/services'),
+          onPressed: () => _showQuickActions(context),
           child: const Icon(Icons.add),
         ),
         floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
@@ -55,6 +56,68 @@ class CustomerShell extends StatelessWidget {
               const Expanded(child: SizedBox()), // FAB notch
               _navItem(context, 2, idx),
               _navItem(context, 3, idx),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showQuickActions(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SectionHeader('Quick actions'),
+              CareCard(
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  context.go('/services');
+                },
+                child: Row(children: [
+                  Icon(Icons.event_available_outlined, size: 22, color: context.scheme.primary),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Book a service',
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                        Text('Repair, install or maintain an appliance',
+                            style: context.type.bodySmall),
+                      ],
+                    ),
+                  ),
+                ]),
+              ),
+              const SizedBox(height: 10),
+              CareCard(
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  context.push('/shop');
+                },
+                child: Row(children: [
+                  Icon(Icons.shopping_bag_outlined, size: 22, color: context.scheme.primary),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Rasoi Care Shop',
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                        Text('Cleaning kits for your appliances',
+                            style: context.type.bodySmall),
+                      ],
+                    ),
+                  ),
+                ]),
+              ),
             ],
           ),
         ),
