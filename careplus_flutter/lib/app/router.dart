@@ -101,11 +101,6 @@ final router = GoRouter(
         builder: (_, s) => RateScreen(bookingId: s.pathParameters['id']!)),
 
     GoRoute(
-        path: '/plans',
-        parentNavigatorKey: _rootKey,
-        builder: (_, __) => const PlansScreen()),
-
-    GoRoute(
         path: '/shop',
         parentNavigatorKey: _rootKey,
         builder: (_, __) => const ShopScreen()),

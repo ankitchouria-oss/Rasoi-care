@@ -360,7 +360,17 @@ def _get_firebase_certs():
 def verify_firebase_token(id_token):
     """Returns {"uid", "email", "name"} for a valid Firebase ID token
     issued to the rasoi-care project, or None if it's missing, expired,
-    or fails signature/audience/issuer checks."""
+    or fails signature/audience/issuer checks.
+
+    Every failure is logged (never just silently returns None) — this used
+    to swallow the real reason entirely, so a genuine misconfiguration
+    (wrong project id, cert-fetch failure, clock skew) looked identical to
+    "customer's token is stale" from the client's point of view, and the
+    Customer app's checkout would show "Your session needs refreshing" for
+    a problem retrying could never actually fix. `leeway` tolerates a few
+    seconds of clock difference between this server and Google's, which a
+    zero-tolerance check would otherwise reject as "expired"/"not yet
+    valid" for a perfectly real, current token."""
     if not id_token:
         return None
     try:
@@ -370,7 +380,11 @@ def verify_firebase_token(id_token):
         unverified_header = jwt.get_unverified_header(id_token)
         kid = unverified_header.get("kid")
         certs = _get_firebase_certs()
-        if not certs or kid not in certs:
+        if not certs:
+            print("verify_firebase_token: could not fetch Google's certs", file=sys.stderr)
+            return None
+        if kid not in certs:
+            print(f"verify_firebase_token: unknown key id {kid!r}", file=sys.stderr)
             return None
         public_key = load_pem_x509_certificate(
             certs[kid].encode("utf-8"), default_backend()
@@ -381,12 +395,15 @@ def verify_firebase_token(id_token):
             algorithms=["RS256"],
             audience=FIREBASE_PROJECT_ID,
             issuer=f"https://securetoken.google.com/{FIREBASE_PROJECT_ID}",
+            leeway=10,
         )
         uid = payload.get("user_id") or payload.get("sub")
         if not uid:
+            print("verify_firebase_token: token has no user_id/sub claim", file=sys.stderr)
             return None
         return {"uid": uid, "email": payload.get("email"), "name": payload.get("name")}
-    except Exception:
+    except Exception as e:
+        print(f"verify_firebase_token: rejected — {e}", file=sys.stderr)
         return None
 
 
