@@ -17,9 +17,11 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final addresses = ref.watch(savedAddressesProvider);
     final selectedId = ref.watch(selectedAddressIdProvider);
-    final current = addresses.isEmpty
-        ? null
-        : addresses.firstWhere((a) => a.id == selectedId, orElse: () => addresses.first);
+    final override = ref.watch(homeAddressOverrideProvider);
+    final current = override ??
+        (addresses.isEmpty
+            ? null
+            : addresses.firstWhere((a) => a.id == selectedId, orElse: () => addresses.first));
     final profile = ref.watch(userProfileStreamProvider).valueOrNull;
     final isMock = ref.read(authFlowProvider.notifier).isMock;
     final displayName = (profile?.name.isNotEmpty ?? false)
@@ -68,7 +70,9 @@ class HomeScreen extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  _RoundBtn(icon: Icons.notifications_none, badge: '3', onTap: () {}),
+                  _RoundBtn(
+                      icon: Icons.notifications_none,
+                      onTap: () => _notificationsComingSoon(context)),
                   const SizedBox(width: 9),
                   Pressable(
                     onTap: () => context.go('/account'),
@@ -182,6 +186,35 @@ class HomeScreen extends ConsumerWidget {
   void _startBooking(BuildContext context, WidgetRef ref, Appliance a) =>
       context.push('/services/${a.name}');
 
+  /// The bell used to show a hardcoded "3" badge and do nothing when
+  /// tapped — there's no real notifications system behind it (no push
+  /// setup, no backend feed), so rather than keep faking a count, this
+  /// says so plainly, same as the Account screen's other not-built-yet
+  /// features (Wallet and Care Coins, Help and support).
+  void _notificationsComingSoon(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 30),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Notifications', style: context.type.titleMedium),
+            const SizedBox(height: 12),
+            Text(
+              "There's no real notifications system set up yet — no push "
+              "alerts, no in-app feed. We'd rather show nothing here than "
+              "a made-up badge count.",
+              style: context.type.bodyMedium,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _locationSheet(BuildContext context, WidgetRef ref) {
     final addresses = ref.read(savedAddressesProvider);
     showModalBottomSheet<void>(
@@ -222,7 +255,13 @@ class HomeScreen extends ConsumerWidget {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    final picked = await context.push<SavedAddress>('/book/address/pick');
+                    if (picked == null) return;
+                    ref.read(homeAddressOverrideProvider.notifier).state = picked;
+                    ref.read(selectedAddressIdProvider.notifier).state = picked.id;
+                  },
                   child: const Text('Use current location')),
             ),
           ],
@@ -350,9 +389,8 @@ class _CategoryTile extends StatelessWidget {
 }
 
 class _RoundBtn extends StatelessWidget {
-  const _RoundBtn({required this.icon, this.badge, required this.onTap});
+  const _RoundBtn({required this.icon, required this.onTap});
   final IconData icon;
-  final String? badge;
   final VoidCallback onTap;
   @override
   Widget build(BuildContext context) => Pressable(
@@ -367,24 +405,7 @@ class _RoundBtn extends StatelessWidget {
             shape: BoxShape.circle,
             border: Border.all(color: context.care.hairline),
           ),
-          child: Stack(clipBehavior: Clip.none, children: [
-            Icon(icon, size: 20),
-            if (badge != null)
-              Positioned(
-                right: -6,
-                top: -6,
-                child: Container(
-                  padding: const EdgeInsets.all(3),
-                  constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                  decoration: BoxDecoration(
-                      color: context.scheme.error, shape: BoxShape.circle),
-                  child: Text(badge!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                          fontSize: 9, color: Colors.white, fontWeight: FontWeight.w700)),
-                ),
-              ),
-          ]),
+          child: Icon(icon, size: 20),
         ),
       );
 }

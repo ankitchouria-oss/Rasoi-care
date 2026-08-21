@@ -117,11 +117,17 @@ class SavedAddress {
 /// payment collection is UPI-to-technician after the visit regardless of
 /// which one is picked here.
 class PaymentMethod {
-  const PaymentMethod(this.id, this.name, this.detail, this.glyph);
+  const PaymentMethod(this.id, this.name, this.detail, this.glyph, {required this.section});
   final String id;
   final String name;
   final String detail;
   final String glyph;
+
+  /// Groups the checkout list under headers ("Pay on delivery", "UPI
+  /// apps", ...) — PaymentScreen renders one only when it differs from
+  /// the previous entry's, so [paymentMethods] must keep entries for the
+  /// same section adjacent.
+  final String section;
 }
 
 enum BookingStatus { scheduled, onTheWay, inProgress, completed, cancelled }

@@ -65,7 +65,9 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
           permission == LocationPermission.deniedForever) {
         return;
       }
-      final pos = await Geolocator.getCurrentPosition().timeout(const Duration(seconds: 8));
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.best),
+      ).timeout(const Duration(seconds: 8));
       if (!mounted) return;
       final point = LatLng(pos.latitude, pos.longitude);
       setState(() => _myLocation = point);

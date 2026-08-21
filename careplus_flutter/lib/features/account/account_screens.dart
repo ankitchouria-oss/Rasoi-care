@@ -268,6 +268,10 @@ class AccountScreen extends ConsumerWidget {
         ? _formatIndianPhone(profile!.phone)
         : (isMock ? '+91 98220 41537' : '');
     final address = profile?.address ?? '';
+    ref.watch(bookingsRefreshProvider);
+    final visitCount = ref.watch(repositoryProvider).bookings(completed: true).length;
+    ref.watch(coinsRefreshProvider);
+    final coinsBalance = ref.watch(apiRepositoryProvider).coinsBalance;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Account'),
@@ -309,8 +313,6 @@ class AccountScreen extends ConsumerWidget {
                         const SizedBox(height: 3),
                         Text(address, style: context.type.bodySmall, maxLines: 2),
                       ],
-                      const SizedBox(height: 7),
-                      const StatusChip('Silver member', tone: ChipTone.warning, height: 22),
                     ],
                   ),
                 ),
@@ -318,9 +320,12 @@ class AccountScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
             Row(children: [
-              Expanded(child: _MiniStat(label: 'Visits', value: '14')),
+              Expanded(child: _MiniStat(label: 'Visits', value: '$visitCount')),
               const SizedBox(width: 10),
-              Expanded(child: _MiniStat(label: 'Saved with Care+', value: '₹8,420')),
+              Expanded(
+                  child: _MiniStat(
+                      label: 'Care Coins',
+                      value: coinsBalance == null ? '—' : '$coinsBalance')),
             ]),
             const SectionHeader('Your Care+'),
             CareCard(
@@ -328,14 +333,13 @@ class AccountScreen extends ConsumerWidget {
               child: Column(children: [
                 _NavRow(icon: Icons.event_note, label: 'Bookings and history',
                     onTap: () => context.go('/bookings')),
-                _NavRow(icon: Icons.shield_outlined, label: 'Plans, warranty, appliances',
-                    onTap: () => context.push('/plans')),
                 _NavRow(icon: Icons.account_balance_wallet_outlined,
-                    label: 'Wallet and Care Coins',
-                    onTap: () => _showComingSoon(context, 'Wallet and Care Coins',
-                        "There's no real wallet or loyalty-coins system behind this yet — "
-                        "so rather than show you a made-up balance, we're waiting until "
-                        "there's a real one to report.")),
+                    label: 'Care Coins',
+                    onTap: () => _showComingSoon(context, 'Care Coins',
+                        "You really do earn Care Coins — 2% of every completed visit, "
+                        "shown above — and they're really redeemed for real rupees off "
+                        "at checkout. There's no separate cash wallet you can top up, "
+                        "though, and no history list here yet.")),
                 _NavRow(icon: Icons.chat_bubble_outline, label: 'Help and support',
                     onTap: () => _showComingSoon(context, 'Help and support',
                         "A dedicated support line isn't set up yet. For now, reach out "
@@ -622,116 +626,3 @@ class _Tabs extends StatelessWidget {
       );
 }
 
-// ============================================================ PLANS (AMC)
-class PlansScreen extends StatelessWidget {
-  const PlansScreen({super.key});
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-          leading: BackButton(onPressed: context.pop),
-          title: const Text('Plans and warranty')),
-      body: SafeArea(
-        top: false,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 30),
-          children: [
-            CareCard(
-              color: context.scheme.primary,
-              borderColor: Colors.transparent,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Eyebrow('Active plan', color: context.scheme.secondary),
-                  const SizedBox(height: 8),
-                  Text('Care+ Complete',
-                      style: CareType.display(context.scheme.onPrimary, size: 24)),
-                  const SizedBox(height: 16),
-                  Row(children: [
-                    _PlanStat(label: 'Visits left', value: '2 of 4'),
-                    const SizedBox(width: 20),
-                    _PlanStat(label: 'Renews', value: '04 Nov'),
-                  ]),
-                  const SizedBox(height: 16),
-                  ClipRRect(
-                    borderRadius: Radii.pill,
-                    child: LinearProgressIndicator(
-                      value: 0.5,
-                      minHeight: 7,
-                      backgroundColor: context.scheme.onPrimary.withValues(alpha: 0.2),
-                      valueColor: AlwaysStoppedAnimation(context.scheme.secondary),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SectionHeader('Upgrade or add a plan'),
-            _PlanCard(
-                name: 'Essential',
-                price: '₹1,899',
-                blurb: '2 visits · 1 appliance · 10% off repairs'),
-            const SizedBox(height: 10),
-            _PlanCard(
-                name: 'Complete',
-                price: '₹3,499',
-                blurb: '4 visits · up to 4 appliances · 20% off repairs · priority slots',
-                current: true),
-            const SizedBox(height: 10),
-            _PlanCard(
-                name: 'Home Suite',
-                price: '₹5,999',
-                blurb: 'Unlimited visits · every kitchen appliance · 30% off · 4-hr response',
-                best: true),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PlanStat extends StatelessWidget {
-  const _PlanStat({required this.label, required this.value});
-  final String label, value;
-  @override
-  Widget build(BuildContext context) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label,
-              style: TextStyle(
-                  fontSize: 11, color: context.scheme.onPrimary.withValues(alpha: 0.6))),
-          Text(value,
-              style: CareType.mono(context.scheme.onPrimary, size: 19, w: FontWeight.w600)),
-        ],
-      );
-}
-
-class _PlanCard extends StatelessWidget {
-  const _PlanCard({required this.name, required this.price, required this.blurb, this.current = false, this.best = false});
-  final String name, price, blurb;
-  final bool current, best;
-  @override
-  Widget build(BuildContext context) => CareCard(
-        onTap: () {},
-        borderColor: current ? context.scheme.primary : null,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(children: [
-                  Text(name, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
-                  const SizedBox(width: 8),
-                  if (current) const StatusChip('Current', tone: ChipTone.success, height: 22),
-                  if (best) const StatusChip('Best value', tone: ChipTone.warning, height: 22),
-                ]),
-                Text('$price/yr',
-                    style: CareType.mono(context.scheme.onSurface, size: 15, w: FontWeight.w600)),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(blurb, style: context.type.bodySmall),
-          ],
-        ),
-      );
-}
