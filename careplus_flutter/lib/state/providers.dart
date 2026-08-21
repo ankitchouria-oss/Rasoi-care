@@ -58,6 +58,14 @@ final savedAddressesProvider = Provider<List<SavedAddress>>((ref) {
 /// the header stayed on its hardcoded text no matter what you picked.
 final selectedAddressIdProvider = StateProvider<String?>((ref) => null);
 
+/// A map-picked address that isn't part of [savedAddressesProvider]'s list
+/// (the signup address / repo.addresses()) — set when HomeScreen's location
+/// sheet sends someone through the real AddressPickerScreen. Previously
+/// "Use current location" there just closed the sheet with nothing wired
+/// behind it, so no pick ever reached the Home screen no matter what was
+/// chosen.
+final homeAddressOverrideProvider = StateProvider<SavedAddress?>((ref) => null);
+
 /// App-wide light/dark toggle. Persist to shared_preferences in production.
 final themeModeProvider = NotifierProvider<ThemeModeVM, ThemeMode>(ThemeModeVM.new);
 
