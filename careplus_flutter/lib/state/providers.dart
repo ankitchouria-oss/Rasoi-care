@@ -332,3 +332,33 @@ class BookingDraftVM extends Notifier<BookingDraft> {
   void toggleUseCoins() => state = state.copyWith(useCoins: !state.useCoins);
   void setPayment(String id) => state = state.copyWith(paymentId: id);
 }
+
+// ---------------------------------------------------------------------------
+// Rasoi Care Shop cart — productId -> quantity. Lives at app scope (not
+// scoped to ShopScreen's own State, which is where it used to live) purely
+// so it survives navigating out of the Shop into the service-booking flow:
+// that's what actually lets a cleaning kit and a booked repair visit land
+// on the same "Review and pay" screen and the same bill (see PaymentScreen
+// in lib/features/booking/booking_screens.dart), instead of needing two
+// separate checkouts against two separate backends the way ShopPaymentScreen
+// used to require. Cleared only once an order (or booking) actually goes
+// through — never just by leaving the screen.
+// ---------------------------------------------------------------------------
+final shopCartProvider = NotifierProvider<ShopCartVM, Map<String, int>>(ShopCartVM.new);
+
+class ShopCartVM extends Notifier<Map<String, int>> {
+  @override
+  Map<String, int> build() => const {};
+
+  void setQty(String productId, int qty) {
+    final next = Map<String, int>.from(state);
+    if (qty <= 0) {
+      next.remove(productId);
+    } else {
+      next[productId] = qty;
+    }
+    state = next;
+  }
+
+  void clear() => state = const {};
+}

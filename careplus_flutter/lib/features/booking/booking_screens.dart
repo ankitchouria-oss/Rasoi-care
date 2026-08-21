@@ -11,6 +11,7 @@ import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
 import '../../data/models.dart';
 import '../../state/providers.dart';
+import '../shop/shop_screen.dart' show shopProducts;
 import 'select_location_screen.dart';
 
 // A thin frame every booking step shares: progress bar + dock.
@@ -493,7 +494,17 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     return shares;
   }
 
-  Future<void> _pay(BookingDraft draft, PricingBreakdown pricing) async {
+  /// Places both halves of a possibly-mixed cart — real bookings for
+  /// [draft.services] and, if [shopCart] isn't empty, one real Shop order
+  /// for it too — from this single "Pay" tap, so a kit and a repair visit
+  /// genuinely end up on the same bill instead of needing two separate
+  /// checkouts (see shopCartProvider's doc-comment in providers.dart for
+  /// why the cart itself lives at app scope). The two go through different
+  /// backend endpoints (bookings need a routed technician and a status
+  /// lifecycle; a Shop order doesn't), so this can partially succeed —
+  /// handled honestly below rather than claiming a single "you're all set"
+  /// when only one half actually went through.
+  Future<void> _pay(BookingDraft draft, PricingBreakdown pricing, Map<String, int> shopCart) async {
     setState(() => _submitting = true);
     // Redeemed once for the whole order — before any bookings are created —
     // so a multi-service cart never redeems the same coins once per row.
@@ -527,7 +538,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     final directions = draft.directions.trim();
     final allocations = _allocate(draft.services, pricing.grandTotalPaise);
     final created = <Booking>[];
-    String? lastError;
+    String? bookingError;
     for (var i = 0; i < draft.services.length; i++) {
       final result = await ref.read(apiRepositoryProvider).createBooking(
             service: draft.services[i],
@@ -538,22 +549,56 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             directions: directions.isEmpty ? null : directions,
           );
       if (result.booking != null) created.add(result.booking!);
-      if (result.error != null) lastError = result.error;
+      if (result.error != null) bookingError = result.error;
+    }
+    int? shopOrderTotal;
+    String? shopError;
+    if (shopCart.isNotEmpty) {
+      final result = await ref.read(apiRepositoryProvider).placeShopOrder(shopCart);
+      shopOrderTotal = result.totalPaise;
+      shopError = result.error;
     }
     if (!mounted) return;
     setState(() => _submitting = false);
-    if (created.isEmpty) {
+
+    final bookingsWanted = draft.services.isNotEmpty;
+    final bookingsOk = !bookingsWanted || created.isNotEmpty;
+    final shopWanted = shopCart.isNotEmpty;
+    final shopOk = !shopWanted || shopOrderTotal != null;
+
+    if (!bookingsOk && !shopOk) {
       // Honest failure — no fake "you're booked" when nothing was actually
       // created. Show the real reason (e.g. the backend has no technician
       // to route to yet) rather than always blaming the customer's
       // connection, which is wrong for anything but a genuine network
       // failure and actively misleading for a real server-side rejection.
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(lastError ??
-              "Couldn't confirm your booking — check your connection and try again.")));
+          content: Text(bookingError ??
+              shopError ??
+              "Couldn't confirm your order — check your connection and try again.")));
       return;
     }
-    context.go('/booking/${created.first.id}/confirmed', extra: created.length);
+    if (shopOk && shopWanted) ref.read(shopCartProvider.notifier).clear();
+
+    if (created.isNotEmpty) {
+      if (shopWanted && !shopOk) {
+        // Partial success: say exactly what didn't go through rather than
+        // staying silent about the half that failed.
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Booked — but the Shop order failed: '
+                '${shopError ?? "try adding it again from the Shop"}.')));
+      }
+      context.go('/booking/${created.first.id}/confirmed', extra: created.length);
+      return;
+    }
+    // Nothing booked (either no services were selected, or booking creation
+    // failed) but the Shop order went through on its own.
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(bookingsWanted && !bookingsOk
+            ? 'Shop order placed (${Money.rupees(shopOrderTotal!)}) — but '
+                '${bookingError ?? "the booking failed"}.'
+            : 'Order placed — ${Money.rupees(shopOrderTotal!)}.')));
+    context.go('/');
   }
 
   @override
@@ -564,6 +609,18 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     final pricing = ref.watch(pricingProvider);
     final coinsBalance = ref.watch(apiRepositoryProvider).coinsBalance;
     final paymentMethodsList = repo.paymentMethods();
+    // A Shop cart added from ShopScreen rides along here rather than
+    // needing its own separate checkout — see shopCartProvider's
+    // doc-comment. Kit MRPs are the final, all-inclusive price (no visit
+    // fee or GST stacked on them the way a service booking gets), so they
+    // just add straight onto the combined total below.
+    final shopCart = ref.watch(shopCartProvider);
+    final shopLines = [
+      for (final e in shopCart.entries) (shopProducts.firstWhere((p) => p.id == e.key), e.value),
+    ];
+    final shopTotalPaise =
+        shopLines.fold(0, (sum, l) => sum + l.$1.mrpPaise * l.$2);
+    final grandTotalPaise = pricing.grandTotalPaise + shopTotalPaise;
     return _StepScaffold(
       title: 'Review and pay',
       progress: 1,
@@ -573,21 +630,22 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Eyebrow('Payable now'),
-              Text(Money.rupees(pricing.grandTotalPaise),
+              Text(Money.rupees(grandTotalPaise),
                   style: CareType.mono(context.scheme.onSurface,
                       size: 17, w: FontWeight.w600)),
             ],
           ),
         ),
         FilledButton(
-          onPressed:
-              draft.services.isEmpty || _submitting ? null : () => _pay(draft, pricing),
+          onPressed: (draft.services.isEmpty && shopCart.isEmpty) || _submitting
+              ? null
+              : () => _pay(draft, pricing, shopCart),
           child: _submitting
               ? const SizedBox(
                   width: 18,
                   height: 18,
                   child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : Text('Pay ${Money.rupees(pricing.grandTotalPaise)}'),
+              : Text('Pay ${Money.rupees(grandTotalPaise)}'),
         ),
       ]),
       body: Column(
@@ -611,25 +669,42 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                   ),
                   const SizedBox(height: 4),
                 ],
-                Text('${draft.day} · ${draft.slot}', style: context.type.bodySmall),
-                const Divider(height: 24),
-                _priceLine(context, 'Visit fee', Money.rupees(pricing.visitFeePaise)),
-                if (pricing.couponDiscountPaise > 0)
-                  _priceLine(
-                      context, 'CARE200 applied', '-${Money.rupees(pricing.couponDiscountPaise)}',
-                      color: context.care.success),
-                _priceLine(context, 'GST (18%)', Money.rupees(pricing.gstPaise)),
-                if (pricing.coinsRedeemed > 0)
-                  _priceLine(context, 'Care Coins used',
-                      '-${Money.rupees(pricing.coinsRedeemed * 100)}',
-                      color: context.care.success),
+                for (final (product, qty) in shopLines) ...[
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text('${product.name} × $qty',
+                            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+                      ),
+                      Text(Money.rupees(product.mrpPaise * qty),
+                          style: CareType.mono(context.scheme.onSurface, size: 12)),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                ],
+                if (draft.services.isNotEmpty)
+                  Text('${draft.day} · ${draft.slot}', style: context.type.bodySmall),
+                if (draft.services.isNotEmpty) ...[
+                  const Divider(height: 24),
+                  _priceLine(context, 'Visit fee', Money.rupees(pricing.visitFeePaise)),
+                  if (pricing.couponDiscountPaise > 0)
+                    _priceLine(context, 'CARE200 applied',
+                        '-${Money.rupees(pricing.couponDiscountPaise)}',
+                        color: context.care.success),
+                  _priceLine(context, 'GST (18%)', Money.rupees(pricing.gstPaise)),
+                  if (pricing.coinsRedeemed > 0)
+                    _priceLine(context, 'Care Coins used',
+                        '-${Money.rupees(pricing.coinsRedeemed * 100)}',
+                        color: context.care.success),
+                ],
                 const Divider(height: 24),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text('Total',
                         style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
-                    Text(Money.rupees(pricing.grandTotalPaise),
+                    Text(Money.rupees(grandTotalPaise),
                         style: CareType.mono(context.scheme.onSurface,
                             size: 18, w: FontWeight.w600)),
                   ],
