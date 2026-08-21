@@ -17,16 +17,51 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/config/maps_config.dart';
+import '../../core/theme/care_plus_theme.dart';
 import '../../core/widgets/care_widgets.dart';
 import '../../data/models.dart';
+import '../../state/firestore_providers.dart';
+
+/// Reverse-geocodes a point to a human-readable line — shared by
+/// _MapPickerBody's own resolving (as someone pans the map) and
+/// SelectLocationScreen's "Use Current Location" fast path (which skips
+/// the map entirely). Falls back to a bare lat/lng string on any failure.
+Future<String> resolveAreaLine(double lat, double lng) async {
+  try {
+    final uri = Uri.https('maps.googleapis.com', '/maps/api/geocode/json', {
+      'latlng': '$lat,$lng',
+      'key': MapsConfig.apiKey,
+    });
+    final res = await http.get(uri).timeout(const Duration(seconds: 8));
+    if (res.statusCode == 200) {
+      final decoded = jsonDecode(res.body);
+      if (decoded is Map<String, dynamic>) {
+        final results = decoded['results'];
+        if (results is List && results.isNotEmpty) {
+          final first = results.first;
+          if (first is Map<String, dynamic>) {
+            final formatted = first['formatted_address'] as String?;
+            if (formatted != null) return formatted;
+          }
+        }
+      }
+    }
+  } catch (_) {
+    // Falls through to the lat/lng string below.
+  }
+  return '${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}';
+}
 
 class AddressPickerScreen extends StatelessWidget {
   const AddressPickerScreen({super.key});
@@ -126,7 +161,7 @@ class _ManualEntryBodyState extends State<_ManualEntryBody> {
 // but a raw reverse-geocoded line. Pops with the final [SavedAddress];
 // _MapPickerBody._confirm forwards that result on as its own pop, so
 // nothing about the caller (AddressScreen / HomeScreen) changes.
-class AddressDetailsScreen extends StatefulWidget {
+class AddressDetailsScreen extends ConsumerStatefulWidget {
   const AddressDetailsScreen(
       {super.key, required this.lat, required this.lng, required this.resolvedArea});
   final double lat;
@@ -134,40 +169,58 @@ class AddressDetailsScreen extends StatefulWidget {
   final String resolvedArea;
 
   @override
-  State<AddressDetailsScreen> createState() => _AddressDetailsScreenState();
+  ConsumerState<AddressDetailsScreen> createState() => _AddressDetailsScreenState();
 }
 
-class _AddressDetailsScreenState extends State<AddressDetailsScreen> {
+class _AddressDetailsScreenState extends ConsumerState<AddressDetailsScreen> {
   static const _types = ['House', 'Office', 'Other'];
   static const _glyphByType = {'House': '🏠', 'Office': '💼', 'Other': '📍'};
 
   final _formKey = GlobalKey<FormState>();
   final _building = TextEditingController();
   final _street = TextEditingController();
+  final _pincode = TextEditingController();
   late final _saveAs = TextEditingController(text: _type);
   String _type = 'House';
+  File? _photo;
+  bool _saving = false;
 
   @override
   void dispose() {
     _building.dispose();
     _street.dispose();
+    _pincode.dispose();
     _saveAs.dispose();
     super.dispose();
   }
 
-  void _confirm() {
+  Future<void> _pickPhoto() async {
+    final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (picked != null && mounted) setState(() => _photo = File(picked.path));
+  }
+
+  Future<void> _confirm() async {
     if (!_formKey.currentState!.validate()) return;
+    setState(() => _saving = true);
     final line = [
       if (_building.text.trim().isNotEmpty) _building.text.trim(),
       if (_street.text.trim().isNotEmpty) _street.text.trim(),
       widget.resolvedArea,
     ].join(', ');
     final label = _saveAs.text.trim().isEmpty ? _type : _saveAs.text.trim();
-    Navigator.pop(
-      context,
-      SavedAddress('a_picked_${DateTime.now().millisecondsSinceEpoch}', label, line,
-          _glyphByType[_type]!, widget.lat, widget.lng),
-    );
+    final id = 'a_picked_${DateTime.now().millisecondsSinceEpoch}';
+    final profileService = ref.read(userProfileServiceProvider);
+    String? photoUrl;
+    if (_photo != null) {
+      photoUrl = await profileService.uploadAddressPhoto(_photo!, id);
+    }
+    final address = SavedAddress(id, label, line, _glyphByType[_type]!, widget.lat, widget.lng,
+        _pincode.text.trim().isEmpty ? null : _pincode.text.trim(), photoUrl);
+    // Best-effort — persisting it for next time shouldn't block handing
+    // the address to whoever's waiting on this pick right now.
+    unawaited(profileService.addAddress(address));
+    if (!mounted) return;
+    Navigator.pop(context, address);
   }
 
   @override
@@ -218,10 +271,64 @@ class _AddressDetailsScreenState extends State<AddressDetailsScreen> {
                   ]),
                 ),
                 const SizedBox(height: 14),
+                CareField('Pin code (recommended)',
+                    controller: _pincode,
+                    keyboardType: TextInputType.number,
+                    validator: (v) => (v != null && v.trim().isNotEmpty && v.trim().length != 6)
+                        ? 'Enter a 6-digit pin code'
+                        : null),
+                const SizedBox(height: 14),
                 CareField('Save address as',
                     controller: _saveAs,
                     validator: (v) =>
                         (v == null || v.trim().isEmpty) ? 'Give this address a name' : null),
+                const SizedBox(height: 20),
+                const SectionHeader('Location photo (recommended)'),
+                Text('Helps the technician recognize the entrance.',
+                    style: context.type.bodySmall),
+                const SizedBox(height: 10),
+                GestureDetector(
+                  onTap: _pickPhoto,
+                  child: Container(
+                    height: 110,
+                    decoration: BoxDecoration(
+                      color: context.scheme.surfaceContainerHigh,
+                      borderRadius: Radii.rMd,
+                      border: Border.all(color: context.care.hairline),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: _photo == null
+                        ? Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.add_a_photo_outlined,
+                                    size: 22, color: context.care.inkFaint),
+                                const SizedBox(height: 6),
+                                Text('Add a photo', style: context.type.bodySmall),
+                              ],
+                            ),
+                          )
+                        : Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              Image.file(_photo!, fit: BoxFit.cover),
+                              Positioned(
+                                right: 6,
+                                top: 6,
+                                child: GestureDetector(
+                                  onTap: () => setState(() => _photo = null),
+                                  child: const CircleAvatar(
+                                    radius: 12,
+                                    backgroundColor: Colors.black54,
+                                    child: Icon(Icons.close, size: 14, color: Colors.white),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -230,9 +337,14 @@ class _AddressDetailsScreenState extends State<AddressDetailsScreen> {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 10, 20, 14),
             child: FilledButton(
-              onPressed: _confirm,
+              onPressed: _saving ? null : _confirm,
               style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
-              child: const Text('Save address'),
+              child: _saving
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('Save address'),
             ),
           ),
         ),
@@ -279,27 +391,7 @@ class _MapPickerBodyState extends State<_MapPickerBody> {
 
   Future<void> _reverseGeocode(LatLng point) async {
     setState(() => _resolving = true);
-    try {
-      final uri = Uri.https('maps.googleapis.com', '/maps/api/geocode/json', {
-        'latlng': '${point.latitude},${point.longitude}',
-        'key': MapsConfig.apiKey,
-      });
-      final res = await http.get(uri).timeout(_timeout);
-      if (res.statusCode == 200) {
-        final decoded = jsonDecode(res.body);
-        if (decoded is Map<String, dynamic>) {
-          final results = decoded['results'];
-          if (results is List && results.isNotEmpty) {
-            final first = results.first;
-            if (first is Map<String, dynamic>) {
-              _resolvedLine = first['formatted_address'] as String?;
-            }
-          }
-        }
-      }
-    } catch (_) {
-      // Best-effort — the confirm button falls back to lat/lng text below.
-    }
+    _resolvedLine = await resolveAreaLine(point.latitude, point.longitude);
     if (mounted) setState(() => _resolving = false);
   }
 

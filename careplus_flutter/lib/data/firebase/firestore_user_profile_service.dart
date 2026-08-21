@@ -6,6 +6,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
+import '../models.dart' show SavedAddress;
+
 /// What AccountScreen shows for the signed-in person. All fields fall back
 /// to whatever Firebase Auth itself knows (displayName/email/phoneNumber)
 /// when the Firestore doc hasn't caught up yet or a field was never filled
@@ -19,6 +21,7 @@ class UserProfile {
     this.photoUrl,
     this.lat,
     this.lng,
+    this.addresses = const [],
   });
   final String name;
   final String phone;
@@ -27,6 +30,14 @@ class UserProfile {
   final String? photoUrl;
   final double? lat;
   final double? lng;
+
+  /// Real saved addresses (Home/Work/Shop/...), each with its own type,
+  /// pin code and optional location photo — set through the map picker's
+  /// address-details step (AddressDetailsScreen), not registration. Empty
+  /// for anyone who's never saved one yet; [address] above (the single
+  /// signup-time address) is a separate, older field kept for backward
+  /// compatibility with profiles written before this existed.
+  final List<SavedAddress> addresses;
 }
 
 /// Best-effort profile write-through to Firestore, called once right after
@@ -62,6 +73,11 @@ class UserProfileService {
         photoUrl: data?['photoUrl'] as String?,
         lat: (data?['addressLat'] as num?)?.toDouble(),
         lng: (data?['addressLng'] as num?)?.toDouble(),
+        addresses: ((data?['addresses'] as List?) ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(SavedAddress.fromMap)
+            .whereType<SavedAddress>()
+            .toList(),
       );
     });
   }
@@ -110,6 +126,73 @@ class UserProfileService {
       return true;
     } catch (e) {
       debugPrint('Profile name update failed: $e');
+      return false;
+    }
+  }
+
+  /// Uploads a photo of a location (not the person) — the "Location
+  /// Photos" recommendation on the address-details form, meant to help a
+  /// technician recognize the entrance. Same best-effort/never-throw
+  /// contract as [uploadPhoto]; returns null on any failure. Kept as a
+  /// single path segment directly under `user_profiles/{uid}/` (not a
+  /// nested `addresses/...` subpath) so the existing Storage security
+  /// rule — written for `user_profiles/{userId}/{fileName}`, one segment
+  /// — covers it without needing a console change.
+  Future<String?> uploadAddressPhoto(File file, String addressId) async {
+    if (Firebase.apps.isEmpty) return null;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return null;
+    try {
+      final ext = file.path.split('.').last;
+      final ref =
+          FirebaseStorage.instance.ref('user_profiles/${user.uid}/address_$addressId.$ext');
+      await ref.putFile(file).timeout(const Duration(seconds: 30));
+      return await ref.getDownloadURL();
+    } catch (e) {
+      debugPrint('Address photo upload failed: $e');
+      return null;
+    }
+  }
+
+  /// Appends a newly confirmed address (from AddressDetailsScreen) to the
+  /// real saved-addresses list, so it shows up next time without
+  /// re-entering it — this is what backs SelectLocationScreen's "Saved
+  /// addresses" section. Best-effort: on failure the address still works
+  /// for the booking/pick that just created it, it just won't be there
+  /// next time.
+  Future<void> addAddress(SavedAddress address) async {
+    if (Firebase.apps.isEmpty) return;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'addresses': FieldValue.arrayUnion([address.toMap()]),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true)).timeout(const Duration(seconds: 6));
+    } catch (e) {
+      debugPrint('Saving address failed: $e');
+    }
+  }
+
+  /// Removes one saved address by id — read-modify-write rather than
+  /// arrayRemove, since arrayRemove needs an exact map match and the
+  /// stored copy may not byte-for-byte equal what the client has.
+  Future<bool> deleteAddress(String addressId) async {
+    if (Firebase.apps.isEmpty) return false;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return false;
+    try {
+      final doc = FirebaseFirestore.instance.collection('users').doc(user.uid);
+      final snap = await doc.get().timeout(const Duration(seconds: 6));
+      final current = ((snap.data()?['addresses'] as List?) ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .toList();
+      current.removeWhere((m) => m['id'] == addressId);
+      await doc.set({'addresses': current, 'updatedAt': FieldValue.serverTimestamp()},
+          SetOptions(merge: true)).timeout(const Duration(seconds: 6));
+      return true;
+    } catch (e) {
+      debugPrint('Deleting address failed: $e');
       return false;
     }
   }

@@ -9,6 +9,7 @@ import '../../data/models.dart';
 import '../../state/auth_providers.dart';
 import '../../state/firestore_providers.dart';
 import '../../state/providers.dart';
+import '../booking/select_location_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -215,59 +216,14 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  void _locationSheet(BuildContext context, WidgetRef ref) {
-    final addresses = ref.read(savedAddressesProvider);
-    showModalBottomSheet<void>(
-      context: context,
-      builder: (_) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 30),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Choose a location', style: context.type.titleMedium),
-            const SizedBox(height: 14),
-            for (final ad in addresses) ...[
-              CareCard(
-                onTap: () {
-                  ref.read(selectedAddressIdProvider.notifier).state = ad.id;
-                  Navigator.pop(context);
-                },
-                child: Row(children: [
-                  Text(ad.glyph, style: const TextStyle(fontSize: 17)),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(ad.label,
-                            style: const TextStyle(
-                                fontSize: 13.5, fontWeight: FontWeight.w700)),
-                        const SizedBox(height: 2),
-                        Text(ad.line, style: context.type.bodySmall),
-                      ],
-                    ),
-                  ),
-                ]),
-              ),
-              const SizedBox(height: 10),
-            ],
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                  onPressed: () async {
-                    Navigator.pop(context);
-                    final picked = await context.push<SavedAddress>('/book/address/pick');
-                    if (picked == null) return;
-                    ref.read(homeAddressOverrideProvider.notifier).state = picked;
-                    ref.read(selectedAddressIdProvider.notifier).state = picked.id;
-                  },
-                  child: const Text('Use current location')),
-            ),
-          ],
-        ),
-      ),
+  Future<void> _locationSheet(BuildContext context, WidgetRef ref) async {
+    final currentId = ref.read(selectedAddressIdProvider);
+    final picked = await Navigator.of(context).push<SavedAddress>(
+      MaterialPageRoute(builder: (_) => SelectLocationScreen(currentId: currentId)),
     );
+    if (picked == null) return;
+    ref.read(homeAddressOverrideProvider.notifier).state = picked;
+    ref.read(selectedAddressIdProvider.notifier).state = picked.id;
   }
 }
 
