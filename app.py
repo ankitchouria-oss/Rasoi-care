@@ -116,8 +116,10 @@ def cors_preflight(_any):
 # row["technician_firebase_uid"] is None for legacy/seed technicians that
 # have never bootstrapped through the Partner app, which is expected.
 BOOKING_SELECT = (
-    "SELECT bookings.*, technicians.firebase_uid AS technician_firebase_uid "
-    "FROM bookings LEFT JOIN technicians ON technicians.id = bookings.technician_id"
+    "SELECT bookings.*, technicians.firebase_uid AS technician_firebase_uid, "
+    "users.phone AS customer_phone "
+    "FROM bookings LEFT JOIN technicians ON technicians.id = bookings.technician_id "
+    "LEFT JOIN users ON users.id = bookings.user_id"
 )
 
 
@@ -158,6 +160,18 @@ def booking_row_to_dict(row):
         "cancelledAt": row["cancelled_at"] if "cancelled_at" in keys else None,
         "cancellationFee": row["cancellation_fee"] if "cancellation_fee" in keys else None,
         "directions": row["directions"] if "directions" in keys else None,
+        "notes": row["notes"] if "notes" in keys else None,
+        # What the customer actually ticked on the Issue screen (see
+        # create_booking) — [] when they reported nothing, never a
+        # fabricated symptom list.
+        "issues": json.loads(row["issues_json"])
+        if ("issues_json" in keys and row["issues_json"]) else [],
+        "paymentMethod": row["payment_method"] if "payment_method" in keys else None,
+        # The customer's own verified phone number (see bootstrap_customer),
+        # so the technician's "Call" action can dial a real number instead
+        # of a fake "Calling — masked" toast. Null for bookings made before
+        # this was captured, or if the customer never verified a phone.
+        "customerPhone": row["customer_phone"] if "customer_phone" in keys else None,
     }
 
 
@@ -401,7 +415,15 @@ def verify_firebase_token(id_token):
         if not uid:
             print("verify_firebase_token: token has no user_id/sub claim", file=sys.stderr)
             return None
-        return {"uid": uid, "email": payload.get("email"), "name": payload.get("name")}
+        return {
+            "uid": uid,
+            "email": payload.get("email"),
+            "name": payload.get("name"),
+            # Only ever set for a phone-OTP sign-in, and only once Firebase
+            # has actually verified it — safe to trust over anything the
+            # client claims about its own phone number.
+            "phone_number": payload.get("phone_number"),
+        }
     except Exception as e:
         print(f"verify_firebase_token: rejected — {e}", file=sys.stderr)
         return None
@@ -727,7 +749,12 @@ def bootstrap_customer():
 
     data = request.get_json(force=True, silent=True) or {}
     name = (data.get("name") or claims.get("name") or "").strip() or "Customer"
-    phone = data.get("phone")
+    # A Firebase-verified phone number beats whatever the client claims —
+    # previously this only looked at the request body, which the Customer
+    # app's phone-OTP sign-in never actually populates, so a technician's
+    # "Call" action had no real number to dial for the overwhelming
+    # majority of customers even though Firebase had it the whole time.
+    phone = claims.get("phone_number") or data.get("phone")
 
     conn = get_db()
     row = conn.execute("SELECT * FROM users WHERE firebase_uid = ?", (claims["uid"],)).fetchone()
@@ -1118,6 +1145,53 @@ def get_booking(booking_id):
     return jsonify(booking_row_to_dict(row))
 
 
+def _route_technician(conn, category, area, exclude_id=None, allow_any_category=True):
+    """Finds a technician to assign a booking to: a verified, on-duty
+    technician in the customer's own area first (fastest to reach them),
+    falling back to any verified on-duty technician for the category, then
+    to anyone in the category at all. [exclude_id] lets a decline (see
+    decline_booking) look for a *different* technician than the one who
+    just passed, without duplicating this whole fallback chain.
+
+    [allow_any_category] adds one final tier: anyone at all, any category.
+    create_booking needs that (a booking's technician_id is NOT NULL, so
+    initial creation must land on *someone*); decline_booking deliberately
+    leaves it off — reassigning a chimney job to an unrelated water-
+    purifier technician who won't be able to do the work is worse than
+    just cancelling it, and unlike creation, a decline has an existing,
+    valid technician_id it can fall back to leaving in place or cancelling
+    instead of forcing a bad match."""
+    exclude_clause = " AND id != ?" if exclude_id else ""
+    exclude_args = (exclude_id,) if exclude_id else ()
+    match = None
+    if area:
+        match = conn.execute(
+            "SELECT id FROM technicians WHERE category = ? AND area = ? "
+            "AND verified = 1 AND online = 1" + exclude_clause + " LIMIT 1",
+            (category, area) + exclude_args,
+        ).fetchone()
+    if not match:
+        match = conn.execute(
+            "SELECT id FROM technicians WHERE category = ? AND verified = 1 AND online = 1"
+            + exclude_clause + " LIMIT 1",
+            (category,) + exclude_args,
+        ).fetchone()
+    if not match:
+        # No one for this category is online right now — still prefer a
+        # same-specialty technician (even offline/unverified) over an
+        # unrelated one; a mismatched specialty is worse than a wait.
+        match = conn.execute(
+            "SELECT id FROM technicians WHERE category = ?" + exclude_clause + " LIMIT 1",
+            (category,) + exclude_args,
+        ).fetchone()
+    if not match and allow_any_category:
+        match = conn.execute(
+            "SELECT id FROM technicians" + (" WHERE id != ?" if exclude_id else "") + " LIMIT 1",
+            exclude_args,
+        ).fetchone()
+    return match["id"] if match else None
+
+
 @app.route("/api/bookings", methods=["POST"])
 @require_auth
 def create_booking():
@@ -1136,6 +1210,14 @@ def create_booking():
     lat = float(lat) if isinstance(lat, (int, float)) else None
     lng = float(lng) if isinstance(lng, (int, float)) else None
     directions = (data.get("directions") or "").strip() or None
+    notes = (data.get("notes") or "").strip() or None
+    # Which symptom checkboxes the customer ticked on the Issue screen —
+    # previously collected in the app's UI and then silently dropped: never
+    # sent here, so a technician's job screen had nothing real to show and
+    # fell back to the same canned "Weak suction, rattling noise..." for
+    # every booking regardless of appliance or what was actually reported.
+    issues = data.get("issues")
+    issues_json = json.dumps(issues) if isinstance(issues, list) and issues else None
 
     if service_id:
         conn = get_db()
@@ -1158,31 +1240,8 @@ def create_booking():
 
     conn = get_db()
     if not technician_id:
-        # Auto-route to a verified, on-duty technician in the customer's own
-        # area first (fastest to reach them), falling back to any verified
-        # on-duty technician for the category, then to anyone at all so the
-        # NOT NULL technician_id column is always satisfiable.
-        match = None
-        if area:
-            match = conn.execute(
-                "SELECT id FROM technicians WHERE category = ? AND area = ? AND verified = 1 AND online = 1 LIMIT 1",
-                (category, area),
-            ).fetchone()
-        if not match:
-            match = conn.execute(
-                "SELECT id FROM technicians WHERE category = ? AND verified = 1 AND online = 1 LIMIT 1",
-                (category,),
-            ).fetchone()
-        if not match:
-            # No one for this category is online right now — still prefer a
-            # same-specialty technician (even offline/unverified) over an
-            # unrelated one; a mismatched specialty is worse than a wait.
-            match = conn.execute(
-                "SELECT id FROM technicians WHERE category = ? LIMIT 1", (category,)
-            ).fetchone()
-        if not match:
-            match = conn.execute("SELECT id FROM technicians LIMIT 1").fetchone()
-        if not match:
+        technician_id = _route_technician(conn, category, area)
+        if not technician_id:
             # No technician exists at all — used to silently assign the
             # literal string "ramesh" here, a demo id that doesn't
             # correspond to a real account, so every booking "succeeded"
@@ -1191,18 +1250,18 @@ def create_booking():
             # that looks confirmed but was never actually assigned.
             conn.close()
             return jsonify({"error": "No technician is available for this service yet"}), 503
-        technician_id = match["id"]
 
     booking_id = next_id(conn, "order", "RC")
     ts = now()
     conn.execute(
         "INSERT INTO bookings (id, category, service, price, technician_id, customer_name, "
         "status, bachat_slot, service_rating, tech_rating, area, created_at, updated_at, "
-        "user_id, service_id, total_amount, lat, lng, directions) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "user_id, service_id, total_amount, lat, lng, directions, notes, issues_json) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (booking_id, category, service, price, technician_id, request.user["name"],
          "Requested", bachat_slot, None, None, area, ts, ts,
-         request.user["id"], service_id, total_amount, lat, lng, directions),
+         request.user["id"], service_id, total_amount, lat, lng, directions,
+         notes, issues_json),
     )
     conn.commit()
     row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
@@ -1274,6 +1333,85 @@ def advance_booking(booking_id):
             conn.execute(
                 "UPDATE bookings SET time_on_site_min = ? WHERE id = ?", (minutes, booking_id)
             )
+    conn.commit()
+    row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
+    conn.close()
+    return jsonify(booking_row_to_dict(row))
+
+
+@app.route("/api/bookings/<booking_id>/decline", methods=["PATCH"])
+@require_technician_auth
+def decline_booking(booking_id):
+    """Called by the Technician app's "Pass" button. Previously that button
+    only removed the request from the technician's own screen — the
+    booking stayed assigned to them server-side forever, so the customer's
+    job silently never moved. This tries to route the job to a different
+    verified technician (same fallback chain as create_booking, just
+    excluding whoever just passed); if truly nobody else is available, the
+    booking is cancelled fee-free rather than left stuck on a technician
+    who won't take it."""
+    conn = get_db()
+    row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": "not found"}), 404
+    if row["technician_id"] != request.technician["id"]:
+        conn.close()
+        return jsonify({"error": "Forbidden", "message": "Not your job"}), 403
+    if row["status"] != "Requested":
+        conn.close()
+        return jsonify({"error": f"Cannot decline a {row['status'].lower()} job"}), 400
+
+    ts = now()
+    next_technician_id = _route_technician(conn, row["category"], row["area"],
+                                            exclude_id=row["technician_id"],
+                                            allow_any_category=False)
+    if next_technician_id:
+        conn.execute(
+            "UPDATE bookings SET technician_id = ?, updated_at = ? WHERE id = ?",
+            (next_technician_id, ts, booking_id),
+        )
+        reassigned = True
+    else:
+        conn.execute(
+            "UPDATE bookings SET status = 'Cancelled', updated_at = ?, cancelled_at = ?, "
+            "cancellation_fee = 0 WHERE id = ?",
+            (ts, ts, booking_id),
+        )
+        reassigned = False
+    conn.commit()
+    row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
+    conn.close()
+    result = booking_row_to_dict(row)
+    result["reassigned"] = reassigned
+    return jsonify(result)
+
+
+@app.route("/api/bookings/<booking_id>/payment", methods=["PATCH"])
+@require_technician_auth
+def set_booking_payment(booking_id):
+    """Called by the Technician app's close-job screen once the customer's
+    actually paid. There's no payment gateway behind this (see
+    PaymentScreen in the Customer app) — collection is still UPI/cash to
+    the technician in person — but which method was used is now a real,
+    stored fact instead of a button that only showed a SnackBar and
+    recorded nothing."""
+    data = request.get_json(force=True, silent=True) or {}
+    method = (data.get("paymentMethod") or "").strip()
+    if method not in ("upi", "card", "cash", "link"):
+        return jsonify({"error": "paymentMethod must be one of: upi, card, cash, link"}), 400
+    conn = get_db()
+    row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": "not found"}), 404
+    if row["technician_id"] != request.technician["id"]:
+        conn.close()
+        return jsonify({"error": "Forbidden", "message": "Not your job"}), 403
+    conn.execute(
+        "UPDATE bookings SET payment_method = ?, updated_at = ? WHERE id = ?",
+        (method, now(), booking_id),
+    )
     conn.commit()
     row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
     conn.close()

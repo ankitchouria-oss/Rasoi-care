@@ -464,6 +464,12 @@ def migrate_bookings_columns(conn):
         conn.execute("ALTER TABLE bookings ADD COLUMN cancellation_fee INTEGER")
     if "directions" not in cols:
         conn.execute("ALTER TABLE bookings ADD COLUMN directions TEXT")
+    if "notes" not in cols:
+        conn.execute("ALTER TABLE bookings ADD COLUMN notes TEXT")
+    if "issues_json" not in cols:
+        conn.execute("ALTER TABLE bookings ADD COLUMN issues_json TEXT")
+    if "payment_method" not in cols:
+        conn.execute("ALTER TABLE bookings ADD COLUMN payment_method TEXT")
     conn.commit()
 
 

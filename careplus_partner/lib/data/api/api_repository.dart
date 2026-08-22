@@ -8,15 +8,19 @@
 // screens re-read the now-updated cache — see
 // lib/state/providers.dart's `jobsFeedTickProvider`.
 //
-// Anything the backend has no concept of (checklist items, parts,
-// directions, invoice line detail, per-job distance/time-window) is served
-// unchanged from [MockPartnerRepository] — this never fabricates server
-// data that doesn't exist.
+// Anything the backend genuinely has no concept of at all (a parts/quote
+// workflow, invoice line detail) stays empty rather than fabricating it —
+// this never serves [MockPartnerRepository]'s canned data for a real,
+// fetched booking. The in-job checklist is real too, just not backend-
+// sourced: [defaultChecklistFor] is a genuine per-category procedure list
+// (no fabricated readings, nothing pre-checked), the same way the
+// Customer app's ServiceItem.included lists are real static content.
 import 'dart:async';
 import 'dart:convert';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 
@@ -44,6 +48,12 @@ class ApiRepository implements PartnerRepository {
   /// Null until the first successful `/technician/online` or
   /// `/technician/me` response — falls back to the mock's onDuty until then.
   bool? _online;
+
+  /// Null until the first successful `/technician/me` response — falls
+  /// back to the mock's rating/jobsCompletedTotal until then. See
+  /// [refreshMe].
+  double? _rating;
+  int? _jobsCompletedTotal;
 
   // ---------------------------------------------------------------- auth
 
@@ -84,8 +94,9 @@ class ApiRepository implements PartnerRepository {
     }
   }
 
-  /// Refreshes on-duty state from `/api/technician/me`. Best-effort, same
-  /// failure handling as [refreshBookings].
+  /// Refreshes on-duty state and this technician's real rating/completed-
+  /// job total from `/api/technician/me`. Best-effort, same failure
+  /// handling as [refreshBookings].
   Future<void> refreshMe() async {
     try {
       final token = await _idToken();
@@ -100,8 +111,16 @@ class ApiRepository implements PartnerRepository {
       final data = jsonDecode(res.body);
       if (data is! Map<String, dynamic>) return;
       if (data['online'] is bool) _online = data['online'] as bool;
+      // Previously discarded — the Jobs tab's "Rating" stat box kept
+      // showing Mock's fixed 4.94 forever, even after this real value
+      // loaded, while the Profile tab a few taps away showed the real
+      // (and often different) one.
+      if (data['rating'] is num) _rating = (data['rating'] as num).toDouble();
+      if (data['jobsCompleted'] is num) {
+        _jobsCompletedTotal = (data['jobsCompleted'] as num).toInt();
+      }
     } catch (_) {
-      // Ignored — techStats() falls back to the mock's onDuty.
+      // Ignored — techStats() falls back to the mock's figures.
     }
   }
 
@@ -171,6 +190,73 @@ class ApiRepository implements PartnerRepository {
     }
   }
 
+  /// Passes on [jobId] via the real backend — previously "Pass" only
+  /// removed the request from this screen, leaving the booking assigned
+  /// to this technician forever with the customer's job never actually
+  /// moving. Returns whether the booking was handed to a different
+  /// technician (true) or had to be cancelled because nobody else was
+  /// available (false) — null on outright failure, in which case the local
+  /// cache is left untouched so the request stays visible to retry.
+  Future<bool?> declineJob(String jobId) async {
+    try {
+      final token = await _idToken();
+      if (token == null) return null;
+      final res = await http
+          .patch(
+            Uri.parse('${ApiConfig.baseUrl}/api/bookings/$jobId/decline'),
+            headers: {'Authorization': 'Bearer $token'},
+          )
+          .timeout(_timeout);
+      if (res.statusCode != 200) return null;
+      final data = jsonDecode(res.body);
+      if (data is! Map<String, dynamic>) return null;
+      final reassigned = data['reassigned'] == true;
+      if (reassigned) {
+        // No longer this technician's job — drop it from the local cache
+        // entirely rather than showing a status update for a booking that
+        // isn't theirs any more.
+        _bookings = _bookings.where((b) => b.id != jobId).toList(growable: false);
+      } else if (data['status'] is String) {
+        _replaceBookingStatus(jobId, data['status'] as String);
+      }
+      return reassigned;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Records how the customer actually paid via `/api/bookings/<id>/payment`
+  /// — [method] is one of upi/card/cash/link. Previously the close-job
+  /// screen's "Mark paid" button called nothing at all; the booking was
+  /// already Completed by the prior advance-to-Completed call, so this had
+  /// zero effect beyond a SnackBar. Returns whether the call succeeded.
+  Future<bool> setPaymentMethod(String jobId, String method) async {
+    try {
+      final token = await _idToken();
+      if (token == null) return false;
+      final res = await http
+          .patch(
+            Uri.parse('${ApiConfig.baseUrl}/api/bookings/$jobId/payment'),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({'paymentMethod': method}),
+          )
+          .timeout(_timeout);
+      if (res.statusCode != 200) return false;
+      final i = _bookings.indexWhere((b) => b.id == jobId);
+      if (i != -1) {
+        final next = [..._bookings];
+        next[i] = next[i].copyWith(paymentMethod: method);
+        _bookings = next;
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   void _replaceBookingStatus(String jobId, String status) {
     final i = _bookings.indexWhere((b) => b.id == jobId);
     if (i == -1) return;
@@ -193,8 +279,12 @@ class ApiRepository implements PartnerRepository {
   TechStats techStats() {
     final mock = _mock.techStats();
     final online = _online;
+    final rating = _rating ?? mock.rating;
+    final jobsCompletedTotal = _jobsCompletedTotal ?? mock.jobsCompletedTotal;
     if (!_bookingsFetched) {
-      return online == null ? mock : _withOnDuty(mock, online);
+      return online == null && _rating == null && _jobsCompletedTotal == null
+          ? mock
+          : _withRealFields(mock, online, rating, jobsCompletedTotal);
     }
     final today = DateTime.now();
     bool isToday(DateTime? dt) =>
@@ -204,29 +294,26 @@ class ApiRepository implements PartnerRepository {
     final touchedToday = _bookings.where((b) => isToday(b.createdAt) || isToday(b.updatedAt));
     final earningsTodayPaise =
         completedToday.fold<int>(0, (sum, b) => sum + b.totalAmountPaise);
-    // No real per-job rating or tip data from the backend yet — those two
-    // stay on Mock's figures; everything else here is real.
     return TechStats(
       earningsTodayPaise: earningsTodayPaise,
       jobsDone: completedToday.length,
       // touchedToday is a superset of completedToday by construction
       // (completed-today implies updated-today), so this is always >= jobsDone.
       jobsTotal: touchedToday.length,
-      tipsPaise: mock.tipsPaise,
-      rating: mock.rating,
-      firstTimeFixPct: mock.firstTimeFixPct,
+      rating: rating,
+      jobsCompletedTotal: jobsCompletedTotal,
       onDuty: online ?? mock.onDuty,
     );
   }
 
-  TechStats _withOnDuty(TechStats s, bool onDuty) => TechStats(
+  TechStats _withRealFields(TechStats s, bool? onDuty, double rating, int jobsCompletedTotal) =>
+      TechStats(
         earningsTodayPaise: s.earningsTodayPaise,
         jobsDone: s.jobsDone,
         jobsTotal: s.jobsTotal,
-        tipsPaise: s.tipsPaise,
-        rating: s.rating,
-        firstTimeFixPct: s.firstTimeFixPct,
-        onDuty: onDuty,
+        rating: rating,
+        jobsCompletedTotal: jobsCompletedTotal,
+        onDuty: onDuty ?? s.onDuty,
       );
 
   /// Every completed booking, most recent first — the real data behind the
@@ -261,15 +348,37 @@ class ApiRepository implements PartnerRepository {
     final requested = _bookings.where((b) => b.status == 'Requested');
     if (requested.isEmpty) return null;
     final b = requested.first;
+    double? distanceKm;
+    if (_myLat != null && _myLng != null && b.lat != null && b.lng != null) {
+      distanceKm = Geolocator.distanceBetween(_myLat!, _myLng!, b.lat!, b.lng!) / 1000;
+    }
     return JobRequest(
       jobId: b.id,
       serviceTitle: b.service,
-      distanceKm: 2.0, // no real distance data from the backend yet
+      // The customer's real area, from their booking — previously a
+      // hardcoded "Gangapur Road" shown for every request regardless of
+      // which of this app's supported cities it was actually in.
+      areaLabel: (b.area?.trim().isNotEmpty ?? false) ? b.area! : '',
+      distanceKm: distanceKm,
       timeWindow: _timeWindow(b.createdAt),
       payoutPaise: b.totalAmountPaise,
       note: '',
     );
   }
+
+  /// Caches this technician's last known position so [incomingRequest] can
+  /// compute a real straight-line distance to a job — called by
+  /// TechJobsScreen once after a best-effort Geolocator fix. Never queried
+  /// itself (no permission prompts live in this repository layer); a
+  /// missing position just means [incomingRequest] leaves distance null
+  /// instead of ever fabricating one.
+  void setMyPosition(double lat, double lng) {
+    _myLat = lat;
+    _myLng = lng;
+  }
+
+  double? _myLat;
+  double? _myLng;
 
   @override
   List<RouteStop> routeToday() {
@@ -303,12 +412,24 @@ class ApiRepository implements PartnerRepository {
       // 4402, lift on the left" for every real booking too, regardless of
       // what the customer actually typed (or didn't).
       directions: b.directions ?? 'No directions given by the customer.',
-      reportedTags: base.reportedTags,
-      reportedQuote: base.reportedQuote,
-      checklist: base.checklist,
-      parts: base.parts,
+      // The customer's own real reported symptoms/notes — previously this
+      // always showed the mock job's fabricated "Weak suction, rattling
+      // noise..." for every real booking regardless of appliance or what
+      // was actually reported (or nothing at all).
+      reportedTags: b.issues,
+      reportedQuote: b.notes ?? '',
+      // A genuine per-category procedure list, all unchecked — previously
+      // every real job showed the identical mock chimney checklist,
+      // including two items pre-ticked with a fabricated suction reading
+      // ("480 m³/hr") nobody had actually taken yet.
+      checklist: defaultChecklistFor(b.category),
+      // No real parts/quote backend exists yet — an empty list here (never
+      // the mock's fabricated pre-approved "Baffle filter — Elica 90cm")
+      // is what TechJobScreen renders as a genuine "coming soon" state.
+      parts: const [],
       lat: b.lat,
       lng: b.lng,
+      customerPhone: b.customerPhone,
     );
   }
 
@@ -384,4 +505,65 @@ class ApiRepository implements PartnerRepository {
     if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
     return (parts.first.substring(0, 1) + parts.last.substring(0, 1)).toUpperCase();
   }
+}
+
+/// A genuine on-site procedure list for a real booking, by the backend's
+/// appliance category code (see appliance_category.dart in the Customer
+/// app) — every item starts unchecked; the technician actually ticks them
+/// off during the visit. This replaces MockPartnerRepository's single fixed
+/// chimney checklist, which used to show for every category and shipped
+/// two items pre-checked with a fabricated suction reading.
+List<ChecklistItem> defaultChecklistFor(String category) {
+  final steps = switch (category) {
+    'RasoiAir' => const [
+        'Start code verified with customer',
+        'Floor sheeting laid',
+        'Filters and blower degreased',
+        'Duct checked for blockage or leaks',
+        'Suction tested after cleaning',
+        'Site cleaned, customer walkthrough',
+      ],
+    'RasoiSpark' => const [
+        'Start code verified with customer',
+        'Burner caps and igniters inspected',
+        'Gas line leak-tested on every joint',
+        'Flame colour and evenness checked',
+        'Site cleaned, customer walkthrough',
+      ],
+    'RasoiWash' => const [
+        'Start code verified with customer',
+        'Filter, spray arms and seals checked',
+        'Drain line tested for blockage',
+        'Test cycle run',
+        'Site cleaned, customer walkthrough',
+      ],
+    'RasoiBuilt' => const [
+        'Start code verified with customer',
+        'Door seal and hinge checked',
+        'Heating element and thermostat tested',
+        'Test cycle run',
+        'Site cleaned, customer walkthrough',
+      ],
+    'RasoiChill' => const [
+        'Start code verified with customer',
+        'Coolant lines and compressor checked',
+        'Door seal tested',
+        'Temperature verified after service',
+        'Site cleaned, customer walkthrough',
+      ],
+    'RasoiPure' => const [
+        'Start code verified with customer',
+        'Filters inspected and replaced if due',
+        'Membrane and tank checked',
+        'Output water tested',
+        'Site cleaned, customer walkthrough',
+      ],
+    _ => const [
+        'Start code verified with customer',
+        'Fault diagnosed and confirmed with customer',
+        'Repair completed',
+        'Site cleaned, customer walkthrough',
+      ],
+  };
+  return [for (final step in steps) ChecklistItem(step)];
 }

@@ -17,6 +17,10 @@ class BookingDto {
     this.lng,
     this.cancellationFeePaise,
     this.directions,
+    this.notes,
+    this.issues = const [],
+    this.customerPhone,
+    this.paymentMethod,
   });
 
   final String id;
@@ -43,6 +47,25 @@ class BookingDto {
   /// app.py's CANCELLATION_FEE_BY_STATUS. 0 if the customer cancelled
   /// before any technician engagement, null if not cancelled at all.
   final int? cancellationFeePaise;
+
+  /// Free text the customer typed on the Issue screen ("Anything else?") —
+  /// null when they left it blank. See JobDetail.reportedQuote.
+  final String? notes;
+
+  /// Which symptom checkboxes the customer actually ticked on the Issue
+  /// screen — empty when they reported nothing, never a fabricated
+  /// symptom list. See JobDetail.reportedTags.
+  final List<String> issues;
+
+  /// The customer's own Firebase-verified phone number, when known — lets
+  /// the job screen's "Call" action dial a real number instead of a fake
+  /// "Calling — masked" toast. Null for bookings made before the backend
+  /// captured this, or a customer who never verified a phone.
+  final String? customerPhone;
+
+  /// How the customer actually paid, once the technician records it on the
+  /// close-job screen — null until then. One of upi/card/cash/link.
+  final String? paymentMethod;
 
   factory BookingDto.fromJson(Map<String, dynamic> json) {
     // total_amount arrives in rupees (see app.py) — this app stores money in
@@ -71,10 +94,19 @@ class BookingDto {
       directions: (json['directions'] as String?)?.trim().isNotEmpty == true
           ? json['directions'] as String
           : null,
+      notes: (json['notes'] as String?)?.trim().isNotEmpty == true
+          ? json['notes'] as String
+          : null,
+      issues: (json['issues'] as List?)?.whereType<String>().toList(growable: false) ??
+          const [],
+      customerPhone: (json['customerPhone'] as String?)?.trim().isNotEmpty == true
+          ? json['customerPhone'] as String
+          : null,
+      paymentMethod: json['paymentMethod'] as String?,
     );
   }
 
-  BookingDto copyWith({String? status}) => BookingDto(
+  BookingDto copyWith({String? status, String? paymentMethod}) => BookingDto(
         id: id,
         category: category,
         service: service,
@@ -88,6 +120,10 @@ class BookingDto {
         lng: lng,
         cancellationFeePaise: cancellationFeePaise,
         directions: directions,
+        notes: notes,
+        issues: issues,
+        customerPhone: customerPhone,
+        paymentMethod: paymentMethod ?? this.paymentMethod,
       );
 }
 

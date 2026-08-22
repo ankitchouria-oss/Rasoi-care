@@ -55,6 +55,8 @@ class BackendClient {
     double? lat,
     double? lng,
     String? directions,
+    String? notes,
+    List<String>? issues,
   }) async {
     try {
       final res = await http
@@ -69,6 +71,8 @@ class BackendClient {
               if (lat != null) 'lat': lat,
               if (lng != null) 'lng': lng,
               if (directions != null && directions.isNotEmpty) 'directions': directions,
+              if (notes != null && notes.isNotEmpty) 'notes': notes,
+              if (issues != null && issues.isNotEmpty) 'issues': issues,
             }),
           )
           .timeout(_timeout);

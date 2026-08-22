@@ -22,17 +22,20 @@ class TechStats {
     required this.earningsTodayPaise,
     required this.jobsDone,
     required this.jobsTotal,
-    required this.tipsPaise,
     required this.rating,
-    required this.firstTimeFixPct,
+    required this.jobsCompletedTotal,
     required this.onDuty,
   });
   final int earningsTodayPaise;
   final int jobsDone;
   final int jobsTotal;
-  final int tipsPaise;
   final double rating;
-  final int firstTimeFixPct;
+
+  /// All-time completed-job count from the real technician record (see
+  /// app.py's `jobs_completed`) — shown instead of a "first-time fix %",
+  /// which was always a fabricated number with no backend concept behind
+  /// it at all.
+  final int jobsCompletedTotal;
   final bool onDuty;
   double get progress => jobsTotal == 0 ? 0 : jobsDone / jobsTotal;
 }
@@ -42,14 +45,24 @@ class JobRequest {
   const JobRequest({
     required this.jobId,
     required this.serviceTitle,
-    required this.distanceKm,
+    required this.areaLabel,
+    this.distanceKm,
     required this.timeWindow,
     required this.payoutPaise,
     required this.note,
   });
   final String jobId;
   final String serviceTitle;
-  final double distanceKm;
+
+  /// The customer's real area/locality, from their booking — replaces a
+  /// hardcoded "Gangapur Road" that used to show for every real request
+  /// regardless of which of the app's supported cities it was actually in.
+  final String areaLabel;
+
+  /// Real straight-line distance from the technician's current position to
+  /// the job, when both are known — null (never a fabricated "2.0 km")
+  /// when either position is unavailable.
+  final double? distanceKm;
   final String timeWindow;
   final int payoutPaise;
   final String note;
@@ -116,6 +129,7 @@ class JobDetail {
     required this.parts,
     this.lat,
     this.lng,
+    this.customerPhone,
   });
   final String jobId;
   final String customerName;
@@ -133,6 +147,11 @@ class JobDetail {
   /// fall back to a text-address search when this is missing.
   final double? lat;
   final double? lng;
+
+  /// The customer's own Firebase-verified phone number, when known — see
+  /// BookingDto.customerPhone. Null for a mock job or a booking made
+  /// before the backend captured this.
+  final String? customerPhone;
 }
 
 enum LineTone { neutral, success }

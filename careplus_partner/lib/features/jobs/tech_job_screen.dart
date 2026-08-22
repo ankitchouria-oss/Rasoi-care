@@ -77,6 +77,20 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
     }
   }
 
+  /// Dials the customer's real, Firebase-verified phone number — previously
+  /// this was a "Calling — masked" toast that never actually called anyone,
+  /// regardless of whether a number was even known.
+  Future<void> _callCustomer(JobDetail job) async {
+    final t = context.l10n;
+    final phone = job.customerPhone;
+    if (phone == null || phone.trim().isEmpty) {
+      _toast(context, t.jobDetailCallUnavailable);
+      return;
+    }
+    final launched = await launchUrl(Uri(scheme: 'tel', path: phone));
+    if (!launched && mounted) _toast(context, t.jobDetailCallError);
+  }
+
   /// Opens the phone's own Google Maps app for turn-by-turn directions
   /// (falls back to a plain maps search URL if that's not available, or if
   /// this booking has no real coordinates — only a label-only address).
@@ -330,15 +344,15 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
                       _ActionTile(
                           glyph: '📞',
                           label: t.jobDetailCall,
-                          onTap: () => _toast(context, t.jobDetailCallingToast)),
+                          onTap: () => _callCustomer(job)),
                       _ActionTile(
                           glyph: '💬',
                           label: t.jobDetailChat,
-                          onTap: () => _toast(context, t.jobDetailChatToast)),
+                          onTap: () => context.push('/tech/soon', extra: t.jobDetailChat)),
                       _ActionTile(
                           glyph: '⚑',
                           label: t.jobDetailEscalate,
-                          onTap: () => _toast(context, t.jobDetailEscalateToast)),
+                          onTap: () => context.push('/tech/soon', extra: t.jobDetailEscalate)),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -348,23 +362,24 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
                       children: [
                         Eyebrow(t.jobDetailCustomerReported),
                         const SizedBox(height: 10),
-                        Wrap(
-                          spacing: 7,
-                          runSpacing: 7,
-                          children: [
-                            for (final tag in job.reportedTags)
-                              StatusChip(tag, tone: ChipTone.danger, height: 28),
+                        if (job.reportedTags.isEmpty && job.reportedQuote.trim().isEmpty)
+                          Text(t.jobDetailNothingReported, style: context.type.bodySmall)
+                        else ...[
+                          if (job.reportedTags.isNotEmpty) ...[
+                            Wrap(
+                              spacing: 7,
+                              runSpacing: 7,
+                              children: [
+                                for (final tag in job.reportedTags)
+                                  StatusChip(tag, tone: ChipTone.danger, height: 28),
+                              ],
+                            ),
+                            if (job.reportedQuote.trim().isNotEmpty) const SizedBox(height: 11),
                           ],
-                        ),
-                        const SizedBox(height: 11),
-                        Text('"${job.reportedQuote}"',
-                            style: context.type.bodySmall!.copyWith(height: 1.55)),
-                        const SizedBox(height: 12),
-                        Row(children: [
-                          _thumb(context),
-                          const SizedBox(width: 8),
-                          _thumb(context),
-                        ]),
+                          if (job.reportedQuote.trim().isNotEmpty)
+                            Text('"${job.reportedQuote}"',
+                                style: context.type.bodySmall!.copyWith(height: 1.55)),
+                        ],
                       ],
                     ),
                   ),
@@ -407,15 +422,9 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
                             onTap: i == afterPhotos.length ? () => _capturePhoto(false) : null),
                     ],
                   ),
-                  SectionHeader(t.jobDetailPartsUsed,
-                      trailing: GestureDetector(
-                        onTap: () => _toast(context, t.jobDetailScanToast),
-                        child: Text(t.jobDetailScan,
-                            style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: context.scheme.primary)),
-                      )),
+                  SectionHeader(t.jobDetailPartsUsed),
+                  if (job.parts.isEmpty)
+                    Text(t.jobDetailPartsComingSoon, style: context.type.bodySmall),
                   for (final part in job.parts) ...[
                     CareCard(
                       child: Column(
@@ -451,13 +460,6 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
                     ),
                     const SizedBox(height: 10),
                   ],
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: () => _toast(context, t.jobDetailQuoteSentToast),
-                      child: Text(t.jobDetailAddPart),
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -484,18 +486,6 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
 
   void _toast(BuildContext context, String msg) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-
-  Widget _thumb(BuildContext context) => Container(
-        width: 62,
-        height: 62,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: context.scheme.surfaceContainerHigh,
-          borderRadius: Radii.rSm,
-          border: Border.all(color: context.care.hairline),
-        ),
-        child: Icon(Icons.image_outlined, color: context.care.inkFaint, size: 20),
-      );
 
   Widget _photoBox(BuildContext context,
       {required String label, String? imagePath, VoidCallback? onTap}) {
