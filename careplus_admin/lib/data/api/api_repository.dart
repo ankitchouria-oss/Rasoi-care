@@ -72,6 +72,46 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
   final Map<(ReportRange, String?), Map<String, dynamic>> _reportsRaw = {};
   final Set<(ReportRange, String?)> _reportsFetching = {};
 
+  // A fetch that never completes leaves its `_xxxRaw` cache at null forever,
+  // which every screen reads as "still loading" — indistinguishable from a
+  // fetch that failed (bad/missing token, non-200, network error/timeout).
+  // Track which named fetches have actually failed so screens can show a
+  // real "couldn't load, retry" state instead of spinning forever. Not
+  // marked failed while the token is simply still null (Firebase Auth may
+  // not have restored `currentUser` yet on a cold start) — the
+  // authStateChanges listener above already retries automatically once
+  // auth settles, so that case is transient, not a failure to surface.
+  final Set<String> _failedFetches = {};
+
+  bool fetchFailed(String key) => _failedFetches.contains(key);
+
+  void _markFailed(String key) {
+    _failedFetches.add(key);
+    notifyListeners();
+  }
+
+  void _markSucceeded(String key) => _failedFetches.remove(key);
+
+  /// Re-runs the named fetch after a user-initiated retry tap.
+  Future<void> retryFetch(String key) async {
+    _failedFetches.remove(key);
+    notifyListeners();
+    switch (key) {
+      case 'overview':
+        await _fetchOverviewStats();
+      case 'bookings':
+        await _fetchBookings();
+      case 'technicians':
+        await _fetchTechnicians();
+      case 'inventory':
+        await _fetchInventory();
+      case 'complaints':
+        await _fetchComplaints();
+      case 'staff':
+        await _fetchStaffAccounts();
+    }
+  }
+
   // ============================================================ OVERVIEW
   @override
   AdminOverview? overview({String? district}) {
@@ -214,11 +254,13 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
       final res = await _client
           .get(Uri.parse('${ApiConfig.baseUrl}/api/stats/overview'), headers: _headers(token))
           .timeout(_timeout);
-      if (res.statusCode != 200) return;
+      if (res.statusCode != 200) return _markFailed('overview');
       _statsRaw = jsonDecode(res.body) as Map<String, dynamic>;
+      _markSucceeded('overview');
       notifyListeners();
     } catch (_) {
       // Backend not deployed yet / offline / timed out.
+      _markFailed('overview');
     }
   }
 
@@ -283,11 +325,12 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
       final res = await _client
           .get(Uri.parse('${ApiConfig.baseUrl}/api/bookings'), headers: _headers(token))
           .timeout(_timeout);
-      if (res.statusCode != 200) return;
+      if (res.statusCode != 200) return _markFailed('bookings');
       _bookingsRaw = jsonDecode(res.body) as List<dynamic>;
+      _markSucceeded('bookings');
       notifyListeners();
     } catch (_) {
-      // keep null — screen shows a loading state
+      _markFailed('bookings');
     }
   }
 
@@ -341,11 +384,12 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
       final res = await _client
           .get(Uri.parse('${ApiConfig.baseUrl}/api/technicians'), headers: _headers(token))
           .timeout(_timeout);
-      if (res.statusCode != 200) return;
+      if (res.statusCode != 200) return _markFailed('technicians');
       _techniciansRaw = jsonDecode(res.body) as List<dynamic>;
+      _markSucceeded('technicians');
       notifyListeners();
     } catch (_) {
-      // keep null
+      _markFailed('technicians');
     }
   }
 
@@ -394,11 +438,12 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
       final res = await _client
           .get(Uri.parse('${ApiConfig.baseUrl}/api/inventory'), headers: _headers(token))
           .timeout(_timeout);
-      if (res.statusCode != 200) return;
+      if (res.statusCode != 200) return _markFailed('inventory');
       _inventoryRaw = jsonDecode(res.body) as List<dynamic>;
+      _markSucceeded('inventory');
       notifyListeners();
     } catch (_) {
-      // keep null
+      _markFailed('inventory');
     }
   }
 
@@ -429,11 +474,12 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
       final res = await _client
           .get(Uri.parse('${ApiConfig.baseUrl}/api/complaints'), headers: _headers(token))
           .timeout(_timeout);
-      if (res.statusCode != 200) return;
+      if (res.statusCode != 200) return _markFailed('complaints');
       _complaintsRaw = jsonDecode(res.body) as List<dynamic>;
+      _markSucceeded('complaints');
       notifyListeners();
     } catch (_) {
-      // keep null
+      _markFailed('complaints');
     }
   }
 
@@ -474,11 +520,12 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
       final res = await _client
           .get(Uri.parse('${ApiConfig.baseUrl}/api/staff'), headers: _headers(token))
           .timeout(_timeout);
-      if (res.statusCode != 200) return;
+      if (res.statusCode != 200) return _markFailed('staff');
       _staffRaw = jsonDecode(res.body) as List<dynamic>;
+      _markSucceeded('staff');
       notifyListeners();
     } catch (_) {
-      // keep null
+      _markFailed('staff');
     }
   }
 

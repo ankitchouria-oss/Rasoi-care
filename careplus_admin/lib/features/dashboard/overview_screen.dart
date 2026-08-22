@@ -14,7 +14,14 @@ class OverviewScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final filter = ref.watch(locationFilterProvider);
-    final o = ref.watch(repositoryProvider).overview(district: filter.district);
+    final repo = ref.watch(repositoryProvider);
+    final o = repo.overview(district: filter.district);
+    // overview() needs all three of these to have loaded; if any one of
+    // them failed rather than just still being in flight, show a retry
+    // instead of spinning forever.
+    final failed = repo.fetchFailed('overview') ||
+        repo.fetchFailed('bookings') ||
+        repo.fetchFailed('technicians');
     return Scaffold(
       body: SafeArea(
         bottom: false,
@@ -26,9 +33,23 @@ class OverviewScreen extends ConsumerWidget {
               trailing: const LocationPickerChip(),
             ),
             Expanded(
-              child: o == null
-                  ? const Center(child: CircularProgressIndicator())
-                  : _OverviewBody(o: o),
+              child: o != null
+                  ? _OverviewBody(o: o)
+                  : failed
+                      ? EmptyState(
+                          glyph: '⚠',
+                          title: "Couldn't load the overview",
+                          body: 'Check your connection and try again.',
+                          action: FilledButton(
+                            onPressed: () {
+                              repo.retryFetch('overview');
+                              repo.retryFetch('bookings');
+                              repo.retryFetch('technicians');
+                            },
+                            child: const Text('Retry'),
+                          ),
+                        )
+                      : const Center(child: CircularProgressIndicator()),
             ),
           ],
         ),

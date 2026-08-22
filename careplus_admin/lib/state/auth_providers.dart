@@ -121,7 +121,7 @@ class AuthFlowVM extends Notifier<AuthFlowState> {
       unawaited(
         ref.read(staffProfileServiceProvider).touchProfile(role: state.role),
       );
-      unawaited(_bootstrapAndSyncRole());
+      unawaited(bootstrapAndSyncRole());
       return true;
     } on AuthException catch (e) {
       state = state.copyWith(verifying: false, error: e.message);
@@ -158,7 +158,7 @@ class AuthFlowVM extends Notifier<AuthFlowState> {
       unawaited(
         ref.read(staffProfileServiceProvider).touchProfile(role: state.role),
       );
-      unawaited(_bootstrapAndSyncRole());
+      unawaited(bootstrapAndSyncRole());
       return true;
     } on AuthException catch (e) {
       state = state.copyWith(submitting: false, error: e.message);
@@ -179,7 +179,7 @@ class AuthFlowVM extends Notifier<AuthFlowState> {
   /// briefly show the requested role before this lands; that's the same
   /// lag every other real-data screen in this app already has while its
   /// first fetch is in flight.
-  Future<void> _bootstrapAndSyncRole() async {
+  Future<void> bootstrapAndSyncRole() async {
     final real = await ref.read(staffBootstrapServiceProvider).bootstrap(role: state.role);
     if (real != null) state = state.copyWith(role: real);
   }

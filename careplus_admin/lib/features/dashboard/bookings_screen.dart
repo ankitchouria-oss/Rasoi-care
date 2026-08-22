@@ -33,9 +33,11 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final allBookings = ref.watch(repositoryProvider).bookings();
+    final repo = ref.watch(repositoryProvider);
+    final allBookings = repo.bookings();
     final filter = ref.watch(locationFilterProvider);
     final bookings = allBookings?.where((b) => filter.matches(b.area)).toList();
+    final failed = repo.fetchFailed('bookings');
 
     return Scaffold(
       body: SafeArea(
@@ -48,15 +50,25 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
               trailing: LocationPickerChip(),
             ),
             Expanded(
-              child: bookings == null
-                  ? const Center(child: CircularProgressIndicator())
-                  : _BookingsBody(
+              child: bookings != null
+                  ? _BookingsBody(
                       bookings: bookings,
                       filter: _filter,
                       onFilterChanged: (i) => setState(() => _filter = i),
                       categoryFor: _categoryFor,
                       toneFor: _tone,
-                    ),
+                    )
+                  : failed
+                      ? EmptyState(
+                          glyph: '⚠',
+                          title: "Couldn't load bookings",
+                          body: 'Check your connection and try again.',
+                          action: FilledButton(
+                            onPressed: () => repo.retryFetch('bookings'),
+                            child: const Text('Retry'),
+                          ),
+                        )
+                      : const Center(child: CircularProgressIndicator()),
             ),
           ],
         ),

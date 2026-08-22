@@ -12,7 +12,9 @@ class StockScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final stock = ref.watch(repositoryProvider).stock();
+    final repo = ref.watch(repositoryProvider);
+    final stock = repo.stock();
+    final failed = repo.fetchFailed('inventory');
 
     return Scaffold(
       body: SafeArea(
@@ -21,9 +23,19 @@ class StockScreen extends ConsumerWidget {
           children: [
             const DashboardHeader(eyebrow: 'Rasoi Care operations', title: 'Stock & inventory'),
             Expanded(
-              child: stock == null
-                  ? const Center(child: CircularProgressIndicator())
-                  : _StockBody(stock: stock),
+              child: stock != null
+                  ? _StockBody(stock: stock)
+                  : failed
+                      ? EmptyState(
+                          glyph: '⚠',
+                          title: "Couldn't load stock",
+                          body: 'Check your connection and try again.',
+                          action: FilledButton(
+                            onPressed: () => repo.retryFetch('inventory'),
+                            child: const Text('Retry'),
+                          ),
+                        )
+                      : const Center(child: CircularProgressIndicator()),
             ),
           ],
         ),

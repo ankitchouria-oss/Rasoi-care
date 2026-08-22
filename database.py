@@ -253,15 +253,6 @@ STAFF_SEED = [
     ("staff_ops", "Rahul Jadhav", "9822000002", "1234", "staff"),
 ]
 
-INVENTORY_SEED = [
-    # (id, name, sku, category, quantity, reorder_level)
-    ("inv_baffle_filter", "Elica baffle filter 90cm", "ELF-90B", "RasoiAir", 8, 40),
-    ("inv_ro_membrane", "RO membrane 80 GPD", "ROM-80", "RasoiPure", 14, 40),
-    ("inv_hob_igniter", "Hob igniter — universal", "HBI-U", "RasoiSpark", 9, 30),
-    ("inv_dw_pump", "Dishwasher drain pump", "DWP-BSH", "RasoiWash", 26, 30),
-    ("inv_fridge_gas", "Fridge gas R600a (can)", "GAS-600", "RasoiChill", 48, 30),
-]
-
 
 class _PgRow(dict):
     """Postgres rows come back as plain dicts (via RealDictCursor) — this
@@ -409,13 +400,21 @@ def seed(conn):
 _DEMO_TECHNICIAN_IDS = ("ramesh", "suresh", "deepak", "anjali")
 _DEMO_BOOKING_IDS = ("RC-2291", "RC-1987")
 _DEMO_COMPLAINT_IDS = ("CMP-1",)
+_DEMO_INVENTORY_IDS = (
+    "inv_baffle_filter",
+    "inv_ro_membrane",
+    "inv_hob_igniter",
+    "inv_dw_pump",
+    "inv_fridge_gas",
+)
 
 
 def purge_demo_seed_rows(conn):
     """One-time cleanup for a database that already ran the old
     always-seeds-fake-data `init_db` — deletes exactly the four demo
-    technicians and two demo bookings (+ their complaint) by id, and
-    nothing else. Safe to call repeatedly: a no-op once they're gone."""
+    technicians, two demo bookings (+ their complaint), and the five demo
+    stock/inventory rows by id, and nothing else. Safe to call repeatedly:
+    a no-op once they're gone."""
     conn.execute(
         f"DELETE FROM complaints WHERE id IN ({','.join('?' * len(_DEMO_COMPLAINT_IDS))})",
         _DEMO_COMPLAINT_IDS,
@@ -427,6 +426,10 @@ def purge_demo_seed_rows(conn):
     conn.execute(
         f"DELETE FROM technicians WHERE id IN ({','.join('?' * len(_DEMO_TECHNICIAN_IDS))})",
         _DEMO_TECHNICIAN_IDS,
+    )
+    conn.execute(
+        f"DELETE FROM inventory WHERE id IN ({','.join('?' * len(_DEMO_INVENTORY_IDS))})",
+        _DEMO_INVENTORY_IDS,
     )
     conn.commit()
 
@@ -641,23 +644,6 @@ def seed_staff(conn):
     conn.commit()
 
 
-def seed_inventory(conn):
-    """Spare-parts stock, seeded once. Left alone by /api/reset (which
-    only resets bookings/technicians/complaints) since real stock counts
-    shouldn't reset with the demo data."""
-    row = conn.execute("SELECT COUNT(*) AS n FROM inventory").fetchone()
-    if row["n"] > 0:
-        return
-    ts = now()
-    for iid, name, sku, category, quantity, reorder_level in INVENTORY_SEED:
-        conn.execute(
-            "INSERT INTO inventory (id, name, sku, category, quantity, reorder_level, updated_at) "
-            "VALUES (?,?,?,?,?,?,?)",
-            (iid, name, sku, category, quantity, reorder_level, ts),
-        )
-    conn.commit()
-
-
 def seed_home_services(conn):
     """One-time defaults for the Home Services wallet/profile row. Left
     alone on subsequent boots (and by the RasoiCare /api/reset, which
@@ -689,7 +675,6 @@ def init_db():
     migrate_users_columns(conn)
     seed_catalog(conn)
     seed_staff(conn)
-    seed_inventory(conn)
     seed_home_services(conn)
     # Cleans up the four demo technicians and two demo bookings any
     # deployment before this fix already picked up from the old
