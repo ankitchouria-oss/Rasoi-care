@@ -80,8 +80,12 @@ class _TeamBody extends ConsumerWidget {
                         Text(t.name,
                             style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
                         const SizedBox(height: 3),
-                        Text('${t.specialties} · ${t.statsLabel}',
-                            style: context.type.bodySmall),
+                        Text(
+                          t.partnerCode != null
+                              ? '${t.specialties} · ${t.statsLabel} · ${t.partnerCode}'
+                              : '${t.specialties} · ${t.statsLabel}',
+                          style: context.type.bodySmall,
+                        ),
                       ],
                     ),
                   ),
@@ -271,7 +275,12 @@ class _TechnicianDetailSheetState extends ConsumerState<_TechnicianDetailSheet> 
               )
             else if (t.verified)
               Center(
-                child: Text('Already verified', style: context.type.bodySmall),
+                child: Text(
+                  t.partnerCode != null
+                      ? 'Verified · Partner ID ${t.partnerCode}'
+                      : 'Already verified',
+                  style: context.type.bodySmall,
+                ),
               ),
           ],
         ),
@@ -281,7 +290,24 @@ class _TechnicianDetailSheetState extends ConsumerState<_TechnicianDetailSheet> 
 
   Widget _docThumb(BuildContext context, String? url, String label) {
     if (url == null) {
-      return Text('$label — not uploaded', style: context.type.bodySmall);
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: Radii.rMd,
+          border: Border.all(color: context.care.warning.withValues(alpha: 0.4)),
+          color: context.care.warning.withValues(alpha: 0.08),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, size: 16, color: context.care.warning),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text('$label — missing',
+                  style: context.type.bodySmall!.copyWith(color: context.care.warning)),
+            ),
+          ],
+        ),
+      );
     }
     return ClipRRect(
       borderRadius: Radii.rMd,

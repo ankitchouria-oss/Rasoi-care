@@ -305,6 +305,7 @@ def technician_row_to_dict(row):
         "applicationSubmitted": bool(row["application_submitted"])
         if "application_submitted" in keys
         else True,
+        "partnerCode": row["partner_code"] if "partner_code" in keys else None,
     }
 
 
@@ -1762,18 +1763,43 @@ def create_technician():
     return jsonify(technician_row_to_dict(row)), 201
 
 
+# Excludes 0/O and 1/I — easy to confuse when a technician reads their code
+# aloud or copies it down by hand.
+_PARTNER_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+
+def _generate_partner_code(conn):
+    while True:
+        code = "RC-" + "".join(secrets.choice(_PARTNER_CODE_CHARS) for _ in range(6))
+        if not conn.execute(
+            "SELECT 1 FROM technicians WHERE partner_code = ?", (code,)
+        ).fetchone():
+            return code
+
+
 @app.route("/api/technicians/<technician_id>/verify", methods=["PATCH"])
 @require_staff_auth
 def verify_technician(technician_id):
     """Called by the Admin app once it has checked a new technician's
     documents/background — flips them verified and brings them online so
-    they start appearing in auto-routing and the job feed."""
+    they start appearing in auto-routing and the job feed. The first time a
+    technician is verified, this also mints a permanent partner code — a
+    short, human-shareable ID for their own reference, distinct from (and
+    never confused with) their internal database id. Re-verifying later
+    (there's no "unverify") keeps whatever code they already have."""
     conn = get_db()
     row = conn.execute("SELECT * FROM technicians WHERE id = ?", (technician_id,)).fetchone()
     if not row:
         conn.close()
         return jsonify({"error": "not found"}), 404
-    conn.execute("UPDATE technicians SET verified = 1, online = 1 WHERE id = ?", (technician_id,))
+    if row["partner_code"]:
+        conn.execute("UPDATE technicians SET verified = 1, online = 1 WHERE id = ?", (technician_id,))
+    else:
+        code = _generate_partner_code(conn)
+        conn.execute(
+            "UPDATE technicians SET verified = 1, online = 1, partner_code = ? WHERE id = ?",
+            (code, technician_id),
+        )
     conn.commit()
     row = conn.execute("SELECT * FROM technicians WHERE id = ?", (technician_id,)).fetchone()
     conn.close()

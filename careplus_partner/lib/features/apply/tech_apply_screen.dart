@@ -266,6 +266,13 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
     if (picked != null) setState(() => _passbookDocument = File(picked.path));
   }
 
+  /// _submit()'s own `finally` resets [_submitting] regardless of how the
+  /// try block exits, so this only needs to surface the error.
+  void _failUpload(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     final t = context.l10n;
@@ -310,20 +317,42 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
       // Only re-upload what was actually re-picked — omitting a key from the
       // PATCH body leaves that field (and whatever's already on file)
       // untouched, see app.py's update_technician_me.
+      //
+      // uploadService.upload() returns null on ANY failure (network hiccup,
+      // Storage rules rejecting the write, etc.) — it used to be treated
+      // the same as "nothing was picked", so a failed upload silently
+      // vanished from the submitted application with no error at all,
+      // right after the technician had explicitly picked that exact photo.
+      // Every one of these is now a hard stop if a file was actually picked.
       final photoUrl =
           _photo == null ? null : await uploadService.upload(_photo!, kind: 'photo');
+      if (_photo != null && photoUrl == null) {
+        return _failUpload(t.applyUploadFailedPhoto);
+      }
       final aadharDocumentUrl = _aadharDocument == null
           ? null
           : await uploadService.upload(_aadharDocument!, kind: 'aadhar_document');
+      if (_aadharDocument != null && aadharDocumentUrl == null) {
+        return _failUpload(t.applyUploadFailedAadhaarFront);
+      }
       final aadharDocumentBackUrl = _aadharDocumentBack == null
           ? null
           : await uploadService.upload(_aadharDocumentBack!, kind: 'aadhar_document_back');
+      if (_aadharDocumentBack != null && aadharDocumentBackUrl == null) {
+        return _failUpload(t.applyUploadFailedAadhaarBack);
+      }
       final panDocumentUrl = _panDocument == null
           ? null
           : await uploadService.upload(_panDocument!, kind: 'pan_document');
+      if (_panDocument != null && panDocumentUrl == null) {
+        return _failUpload(t.applyUploadFailedPan);
+      }
       final passbookUrl = _passbookDocument == null
           ? null
           : await uploadService.upload(_passbookDocument!, kind: 'bank_passbook');
+      if (_passbookDocument != null && passbookUrl == null) {
+        return _failUpload(t.applyUploadFailedPassbook);
+      }
       final fields = {
         'name': _nameCtrl.text.trim(),
         'categories': _categories.toList(),

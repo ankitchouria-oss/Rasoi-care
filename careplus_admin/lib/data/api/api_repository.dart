@@ -286,6 +286,7 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
       aadharDocumentBackUrl: t['aadharDocumentBackUrl'] as String?,
       panDocumentUrl: t['panDocumentUrl'] as String?,
       bankPassbookUrl: t['bankPassbookUrl'] as String?,
+      partnerCode: t['partnerCode'] as String?,
     );
   }
 

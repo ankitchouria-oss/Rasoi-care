@@ -218,6 +218,13 @@
   "applyAddressAutofilled": "Auto-filled from your Aadhaar card — please check it's correct",
   "applyReadingAddress": "Reading address from photo…",
   "applyAddressAutofillFailed": "Couldn't read an address from that photo — please type it in below",
+  "applyUploadFailedPhoto": "Couldn't upload your profile photo — check your connection and try again",
+  "applyUploadFailedAadhaarFront": "Couldn't upload the front of your Aadhaar card — check your connection and try again",
+  "applyUploadFailedAadhaarBack": "Couldn't upload the back of your Aadhaar card — check your connection and try again",
+  "applyUploadFailedPan": "Couldn't upload your PAN card — check your connection and try again",
+  "applyUploadFailedPassbook": "Couldn't upload your passbook photo — check your connection and try again",
+  "profilePartnerCode": "Partner ID: {code}",
+  "@profilePartnerCode": {"placeholders": {"code": {"type": "String"}}},
   "applyEnterAddress": "Enter your address.",
 
   "pendingStillReview": "Still under review — check back soon.",

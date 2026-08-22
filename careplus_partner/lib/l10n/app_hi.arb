@@ -203,6 +203,13 @@
   "applyAddressAutofilled": "आपके आधार कार्ड से अपने आप भरा गया — कृपया जांच लें कि यह सही है",
   "applyReadingAddress": "फ़ोटो से पता पढ़ा जा रहा है…",
   "applyAddressAutofillFailed": "उस फ़ोटो से पता नहीं पढ़ा जा सका — कृपया नीचे खुद टाइप करें",
+  "applyUploadFailedPhoto": "आपकी प्रोफ़ाइल फ़ोटो अपलोड नहीं हो सकी — अपना कनेक्शन जांचें और फिर कोशिश करें",
+  "applyUploadFailedAadhaarFront": "आपके आधार कार्ड का आगे का हिस्सा अपलोड नहीं हो सका — अपना कनेक्शन जांचें और फिर कोशिश करें",
+  "applyUploadFailedAadhaarBack": "आपके आधार कार्ड का पीछे का हिस्सा अपलोड नहीं हो सका — अपना कनेक्शन जांचें और फिर कोशिश करें",
+  "applyUploadFailedPan": "आपका पैन कार्ड अपलोड नहीं हो सका — अपना कनेक्शन जांचें और फिर कोशिश करें",
+  "applyUploadFailedPassbook": "आपकी पासबुक फ़ोटो अपलोड नहीं हो सकी — अपना कनेक्शन जांचें और फिर कोशिश करें",
+  "profilePartnerCode": "पार्टनर आईडी: {code}",
+  "@profilePartnerCode": {"placeholders": {"code": {"type": "String"}}},
   "applyEnterAddress": "अपना पता डालें।",
 
   "pendingStillReview": "अभी समीक्षा जारी है — थोड़ी देर बाद देखें।",

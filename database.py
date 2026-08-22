@@ -562,6 +562,15 @@ def migrate_technicians_columns(conn):
     # this feeds the same human review step Aadhaar/PAN already go through.
     if "bank_passbook_url" not in cols:
         conn.execute("ALTER TABLE technicians ADD COLUMN bank_passbook_url TEXT")
+    # Assigned once, the moment an admin verifies a technician (see
+    # verify_technician in app.py) — a short human-shareable ID for the
+    # technician's own reference, distinct from their internal database id.
+    if "partner_code" not in cols:
+        conn.execute("ALTER TABLE technicians ADD COLUMN partner_code TEXT")
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_technicians_partner_code "
+            "ON technicians(partner_code) WHERE partner_code IS NOT NULL"
+        )
     conn.commit()
 
 
