@@ -545,6 +545,23 @@ def migrate_technicians_columns(conn):
         conn.execute("ALTER TABLE technicians ADD COLUMN address TEXT")
     if "upi_id" not in cols:
         conn.execute("ALTER TABLE technicians ADD COLUMN upi_id TEXT")
+    # A technician can now be skilled in more than one appliance category —
+    # categories_json holds the full list (JSON array of category codes);
+    # `category` is kept in sync as categories[0] so every older query that
+    # still filters on the single column (job routing, reporting) keeps
+    # working against at least the technician's primary skill.
+    if "categories_json" not in cols:
+        conn.execute("ALTER TABLE technicians ADD COLUMN categories_json TEXT")
+    # Aadhaar's address/QR is printed on the back, not the front — collected
+    # as its own upload alongside the existing front photo.
+    if "aadhar_document_back_url" not in cols:
+        conn.execute("ALTER TABLE technicians ADD COLUMN aadhar_document_back_url TEXT")
+    # A passbook/cancelled-cheque photo for the admin to manually cross-check
+    # against the typed bank details — there's no automatic account-
+    # ownership verification (that needs a paid penny-drop KYC vendor), so
+    # this feeds the same human review step Aadhaar/PAN already go through.
+    if "bank_passbook_url" not in cols:
+        conn.execute("ALTER TABLE technicians ADD COLUMN bank_passbook_url TEXT")
     conn.commit()
 
 

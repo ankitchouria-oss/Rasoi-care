@@ -609,7 +609,7 @@ async function loadTeam(){
       if(!t.verified){
         return `<div class="card card-p" style="border-color:var(--accent);border-width:1.5px">
           <div class="row"><div class="avatar" style="width:40px;height:40px;flex:0 0 40px;font-size:12px">${tInitials}</div>
-          <div style="flex:1"><b style="font-size:13.5px">${t.name}</b><p class="tiny muted" style="margin:2px 0 0">${t.category} · ${t.area}</p></div>
+          <div style="flex:1"><b style="font-size:13.5px">${t.name}</b><p class="tiny muted" style="margin:2px 0 0">${(t.categories&&t.categories.length?t.categories.join(', '):t.category)} · ${t.area}</p></div>
           <span class="chip chip-brass" style="height:24px;font-size:10.5px">Pending</span></div>
           <button class="btn btn-p btn-sm btn-block" style="margin-top:11px" onclick="verifyTechnician('${t.id}')">Verify &amp; bring online</button>
         </div>`;

@@ -258,11 +258,14 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
   AdminTeamMember _teamMemberFrom(Map<String, dynamic> t) {
     final name = (t['name'] as String?) ?? 'Technician';
     final online = t['online'] == true;
+    final categories = (t['categories'] as List?)?.cast<String>() ?? const [];
     return AdminTeamMember(
       id: t['id'] as String?,
       name: name,
       initials: _initials(name),
-      specialties: (t['category'] as String?) ?? '—',
+      specialties: categories.isNotEmpty
+          ? categories.join(', ')
+          : (t['category'] as String?) ?? '—',
       area: t['area'] as String?,
       statsLabel: '${_asInt(t['jobsCompleted'])} jobs',
       rating: _asDouble(t['rating']),
@@ -278,6 +281,11 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
       bankAccountName: t['bankAccountName'] as String?,
       bankAccountNumber: t['bankAccountNumber'] as String?,
       bankIfsc: t['bankIfsc'] as String?,
+      categories: categories,
+      aadharDocumentUrl: t['aadharDocumentUrl'] as String?,
+      aadharDocumentBackUrl: t['aadharDocumentBackUrl'] as String?,
+      panDocumentUrl: t['panDocumentUrl'] as String?,
+      bankPassbookUrl: t['bankPassbookUrl'] as String?,
     );
   }
 

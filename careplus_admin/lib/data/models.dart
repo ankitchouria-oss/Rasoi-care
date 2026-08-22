@@ -127,6 +127,11 @@ class AdminTeamMember {
     this.bankAccountName,
     this.bankAccountNumber,
     this.bankIfsc,
+    this.categories = const [],
+    this.aadharDocumentUrl,
+    this.aadharDocumentBackUrl,
+    this.panDocumentUrl,
+    this.bankPassbookUrl,
   });
   final String name;
   final String initials;
@@ -144,6 +149,11 @@ class AdminTeamMember {
   final String? bankAccountName;
   final String? bankAccountNumber;
   final String? bankIfsc;
+  final List<String> categories;
+  final String? aadharDocumentUrl;
+  final String? aadharDocumentBackUrl;
+  final String? panDocumentUrl;
+  final String? bankPassbookUrl;
 }
 
 /// The backend only tracks active/suspended — there's no "invited" state

@@ -44,6 +44,7 @@ dependencies:
   geolocator: ^13.0.2          # live GPS -> technician_locations while on duty + active job
   firebase_storage: ^12.4.10
   image_picker: ^1.2.3
+  google_mlkit_text_recognition: ^0.15.0  # on-device OCR: best-effort address autofill from the Aadhaar back photo
   google_maps_flutter: ^2.18.0
   url_launcher: ^6.3.2
   smart_auth: ^3.2.0          # real SMS auto-read on the OTP screen (User Consent API)
