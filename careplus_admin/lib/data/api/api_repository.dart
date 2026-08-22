@@ -29,24 +29,25 @@ const _timeout = Duration(seconds: 8);
 
 class ApiRepository extends ChangeNotifier implements AdminRepository {
   ApiRepository({http.Client? client}) : _client = client ?? http.Client() {
-    // Open endpoints — no auth needed, safe to fetch as soon as the
-    // repository is first used (see providers.dart).
+    // Every one of these needs a signed-in staff member's token — the
+    // backend used to serve bookings/stats/inventory/complaints to anyone
+    // with no token at all. The repository can be constructed before
+    // Firebase Auth has restored `currentUser` on a cold start, so try once
+    // now and again the moment auth state actually settles, rather than
+    // only once at construction.
     unawaited(_fetchOverviewStats());
     unawaited(_fetchBookings());
     unawaited(_fetchInventory());
     unawaited(_fetchComplaints());
-    // Staff-gated endpoints need a signed-in Firebase user's token. The
-    // repository can be constructed before Firebase Auth has restored
-    // `currentUser` on a cold start, so try once now and again the moment
-    // auth state actually settles, rather than only once at construction.
-    // GET /api/technicians moved here from the open group above once it
-    // started requiring staff auth (it used to serve a technician's full
-    // KYC dossier — bank account, PAN, Aadhaar — to anyone with no token).
     unawaited(_fetchTechnicians());
     unawaited(_fetchStaffAccounts());
     unawaited(_fetchReport(ReportRange.week));
     _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
       if (user == null) return;
+      unawaited(_fetchOverviewStats());
+      unawaited(_fetchBookings());
+      unawaited(_fetchInventory());
+      unawaited(_fetchComplaints());
       unawaited(_fetchTechnicians());
       unawaited(_fetchStaffAccounts());
       unawaited(_fetchReport(_lastReportRange));
@@ -164,8 +165,11 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
 
   Future<void> _fetchOverviewStats() async {
     try {
-      final res =
-          await _client.get(Uri.parse('${ApiConfig.baseUrl}/api/stats/overview')).timeout(_timeout);
+      final token = await _idToken();
+      if (token == null) return; // staff-gated — nothing to fetch without one
+      final res = await _client
+          .get(Uri.parse('${ApiConfig.baseUrl}/api/stats/overview'), headers: _headers(token))
+          .timeout(_timeout);
       if (res.statusCode != 200) return;
       _statsRaw = jsonDecode(res.body) as Map<String, dynamic>;
       notifyListeners();
@@ -222,16 +226,19 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
         _ => BookingCategory.inProgress,
       };
 
-  /// Deliberately unauthenticated — see list_bookings's docstring in
-  /// app.py: a Bearer token scopes the result to that token's *customer*
-  /// account (looked up in the `users` table), which has nothing to do
-  /// with this staff member's own bookings. Sending one here would silently
-  /// turn the admin queue into "my own customer bookings" (usually empty)
-  /// for any staff member who happens to also have a customer account on
-  /// the same Firebase project.
+  /// A Bearer token now decides the shape of the response server-side: a
+  /// *staff* token (what we always send here) gets the full ops queue; a
+  /// *customer* token would instead get just that customer's own bookings.
+  /// Since staff and customer accounts are separate Firebase users, this
+  /// staff member's token can never be misread as a customer token, so the
+  /// admin queue always gets the full list it needs.
   Future<void> _fetchBookings() async {
     try {
-      final res = await _client.get(Uri.parse('${ApiConfig.baseUrl}/api/bookings')).timeout(_timeout);
+      final token = await _idToken();
+      if (token == null) return; // staff-gated — nothing to fetch without one
+      final res = await _client
+          .get(Uri.parse('${ApiConfig.baseUrl}/api/bookings'), headers: _headers(token))
+          .timeout(_timeout);
       if (res.statusCode != 200) return;
       _bookingsRaw = jsonDecode(res.body) as List<dynamic>;
       notifyListeners();
@@ -329,8 +336,11 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
 
   Future<void> _fetchInventory() async {
     try {
-      final res =
-          await _client.get(Uri.parse('${ApiConfig.baseUrl}/api/inventory')).timeout(_timeout);
+      final token = await _idToken();
+      if (token == null) return; // staff-gated — nothing to fetch without one
+      final res = await _client
+          .get(Uri.parse('${ApiConfig.baseUrl}/api/inventory'), headers: _headers(token))
+          .timeout(_timeout);
       if (res.statusCode != 200) return;
       _inventoryRaw = jsonDecode(res.body) as List<dynamic>;
       notifyListeners();
@@ -361,8 +371,11 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
   // ========================================================= COMPLAINTS
   Future<void> _fetchComplaints() async {
     try {
-      final res =
-          await _client.get(Uri.parse('${ApiConfig.baseUrl}/api/complaints')).timeout(_timeout);
+      final token = await _idToken();
+      if (token == null) return; // staff-gated — nothing to fetch without one
+      final res = await _client
+          .get(Uri.parse('${ApiConfig.baseUrl}/api/complaints'), headers: _headers(token))
+          .timeout(_timeout);
       if (res.statusCode != 200) return;
       _complaintsRaw = jsonDecode(res.body) as List<dynamic>;
       notifyListeners();
