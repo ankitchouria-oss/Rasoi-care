@@ -247,12 +247,30 @@ def complaint_row_to_dict(row):
     }
 
 
+def technician_categories(row):
+    """A technician can be skilled in more than one category; categories_json
+    holds the full list. Older rows (or rows never updated since) only have
+    the single `category` column — fall back to a one-item list from that so
+    every caller can treat "categories" as always-a-list."""
+    keys = row.keys()
+    raw = row["categories_json"] if "categories_json" in keys else None
+    if raw:
+        try:
+            cats = json.loads(raw)
+            if isinstance(cats, list) and cats:
+                return cats
+        except (TypeError, ValueError):
+            pass
+    return [row["category"]] if row["category"] else []
+
+
 def technician_row_to_dict(row):
     keys = row.keys()
     return {
         "id": row["id"],
         "name": row["name"],
         "category": row["category"],
+        "categories": technician_categories(row),
         "area": row["area"] if "area" in keys else "",
         "email": row["email"] if "email" in keys else None,
         "verified": bool(row["verified"]) if "verified" in keys else True,
@@ -277,7 +295,11 @@ def technician_row_to_dict(row):
         if "emergency_contact_phone" in keys
         else None,
         "aadharDocumentUrl": row["aadhar_document_url"] if "aadhar_document_url" in keys else None,
+        "aadharDocumentBackUrl": row["aadhar_document_back_url"]
+        if "aadhar_document_back_url" in keys
+        else None,
         "panDocumentUrl": row["pan_document_url"] if "pan_document_url" in keys else None,
+        "bankPassbookUrl": row["bank_passbook_url"] if "bank_passbook_url" in keys else None,
         "address": row["address"] if "address" in keys else None,
         "upiId": row["upi_id"] if "upi_id" in keys else None,
         "applicationSubmitted": bool(row["application_submitted"])
@@ -1247,30 +1269,43 @@ def _route_technician(conn, category, area, exclude_id=None, allow_any_category=
     purifier technician who won't be able to do the work is worse than
     just cancelling it, and unlike creation, a decline has an existing,
     valid technician_id it can fall back to leaving in place or cancelling
-    instead of forcing a bad match."""
+    instead of forcing a bad match.
+
+    A technician can now be skilled in more than one category (see
+    technician_categories), so category membership can't just be a SQL
+    `WHERE category = ?` any more — it's checked in Python against each
+    row's full category list instead."""
     exclude_clause = " AND id != ?" if exclude_id else ""
     exclude_args = (exclude_id,) if exclude_id else ()
+
+    def _first_matching(rows):
+        for row in rows:
+            if category in technician_categories(row):
+                return row
+        return None
+
     match = None
     if area:
-        match = conn.execute(
-            "SELECT id FROM technicians WHERE category = ? AND area = ? "
-            "AND verified = 1 AND online = 1" + exclude_clause + " LIMIT 1",
-            (category, area) + exclude_args,
-        ).fetchone()
+        rows = conn.execute(
+            "SELECT * FROM technicians WHERE area = ? AND verified = 1 AND online = 1"
+            + exclude_clause,
+            (area,) + exclude_args,
+        ).fetchall()
+        match = _first_matching(rows)
     if not match:
-        match = conn.execute(
-            "SELECT id FROM technicians WHERE category = ? AND verified = 1 AND online = 1"
-            + exclude_clause + " LIMIT 1",
-            (category,) + exclude_args,
-        ).fetchone()
+        rows = conn.execute(
+            "SELECT * FROM technicians WHERE verified = 1 AND online = 1" + exclude_clause,
+            exclude_args,
+        ).fetchall()
+        match = _first_matching(rows)
     if not match:
         # No one for this category is online right now — still prefer a
         # same-specialty technician (even offline/unverified) over an
         # unrelated one; a mismatched specialty is worse than a wait.
-        match = conn.execute(
-            "SELECT id FROM technicians WHERE category = ?" + exclude_clause + " LIMIT 1",
-            (category,) + exclude_args,
-        ).fetchone()
+        rows = conn.execute(
+            "SELECT * FROM technicians" + (" WHERE id != ?" if exclude_id else ""), exclude_args
+        ).fetchall()
+        match = _first_matching(rows)
     if not match and allow_any_category:
         match = conn.execute(
             "SELECT id FROM technicians" + (" WHERE id != ?" if exclude_id else "") + " LIMIT 1",
@@ -1811,7 +1846,6 @@ def update_technician_me():
     tech = request.technician
     fields = {
         "name": data.get("name"),
-        "category": data.get("category"),
         "area": data.get("area"),
         "photo_url": data.get("photoUrl"),
         "experience_years": data.get("experienceYears"),
@@ -1826,7 +1860,9 @@ def update_technician_me():
         "emergency_contact_name": data.get("emergencyContactName"),
         "emergency_contact_phone": data.get("emergencyContactPhone"),
         "aadhar_document_url": data.get("aadharDocumentUrl"),
+        "aadhar_document_back_url": data.get("aadharDocumentBackUrl"),
         "pan_document_url": data.get("panDocumentUrl"),
+        "bank_passbook_url": data.get("bankPassbookUrl"),
         "address": data.get("address"),
         "upi_id": data.get("upiId"),
     }
@@ -1836,6 +1872,16 @@ def update_technician_me():
             conn.execute(
                 f"UPDATE technicians SET {column} = ? WHERE id = ?", (value, tech["id"])
             )
+    # `categories` (a list) doesn't map to one column — store the full list
+    # as JSON, and keep `category` in sync as the first pick so job-routing
+    # queries that still filter on the single column at least match the
+    # technician's primary skill.
+    categories = data.get("categories")
+    if isinstance(categories, list) and categories:
+        conn.execute(
+            "UPDATE technicians SET categories_json = ?, category = ? WHERE id = ?",
+            (json.dumps(categories), categories[0], tech["id"]),
+        )
     if data.get("submit"):
         conn.execute(
             "UPDATE technicians SET application_submitted = 1 WHERE id = ?", (tech["id"],)

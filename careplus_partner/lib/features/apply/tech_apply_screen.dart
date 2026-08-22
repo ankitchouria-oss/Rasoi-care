@@ -12,10 +12,13 @@
 // only thing that overwrites what's already on file; everything else is
 // just a normal field update via the same PATCH /api/technician/me call.
 
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/widgets/care_widgets.dart';
@@ -23,8 +26,16 @@ import '../../core/theme/care_plus_theme.dart';
 import '../../data/auth/auth_service.dart';
 import '../../l10n/l10n_extensions.dart';
 import '../../state/auth_providers.dart';
+import 'aadhaar_ocr.dart';
 
-const _categories = [
+/// IFSC decodes to a bank + branch via Razorpay's free, public, no-key-
+/// needed lookup — real-time confirmation that a typo'd code gets caught
+/// before submitting, not a substitute for actual account-ownership
+/// verification (that needs a paid penny-drop KYC vendor this app doesn't
+/// have credentials for).
+final _ifscFormatRe = RegExp(r'^[A-Z]{4}0[A-Z0-9]{6}$');
+
+const _categoryOptions = [
   ('RasoiAir', 'Chimney'),
   ('RasoiSpark', 'Hob / Cooktop'),
   ('RasoiWash', 'Dishwasher'),
@@ -39,6 +50,18 @@ const _categories = [
 const _cities = ['Nashik', 'Pune', 'Mumbai', 'Nagpur', 'Aurangabad'];
 
 final _nameCharsRe = RegExp(r'^[A-Za-z ]*$');
+
+/// A technician can be skilled in more than one appliance category, so this
+/// prefills from the new `categories` list the backend returns; a record
+/// saved before that existed only has the old single `category` field.
+Set<String> _initialCategories(Map<String, dynamic>? existing) {
+  final raw = existing?['categories'];
+  if (raw is List && raw.isNotEmpty) {
+    return raw.map((e) => e.toString()).toSet();
+  }
+  final single = existing?['category'] as String?;
+  return single == null || single.isEmpty ? {} : {single};
+}
 
 class TechApplyScreen extends ConsumerStatefulWidget {
   const TechApplyScreen({super.key, this.existing});
@@ -75,24 +98,86 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
   late final _addressCtrl =
       TextEditingController(text: widget.existing?['address'] as String? ?? '');
   late final _upiCtrl = TextEditingController(text: widget.existing?['upiId'] as String? ?? '');
-  late String? _category = widget.existing?['category'] as String?;
+  late final Set<String> _categories = _initialCategories(widget.existing);
   late String? _city = _cities.contains(widget.existing?['area'])
       ? widget.existing!['area'] as String
       : null;
   late final String? _existingPhotoUrl = widget.existing?['photoUrl'] as String?;
   late final String? _existingAadharDocumentUrl =
       widget.existing?['aadharDocumentUrl'] as String?;
+  late final String? _existingAadharDocumentBackUrl =
+      widget.existing?['aadharDocumentBackUrl'] as String?;
   late final String? _existingPanDocumentUrl = widget.existing?['panDocumentUrl'] as String?;
+  late final String? _existingPassbookUrl = widget.existing?['bankPassbookUrl'] as String?;
   File? _photo;
   File? _aadharDocument;
+  File? _aadharDocumentBack;
   File? _panDocument;
+  File? _passbookDocument;
   bool _agreedToTerms = false;
   bool _submitting = false;
+  bool _addressAutofilled = false;
+  Timer? _ifscDebounce;
+  String? _ifscBankBranch;
+  bool _ifscLookupFailed = false;
 
   bool get _isEditing => widget.existing != null;
 
   @override
+  void initState() {
+    super.initState();
+    _bankIfscCtrl.addListener(_onIfscChanged);
+    if (_ifscFormatRe.hasMatch(_bankIfscCtrl.text.trim().toUpperCase())) {
+      _lookupIfsc(_bankIfscCtrl.text.trim().toUpperCase());
+    }
+  }
+
+  void _onIfscChanged() {
+    _ifscDebounce?.cancel();
+    final code = _bankIfscCtrl.text.trim().toUpperCase();
+    if (!_ifscFormatRe.hasMatch(code)) {
+      if (_ifscBankBranch != null || _ifscLookupFailed) {
+        setState(() {
+          _ifscBankBranch = null;
+          _ifscLookupFailed = false;
+        });
+      }
+      return;
+    }
+    _ifscDebounce = Timer(const Duration(milliseconds: 500), () => _lookupIfsc(code));
+  }
+
+  Future<void> _lookupIfsc(String code) async {
+    try {
+      final res = await http
+          .get(Uri.parse('https://ifsc.razorpay.com/$code'))
+          .timeout(const Duration(seconds: 6));
+      if (!mounted) return;
+      if (res.statusCode != 200) {
+        setState(() {
+          _ifscBankBranch = null;
+          _ifscLookupFailed = true;
+        });
+        return;
+      }
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final bank = body['BANK'] as String?;
+      final branch = body['BRANCH'] as String?;
+      setState(() {
+        _ifscLookupFailed = false;
+        _ifscBankBranch =
+            [bank, branch].where((s) => s != null && s.isNotEmpty).join(' — ');
+      });
+    } catch (_) {
+      // No network / lookup service unreachable — not a reason to block
+      // submission, just no confirmation shown for now.
+    }
+  }
+
+  @override
   void dispose() {
+    _ifscDebounce?.cancel();
+    _bankIfscCtrl.removeListener(_onIfscChanged);
     _nameCtrl.dispose();
     _experienceCtrl.dispose();
     _bankNameCtrl.dispose();
@@ -134,15 +219,44 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
     if (picked != null) setState(() => _aadharDocument = File(picked.path));
   }
 
+  /// The address (and the QR code) is printed on the Aadhaar card's *back*,
+  /// not the front — so this is also the photo the OCR autofill in
+  /// [_tryAutofillAddress] reads from.
+  Future<void> _pickAadharDocumentBack() async {
+    final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 80);
+    if (picked == null) return;
+    final file = File(picked.path);
+    setState(() => _aadharDocumentBack = file);
+    await _tryAutofillAddress(file);
+  }
+
+  /// Runs on-device OCR against the just-picked Aadhaar back photo and, if
+  /// it can find an address-shaped block of text, prefills the address
+  /// field with it — always still editable, never silently trusted (see
+  /// aadhaar_ocr.dart for why).
+  Future<void> _tryAutofillAddress(File file) async {
+    final address = await extractAddressFromImage(file);
+    if (!mounted || address == null || address.isEmpty) return;
+    setState(() {
+      _addressCtrl.text = address;
+      _addressAutofilled = true;
+    });
+  }
+
   Future<void> _pickPanDocument() async {
     final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 80);
     if (picked != null) setState(() => _panDocument = File(picked.path));
   }
 
+  Future<void> _pickPassbookDocument() async {
+    final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 80);
+    if (picked != null) setState(() => _passbookDocument = File(picked.path));
+  }
+
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     final t = context.l10n;
-    if (_category == null) {
+    if (_categories.isEmpty) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(t.applyPickCategory)));
       return;
@@ -160,6 +274,11 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
     if (_aadharDocument == null && _existingAadharDocumentUrl == null) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(t.applyUploadAadhaar)));
+      return;
+    }
+    if (_aadharDocumentBack == null && _existingAadharDocumentBackUrl == null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(t.applyUploadAadhaarBack)));
       return;
     }
     if (_panDocument == null && _existingPanDocumentUrl == null) {
@@ -183,18 +302,26 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
       final aadharDocumentUrl = _aadharDocument == null
           ? null
           : await uploadService.upload(_aadharDocument!, kind: 'aadhar_document');
+      final aadharDocumentBackUrl = _aadharDocumentBack == null
+          ? null
+          : await uploadService.upload(_aadharDocumentBack!, kind: 'aadhar_document_back');
       final panDocumentUrl = _panDocument == null
           ? null
           : await uploadService.upload(_panDocument!, kind: 'pan_document');
+      final passbookUrl = _passbookDocument == null
+          ? null
+          : await uploadService.upload(_passbookDocument!, kind: 'bank_passbook');
       final fields = {
         'name': _nameCtrl.text.trim(),
-        'category': _category,
+        'categories': _categories.toList(),
         'area': _city,
         'address': _addressCtrl.text.trim(),
         'experienceYears': int.tryParse(_experienceCtrl.text.trim()),
         if (photoUrl != null) 'photoUrl': photoUrl,
         if (aadharDocumentUrl != null) 'aadharDocumentUrl': aadharDocumentUrl,
+        if (aadharDocumentBackUrl != null) 'aadharDocumentBackUrl': aadharDocumentBackUrl,
         if (panDocumentUrl != null) 'panDocumentUrl': panDocumentUrl,
+        if (passbookUrl != null) 'bankPassbookUrl': passbookUrl,
         'bankAccountName': _bankNameCtrl.text.trim(),
         'bankAccountNumber': _bankAccountCtrl.text.trim(),
         'bankIfsc': _bankIfscCtrl.text.trim(),
@@ -306,17 +433,26 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
                         }),
                     const SizedBox(height: 18),
                     Eyebrow(t.applyWorkQuestion),
+                    const SizedBox(height: 4),
+                    Text(t.applySelectTrade, style: context.type.bodySmall),
                     const SizedBox(height: 8),
-                    DropdownButtonFormField<String>(
-                      initialValue: _category,
-                      isExpanded: true,
-                      decoration: const InputDecoration(border: OutlineInputBorder()),
-                      hint: Text(t.applySelectTrade),
-                      items: [
-                        for (final c in _categories)
-                          DropdownMenuItem(value: c.$1, child: Text(c.$2)),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final c in _categoryOptions)
+                          FilterChip(
+                            label: Text(c.$2),
+                            selected: _categories.contains(c.$1),
+                            onSelected: (selected) => setState(() {
+                              if (selected) {
+                                _categories.add(c.$1);
+                              } else {
+                                _categories.remove(c.$1);
+                              }
+                            }),
+                          ),
                       ],
-                      onChanged: (v) => setState(() => _category = v),
                     ),
                     const SizedBox(height: 18),
                     Eyebrow(t.applyLiveQuestion),
@@ -351,9 +487,18 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
                             label: _aadharDocument != null
                                 ? _aadharDocument!.path.split('/').last
                                 : (_existingAadharDocumentUrl != null
-                                    ? t.applyAadhaarUploaded
-                                    : t.applyAadhaarUpload),
+                                    ? t.applyAadhaarFrontUploaded
+                                    : t.applyAadhaarFrontUpload),
                             onTap: _pickAadharDocument,
+                          ),
+                          const SizedBox(height: 10),
+                          _DocPickerRow(
+                            label: _aadharDocumentBack != null
+                                ? _aadharDocumentBack!.path.split('/').last
+                                : (_existingAadharDocumentBackUrl != null
+                                    ? t.applyAadhaarBackUploaded
+                                    : t.applyAadhaarBackUpload),
+                            onTap: _pickAadharDocumentBack,
                           ),
                         ],
                       ),
@@ -381,8 +526,19 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
                     _SectionCard(
                       icon: Icons.home_outlined,
                       title: t.applyAddress,
-                      child: CareField(t.applyFullAddress,
-                          controller: _addressCtrl, maxLines: 3),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          CareField(t.applyFullAddress,
+                              controller: _addressCtrl, maxLines: 3),
+                          if (_addressAutofilled) ...[
+                            const SizedBox(height: 8),
+                            Text(t.applyAddressAutofilled,
+                                style: context.type.bodySmall!
+                                    .copyWith(color: context.care.success)),
+                          ],
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 16),
                     _SectionCard(
@@ -396,6 +552,17 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
                               controller: _bankAccountCtrl, keyboardType: TextInputType.number),
                           const SizedBox(height: 13),
                           CareField(t.applyIfsc, controller: _bankIfscCtrl),
+                          if (_ifscBankBranch != null) ...[
+                            const SizedBox(height: 6),
+                            Text(_ifscBankBranch!,
+                                style: context.type.bodySmall!
+                                    .copyWith(color: context.care.success)),
+                          ] else if (_ifscLookupFailed) ...[
+                            const SizedBox(height: 6),
+                            Text(t.applyIfscNotFound,
+                                style: context.type.bodySmall!
+                                    .copyWith(color: context.scheme.error)),
+                          ],
                           const SizedBox(height: 13),
                           CareField(t.applyUpi,
                               controller: _upiCtrl,
@@ -403,6 +570,15 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
                               prefix: const Icon(Icons.alternate_email, size: 18)),
                           const SizedBox(height: 13),
                           CareField(t.applyGst, controller: _gstCtrl),
+                          const SizedBox(height: 13),
+                          _DocPickerRow(
+                            label: _passbookDocument != null
+                                ? _passbookDocument!.path.split('/').last
+                                : (_existingPassbookUrl != null
+                                    ? t.applyPassbookUploaded
+                                    : t.applyPassbookUpload),
+                            onTap: _pickPassbookDocument,
+                          ),
                         ],
                       ),
                     ),

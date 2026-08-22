@@ -225,15 +225,28 @@ class _TechnicianDetailSheetState extends ConsumerState<_TechnicianDetailSheet> 
             _row(context, 'Rating', '★ ${t.rating}'),
             _row(context, 'Jobs completed', t.statsLabel),
             const SizedBox(height: 10),
-            Eyebrow('ID document'),
+            Eyebrow('Aadhaar card'),
             const SizedBox(height: 8),
-            if (t.idDocumentUrl == null)
-              Text('Not uploaded', style: context.type.bodySmall)
-            else
-              ClipRRect(
-                borderRadius: Radii.rMd,
-                child: Image.network(t.idDocumentUrl!, height: 160, fit: BoxFit.cover),
-              ),
+            Row(
+              children: [
+                Expanded(child: _docThumb(context, t.aadharDocumentUrl, 'Front')),
+                const SizedBox(width: 10),
+                Expanded(child: _docThumb(context, t.aadharDocumentBackUrl, 'Back')),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Eyebrow('PAN card'),
+            const SizedBox(height: 8),
+            _docThumb(context, t.panDocumentUrl, 'PAN'),
+            // Older technician rows created before Aadhaar/PAN got their own
+            // upload fields only ever had this generic one — still shown so
+            // nothing on file silently disappears from review.
+            if (t.idDocumentUrl != null) ...[
+              const SizedBox(height: 18),
+              Eyebrow('Other ID document'),
+              const SizedBox(height: 8),
+              _docThumb(context, t.idDocumentUrl, 'ID'),
+            ],
             const SizedBox(height: 18),
             Eyebrow('Payout bank details'),
             const SizedBox(height: 8),
@@ -242,6 +255,8 @@ class _TechnicianDetailSheetState extends ConsumerState<_TechnicianDetailSheet> 
             _row(context, 'Account number',
                 t.bankAccountNumber?.isNotEmpty == true ? t.bankAccountNumber! : '—'),
             _row(context, 'IFSC', t.bankIfsc?.isNotEmpty == true ? t.bankIfsc! : '—'),
+            const SizedBox(height: 8),
+            _docThumb(context, t.bankPassbookUrl, 'Passbook / cheque'),
             const SizedBox(height: 20),
             if (t.id != null && !t.verified)
               SizedBox(
@@ -261,6 +276,16 @@ class _TechnicianDetailSheetState extends ConsumerState<_TechnicianDetailSheet> 
           ],
         ),
       ),
+    );
+  }
+
+  Widget _docThumb(BuildContext context, String? url, String label) {
+    if (url == null) {
+      return Text('$label — not uploaded', style: context.type.bodySmall);
+    }
+    return ClipRRect(
+      borderRadius: Radii.rMd,
+      child: Image.network(url, height: 140, width: double.infinity, fit: BoxFit.cover),
     );
   }
 
