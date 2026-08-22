@@ -28,6 +28,12 @@ class SignaturePadState extends State<SignaturePad> {
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: GestureDetector(
+        // Without this, GestureDetector defers hit-testing to its child —
+        // and an empty CustomPaint canvas (or the hint Text shown before
+        // anything is drawn) never reports a hit, so drags never started
+        // registering at all. `opaque` makes the whole box catch pan
+        // gestures regardless of what's actually painted underneath.
+        behavior: HitTestBehavior.opaque,
         onPanUpdate: (d) {
           final box = context.findRenderObject() as RenderBox;
           setState(() => _points.add(box.globalToLocal(d.globalPosition)));
