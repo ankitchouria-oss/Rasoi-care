@@ -216,6 +216,8 @@
   "applyPassbookUpload": "Upload a passbook or cancelled cheque photo (optional)",
   "applyIfscNotFound": "Couldn't find this IFSC code — double check it",
   "applyAddressAutofilled": "Auto-filled from your Aadhaar card — please check it's correct",
+  "applyReadingAddress": "Reading address from photo…",
+  "applyAddressAutofillFailed": "Couldn't read an address from that photo — please type it in below",
   "applyEnterAddress": "Enter your address.",
 
   "pendingStillReview": "Still under review — check back soon.",
