@@ -11,18 +11,32 @@ import '../../data/models.dart';
 import '../../state/auth_providers.dart';
 
 // ============================================================ SPLASH
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    Timer(const Duration(milliseconds: 1600), () {
-      if (mounted) context.go('/login');
+    Timer(const Duration(milliseconds: 1600), () async {
+      // Used to always land on /login regardless of whether Firebase still
+      // had a valid persisted session — meaning a plain cold start (e.g.
+      // Android killing the app after the system back button leaves it,
+      // completely normal Android behavior, not a sign-out) forced a fresh
+      // login every single time. This only ever ran the mock/no-Firebase
+      // check the *other* two apps already had.
+      if (!ref.read(authServiceProvider).isSignedIn) {
+        if (mounted) context.go('/login');
+        return;
+      }
+      // Re-sync the real role from the backend rather than trusting
+      // whatever AuthFlowState.role defaults to (owner) — a restored
+      // session never went through the login flow that normally sets it.
+      await ref.read(authFlowProvider.notifier).bootstrapAndSyncRole();
+      if (mounted) context.go('/dashboard');
     });
   }
 

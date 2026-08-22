@@ -17,7 +17,9 @@ class StaffAccessScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final staff = ref.watch(repositoryProvider).staffAccounts();
+    final repo = ref.watch(repositoryProvider);
+    final staff = repo.staffAccounts();
+    final failed = repo.fetchFailed('staff');
 
     return Scaffold(
       appBar: AppBar(
@@ -26,9 +28,19 @@ class StaffAccessScreen extends ConsumerWidget {
       ),
       body: SafeArea(
         top: false,
-        child: staff == null
-            ? const Center(child: CircularProgressIndicator())
-            : _StaffBody(staff: staff, statusTone: _statusTone, statusLabel: _statusLabel),
+        child: staff != null
+            ? _StaffBody(staff: staff, statusTone: _statusTone, statusLabel: _statusLabel)
+            : failed
+                ? EmptyState(
+                    glyph: '⚠',
+                    title: "Couldn't load staff accounts",
+                    body: 'Check your connection and try again.',
+                    action: FilledButton(
+                      onPressed: () => repo.retryFetch('staff'),
+                      child: const Text('Retry'),
+                    ),
+                  )
+                : const Center(child: CircularProgressIndicator()),
       ),
     );
   }

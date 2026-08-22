@@ -13,9 +13,11 @@ class TeamScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final allTeam = ref.watch(repositoryProvider).team();
+    final repo = ref.watch(repositoryProvider);
+    final allTeam = repo.team();
     final filter = ref.watch(locationFilterProvider);
     final team = allTeam?.where((t) => filter.matches(t.area)).toList();
+    final failed = repo.fetchFailed('technicians');
 
     return Scaffold(
       body: SafeArea(
@@ -28,9 +30,19 @@ class TeamScreen extends ConsumerWidget {
               trailing: LocationPickerChip(),
             ),
             Expanded(
-              child: team == null
-                  ? const Center(child: CircularProgressIndicator())
-                  : _TeamBody(team: team),
+              child: team != null
+                  ? _TeamBody(team: team)
+                  : failed
+                      ? EmptyState(
+                          glyph: '⚠',
+                          title: "Couldn't load the team",
+                          body: 'Check your connection and try again.',
+                          action: FilledButton(
+                            onPressed: () => repo.retryFetch('technicians'),
+                            child: const Text('Retry'),
+                          ),
+                        )
+                      : const Center(child: CircularProgressIndicator()),
             ),
           ],
         ),
