@@ -536,7 +536,7 @@ async function boot(){
 /* ---------------- overview ---------------- */
 async function loadOverview(){
   try{
-    const stats = await apiGet('/api/stats/overview');
+    const stats = await apiGetAuth('/api/stats/overview');
     document.getElementById('statRevenue').textContent = '₹' + stats.revenue.toLocaleString('en-IN');
     document.getElementById('statBookings').textContent = stats.totalBookings;
     document.getElementById('statComplaints').textContent = stats.openComplaints;
@@ -544,7 +544,7 @@ async function loadOverview(){
   }catch(e){ console.warn(e); }
 
   try{
-    STATE.complaints = await apiGet('/api/complaints');
+    STATE.complaints = await apiGetAuth('/api/complaints');
     const open = STATE.complaints.filter(c=>c.status!=='Resolved');
     document.getElementById('attnCount').textContent = open.length + ' open';
     document.getElementById('attnList').innerHTML = open.length ? open.slice(0,6).map(c=>`
@@ -570,7 +570,7 @@ function techOptionsHtml(selectedId, bookingArea){
 /* ---------------- bookings ---------------- */
 function bookFilterPick(el){ chipPick(el); STATE.bookFilter = el.dataset.filter; renderBookings(); }
 async function loadBookings(){
-  try{ STATE.bookings = await apiGet('/api/bookings'); renderBookings(); }
+  try{ STATE.bookings = await apiGetAuth('/api/bookings'); renderBookings(); }
   catch(e){ console.warn(e); }
 }
 function renderBookings(){
@@ -683,7 +683,7 @@ async function assignTechnician(){
   const id = window._sheetBookingId;
   const techId = document.getElementById('assignSelect').value;
   try{
-    await apiPatch('/api/bookings/'+id+'/assign', { technician_id: techId });
+    await apiPatchAuth('/api/bookings/'+id+'/assign', { technician_id: techId });
     toast('Technician assigned');
     closeSheet();
     await loadBookings();
@@ -719,7 +719,7 @@ async function resolveComplaint(){
   const id = window._sheetComplaintId;
   const response = document.getElementById('complaintResponse').value.trim();
   try{
-    await apiPatch('/api/complaints/'+id, { response, status: 'Resolved' });
+    await apiPatchAuth('/api/complaints/'+id, { response, status: 'Resolved' });
     toast('Complaint resolved');
     closeSheet();
     await loadOverview();
@@ -776,7 +776,7 @@ function reportsPeriodPick(el, period){ chipPick(el); loadReports(period); }
 /* ---------------- stock ---------------- */
 async function loadInventory(){
   try{
-    STATE.inventory = await apiGet('/api/inventory');
+    STATE.inventory = await apiGetAuth('/api/inventory');
     const low = STATE.inventory.filter(i=>i.lowStock);
     const alertCard = document.getElementById('stockAlertCard');
     if(low.length){

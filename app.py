@@ -12,8 +12,11 @@ import json
 import re
 import secrets
 import sys
+import time
+from collections import defaultdict, deque
 from datetime import datetime, timedelta, timezone
 from functools import wraps
+from threading import Lock
 
 import jwt
 from flask import Flask, request, jsonify, send_from_directory
@@ -22,6 +25,64 @@ from database import get_db, init_db, next_id, now, new_uuid_id
 
 app = Flask(__name__)
 FRONTEND_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+# ---------------------------------------------------------------- rate limiting
+# In-memory sliding-window counters — no extra dependency (Flask-Limiter) or
+# shared store (Redis) needed: this deploys as a single gunicorn worker (see
+# Procfile/render.yaml, no --workers flag), so one process's memory *is* the
+# whole app's state. Won't survive a restart and wouldn't be enough on a
+# multi-worker/multi-instance deploy, but is a real, meaningful brake on a
+# scripted brute-force or spam attempt against the current deployment.
+_rate_buckets = defaultdict(deque)
+_rate_lock = Lock()
+
+
+def _rate_limited(key, max_calls, window_seconds):
+    now_ts = time.monotonic()
+    with _rate_lock:
+        bucket = _rate_buckets[key]
+        while bucket and now_ts - bucket[0] > window_seconds:
+            bucket.popleft()
+        if len(bucket) >= max_calls:
+            return True
+        bucket.append(now_ts)
+        return False
+
+
+def _client_ip():
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.remote_addr or "unknown"
+
+
+@app.before_request
+def _global_rate_limit():
+    """A coarse per-IP cap across the whole API — not meant to police normal
+    usage (well under this for any real app screen), just to stop a bot from
+    hammering the backend with an unbounded loop."""
+    if not request.path.startswith("/api/"):
+        return None
+    if _rate_limited(f"ip:{_client_ip()}", max_calls=180, window_seconds=60):
+        return jsonify({"error": "Too Many Requests", "message": "Slow down and try again shortly"}), 429
+    return None
+
+
+@app.after_request
+def _security_headers(response):
+    """Render's edge already forces HTTPS for the public *.onrender.com
+    domain (HTTP requests get redirected before they ever reach this app),
+    so HSTS here is defense in depth for any client that talks to us
+    directly rather than through a browser redirect. The rest guard the
+    legacy static HTML consoles (admin.html/technician.html/etc, served by
+    this same app) against being framed or having their MIME type sniffed
+    into something executable."""
+    response.headers.setdefault("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    return response
 
 # Previously fell back to a hardcoded, publicly-committed string
 # ("rasoicare-dev-secret-change-in-prod") — anyone reading this source
@@ -559,9 +620,17 @@ def require_technician_auth(fn):
 
 @app.route("/api/staff/login", methods=["POST"])
 def staff_login():
+    """Phone + PIN login — a PIN is short (a handful of digits), so this is
+    exactly the kind of endpoint a brute-force script would target. Gated
+    per phone number (so guessing one account's PIN is slow) and per IP (so
+    rotating phone numbers from one source doesn't dodge the first limit)."""
     data = request.get_json(force=True, silent=True) or {}
     phone = (data.get("phone") or "").strip()
     pin = data.get("pin") or ""
+    if _rate_limited(f"stafflogin:{phone}", max_calls=8, window_seconds=300) or _rate_limited(
+        f"stafflogin_ip:{_client_ip()}", max_calls=20, window_seconds=300
+    ):
+        return jsonify({"error": "Too many attempts", "message": "Try again in a few minutes"}), 429
     conn = get_db()
     row = conn.execute("SELECT * FROM staff WHERE phone = ?", (phone,)).fetchone()
     conn.close()
@@ -1049,11 +1118,15 @@ def get_health_score():
 
 
 @app.route("/api/bookings/<booking_id>/health-update", methods=["POST"])
+@require_technician_auth
 def update_booking_health(booking_id):
-    """Called by the Technician app after completing a job — not auth-
-    required (the technician app has no login system; the booking's own
-    user_id tells us whose Kitchen Health Score to update, same pattern
-    as /advance and the rating endpoint)."""
+    """Called by the Partner app after completing a job. Requires the same
+    Firebase-verified technician session as /advance, and only the
+    technician actually assigned to this booking can post a health update
+    for it — otherwise any technician could write appliance-health data
+    onto a stranger's booking. technician.html has no login system and
+    can't send this, so its own health-update button already stopped
+    working when /advance picked up the same auth requirement."""
     data = request.get_json(force=True, silent=True) or {}
     metric_name = (data.get("metric_name") or "").strip()
     status_label = (data.get("status_label") or "").strip()
@@ -1070,6 +1143,9 @@ def update_booking_health(booking_id):
     if not booking:
         conn.close()
         return jsonify({"error": "not found"}), 404
+    if booking["technician_id"] != request.technician["id"]:
+        conn.close()
+        return jsonify({"error": "Forbidden"}), 403
     if not booking["user_id"]:
         conn.close()
         return jsonify({"error": "This booking has no associated user account"}), 400
@@ -1113,11 +1189,19 @@ def update_booking_health(booking_id):
 # ---------------------------------------------------------------- bookings
 @app.route("/api/bookings", methods=["GET"])
 def list_bookings():
-    """Auth-optional: with a Bearer token, returns only that user's
-    bookings (the authenticated "my bookings" view). Without one, returns
-    every booking — this is what technician.html/admin.html rely on for
-    their unauthenticated ops views, so it must keep working unchanged."""
+    """Used to be auth-optional: with no Bearer token at all it returned
+    every booking in the system (every customer's name/phone/address), so
+    anyone who found the URL could scrape the whole booking log. Now a
+    valid token is mandatory — a customer token scopes to that customer's
+    own bookings (the app's "my bookings" view); a staff token gets the
+    full ops list the Admin app/admin.html need. technician.html sends
+    neither (it has no login system) and so no longer gets a response —
+    an accepted regression, same as the /advance and /health-update gates
+    it was already broken against."""
     user = get_current_user_optional()
+    staff = get_current_staff_optional() if not user else None
+    if not user and not staff:
+        return jsonify({"error": "Unauthorized", "message": "Missing or invalid bearer token"}), 401
     conn = get_db()
     if user:
         rows = conn.execute(
@@ -1131,10 +1215,13 @@ def list_bookings():
 
 @app.route("/api/bookings/<booking_id>", methods=["GET"])
 def get_booking(booking_id):
-    """Auth-optional, same reasoning as list_bookings: with a token the
-    caller can only fetch their own booking (404s otherwise, not 403, to
-    avoid confirming other ids exist); without one, unrestricted."""
+    """Same auth requirement as list_bookings: a customer token can only
+    fetch their own booking (404s otherwise, not 403, to avoid confirming
+    other ids exist); a staff token can fetch any booking."""
     user = get_current_user_optional()
+    staff = get_current_staff_optional() if not user else None
+    if not user and not staff:
+        return jsonify({"error": "Unauthorized", "message": "Missing or invalid bearer token"}), 401
     conn = get_db()
     row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
     conn.close()
@@ -1467,10 +1554,13 @@ def cancel_booking(booking_id):
 
 
 @app.route("/api/bookings/<booking_id>/assign", methods=["PATCH"])
+@require_staff_auth
 def assign_technician(booking_id):
     """Called by the Admin app to assign or reassign which technician is on
     a booking — e.g. routing a freshly requested job, or swapping in a
-    replacement if the original technician can't make it."""
+    replacement if the original technician can't make it. Staff-only: this
+    reroutes real jobs and money, so it shouldn't be callable by anyone who
+    just finds the URL."""
     data = request.get_json(force=True, silent=True) or {}
     technician_id = data.get("technician_id")
     if not technician_id:
@@ -1498,10 +1588,15 @@ def assign_technician(booking_id):
 
 
 @app.route("/api/bookings/<booking_id>/rating", methods=["POST"])
+@require_auth
 def rate_booking(booking_id):
     """Called by the Customer app after a job completes. Updates the
     booking's ratings, rolls the technician's aggregate rating, and
-    optionally opens a complaint — all in one transaction."""
+    optionally opens a complaint — all in one transaction. Only the
+    booking's own customer can rate it — without this check, anyone with a
+    valid customer account (their own, on any booking) could drag down a
+    technician's rating or spam fake complaints against jobs that aren't
+    theirs."""
     data = request.get_json(force=True)
     service_rating = int(data.get("serviceRating", 0))
     tech_rating = int(data.get("techRating", 0))
@@ -1513,6 +1608,9 @@ def rate_booking(booking_id):
     if not booking:
         conn.close()
         return jsonify({"error": "not found"}), 404
+    if booking["user_id"] != request.user["id"]:
+        conn.close()
+        return jsonify({"error": "Forbidden"}), 403
 
     conn.execute(
         "UPDATE bookings SET service_rating = ?, tech_rating = ?, updated_at = ? WHERE id = ?",
@@ -1549,7 +1647,10 @@ def rate_booking(booking_id):
 
 # ---------------------------------------------------------------- complaints
 @app.route("/api/complaints", methods=["GET"])
+@require_staff_auth
 def list_complaints():
+    """Staff-only — a complaint can contain a customer's own words about a
+    bad experience, not something to leave world-readable."""
     conn = get_db()
     rows = conn.execute("SELECT * FROM complaints ORDER BY created_at DESC").fetchall()
     conn.close()
@@ -1557,9 +1658,11 @@ def list_complaints():
 
 
 @app.route("/api/complaints/<complaint_id>", methods=["PATCH"])
+@require_staff_auth
 def update_complaint(complaint_id):
-    """Called by the Technician app (respond + resolve) or the Admin
-    dashboard (force resolve / reopen)."""
+    """Called by the Admin dashboard (respond / resolve / reopen). Staff-
+    only — no real app currently lets a technician respond to a complaint
+    directly."""
     data = request.get_json(force=True)
     conn = get_db()
     row = conn.execute("SELECT * FROM complaints WHERE id = ?", (complaint_id,)).fetchone()
@@ -1773,6 +1876,7 @@ def technician_my_bookings():
 
 # ---------------------------------------------------------------- inventory
 @app.route("/api/inventory", methods=["GET"])
+@require_staff_auth
 def list_inventory():
     conn = get_db()
     rows = conn.execute("SELECT * FROM inventory ORDER BY name").fetchall()
@@ -1835,6 +1939,7 @@ def update_inventory_item(item_id):
 
 # ---------------------------------------------------------------- stats
 @app.route("/api/stats/overview", methods=["GET"])
+@require_staff_auth
 def stats_overview():
     conn = get_db()
     total_bookings = conn.execute("SELECT COUNT(*) AS n FROM bookings").fetchone()["n"]
@@ -1961,8 +2066,10 @@ def stats_reports():
 # — init_db() itself already purges any leftover demo rows on every boot,
 # so this just re-runs that, idempotently. Kept as a manual trigger for an
 # already-running instance that hasn't restarted since the demo data was
-# removed.
+# removed. Staff-only: it's harmless to the data, but there's no reason to
+# let an anonymous caller repeatedly re-run DB migrations/seeding on demand.
 @app.route("/api/reset", methods=["POST"])
+@require_staff_auth
 def reset():
     init_db()
     return jsonify({"ok": True})
