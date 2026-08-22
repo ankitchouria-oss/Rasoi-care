@@ -234,10 +234,23 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
   }
 
   Future<void> _listenForSms() async {
-    final result = await SmartAuth.instance.getSmsWithUserConsentApi();
+    // Firebase's codes are always exactly 6 digits — matching that exactly
+    // (rather than the package's default 4-8 digit range) avoids grabbing
+    // the wrong digit run out of an SMS that happens to contain other
+    // numbers (a DLT sender-ID header, a phone number, etc.) before the
+    // real code.
+    final result = await SmartAuth.instance.getSmsWithUserConsentApi(matcher: r'\d{6}');
     if (!mounted) return;
     final code = result.data?.code;
-    if (code == null || code.length != _length) return;
+    if (code == null || code.length != _length) {
+      // Not surfaced to the user — the manual code boxes are already
+      // focused and usable, so a missed auto-read isn't a dead end, just a
+      // convenience that didn't fire this time (e.g. the sender is saved
+      // as a contact, which Android's User Consent API deliberately
+      // ignores, or the OS-level "Allow?" prompt was dismissed).
+      debugPrint('OtpScreen: SMS auto-read found no usable code (result: $result)');
+      return;
+    }
     setState(() => _codeCtrl.text = code);
     _submit();
   }
@@ -278,6 +291,10 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     final phone = ref.read(authFlowProvider).phone;
     setState(() => _secs = 24);
     await ref.read(authFlowProvider.notifier).sendOtp(phone);
+    // getSmsWithUserConsentApi's native listener is one-shot — it already
+    // resolved (or timed out) for the first SMS, so a resent code needs its
+    // own fresh registration or auto-fill would never see it.
+    if (!ref.read(authFlowProvider.notifier).isMock) _listenForSms();
   }
 
   @override
