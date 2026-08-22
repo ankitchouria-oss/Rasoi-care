@@ -132,6 +132,7 @@ class AdminTeamMember {
     this.aadharDocumentBackUrl,
     this.panDocumentUrl,
     this.bankPassbookUrl,
+    this.partnerCode,
   });
   final String name;
   final String initials;
@@ -154,6 +155,7 @@ class AdminTeamMember {
   final String? aadharDocumentBackUrl;
   final String? panDocumentUrl;
   final String? bankPassbookUrl;
+  final String? partnerCode;
 }
 
 /// The backend only tracks active/suspended — there's no "invited" state

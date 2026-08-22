@@ -8,6 +8,7 @@ import '../../data/models.dart';
 import '../../state/providers.dart';
 import '../../state/auth_providers.dart';
 import 'dashboard_header.dart';
+import 'location_picker.dart';
 
 class ReportsScreen extends ConsumerWidget {
   const ReportsScreen({super.key});
@@ -15,7 +16,8 @@ class ReportsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final range = ref.watch(reportRangeProvider);
-    final report = ref.watch(repositoryProvider).report(range);
+    final filter = ref.watch(locationFilterProvider);
+    final report = ref.watch(repositoryProvider).report(range, district: filter.district);
     final role = ref.watch(currentRoleProvider);
 
     return Scaffold(
@@ -23,7 +25,11 @@ class ReportsScreen extends ConsumerWidget {
         bottom: false,
         child: Column(
           children: [
-            const DashboardHeader(eyebrow: 'Analysis & reports', title: 'Nashik cluster'),
+            DashboardHeader(
+              eyebrow: 'Analysis & reports',
+              title: filter.stateName,
+              trailing: const LocationPickerChip(),
+            ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: _RangeSeg(

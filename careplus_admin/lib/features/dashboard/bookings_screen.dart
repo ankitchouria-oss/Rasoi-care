@@ -7,6 +7,7 @@ import '../../core/theme/care_plus_theme.dart';
 import '../../data/models.dart';
 import '../../state/providers.dart';
 import 'dashboard_header.dart';
+import 'location_picker.dart';
 
 class BookingsScreen extends ConsumerStatefulWidget {
   const BookingsScreen({super.key});
@@ -32,14 +33,20 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bookings = ref.watch(repositoryProvider).bookings();
+    final allBookings = ref.watch(repositoryProvider).bookings();
+    final filter = ref.watch(locationFilterProvider);
+    final bookings = allBookings?.where((b) => filter.matches(b.area)).toList();
 
     return Scaffold(
       body: SafeArea(
         bottom: false,
         child: Column(
           children: [
-            const DashboardHeader(eyebrow: 'Rasoi Care operations', title: 'Bookings queue'),
+            const DashboardHeader(
+              eyebrow: 'Rasoi Care operations',
+              title: 'Bookings queue',
+              trailing: LocationPickerChip(),
+            ),
             Expanded(
               child: bookings == null
                   ? const Center(child: CircularProgressIndicator())

@@ -113,6 +113,16 @@ class _TechProfileScreenState extends ConsumerState<TechProfileScreen> {
                                 : ChipTone.warning,
                           ),
                         ),
+                        if (verified && (me['partnerCode'] as String?) != null) ...[
+                          const SizedBox(height: 8),
+                          Center(
+                            child: Text(
+                              t.profilePartnerCode(me['partnerCode'] as String),
+                              style: context.type.bodySmall!
+                                  .copyWith(fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 18),
                         CareCard(
                           child: Row(

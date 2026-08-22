@@ -305,6 +305,7 @@ def technician_row_to_dict(row):
         "applicationSubmitted": bool(row["application_submitted"])
         if "application_submitted" in keys
         else True,
+        "partnerCode": row["partner_code"] if "partner_code" in keys else None,
     }
 
 
@@ -1762,18 +1763,43 @@ def create_technician():
     return jsonify(technician_row_to_dict(row)), 201
 
 
+# Excludes 0/O and 1/I — easy to confuse when a technician reads their code
+# aloud or copies it down by hand.
+_PARTNER_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+
+def _generate_partner_code(conn):
+    while True:
+        code = "RC-" + "".join(secrets.choice(_PARTNER_CODE_CHARS) for _ in range(6))
+        if not conn.execute(
+            "SELECT 1 FROM technicians WHERE partner_code = ?", (code,)
+        ).fetchone():
+            return code
+
+
 @app.route("/api/technicians/<technician_id>/verify", methods=["PATCH"])
 @require_staff_auth
 def verify_technician(technician_id):
     """Called by the Admin app once it has checked a new technician's
     documents/background — flips them verified and brings them online so
-    they start appearing in auto-routing and the job feed."""
+    they start appearing in auto-routing and the job feed. The first time a
+    technician is verified, this also mints a permanent partner code — a
+    short, human-shareable ID for their own reference, distinct from (and
+    never confused with) their internal database id. Re-verifying later
+    (there's no "unverify") keeps whatever code they already have."""
     conn = get_db()
     row = conn.execute("SELECT * FROM technicians WHERE id = ?", (technician_id,)).fetchone()
     if not row:
         conn.close()
         return jsonify({"error": "not found"}), 404
-    conn.execute("UPDATE technicians SET verified = 1, online = 1 WHERE id = ?", (technician_id,))
+    if row["partner_code"]:
+        conn.execute("UPDATE technicians SET verified = 1, online = 1 WHERE id = ?", (technician_id,))
+    else:
+        code = _generate_partner_code(conn)
+        conn.execute(
+            "UPDATE technicians SET verified = 1, online = 1, partner_code = ? WHERE id = ?",
+            (code, technician_id),
+        )
     conn.commit()
     row = conn.execute("SELECT * FROM technicians WHERE id = ?", (technician_id,)).fetchone()
     conn.close()
@@ -2020,15 +2046,39 @@ def stats_reports():
     period = request.args.get("period", "week")
     days = PERIOD_DAYS.get(period, 7)
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat(timespec="seconds") + "Z"
+    # Optional district filter (see careplus_admin's State -> District picker)
+    # — scopes every number in this report down to one operating area
+    # instead of the whole business.
+    area = (request.args.get("area") or "").strip() or None
 
     conn = get_db()
-    bookings = conn.execute(
-        BOOKING_SELECT + " WHERE created_at >= ? ORDER BY created_at", (cutoff,)
-    ).fetchall()
-    complaints = conn.execute(
-        "SELECT * FROM complaints WHERE created_at >= ?", (cutoff,)
-    ).fetchall()
-    technicians = conn.execute("SELECT * FROM technicians").fetchall()
+    # bookings.created_at must be qualified — BOOKING_SELECT LEFT JOINs
+    # technicians and users, and users has its own created_at column, so an
+    # unqualified WHERE created_at >= ? is ambiguous to SQLite (unlike an
+    # unqualified ORDER BY, which resolves against the result-set's column
+    # names rather than the source tables, so that form alone was fine).
+    # This was silently 500ing every single call before this fix, filtered
+    # or not — a pre-existing regression from BOOKING_SELECT gaining that
+    # users join, unrelated to the district filter added here.
+    if area:
+        bookings = conn.execute(
+            BOOKING_SELECT + " WHERE bookings.created_at >= ? AND bookings.area = ? ORDER BY created_at",
+            (cutoff, area),
+        ).fetchall()
+        complaints = conn.execute(
+            "SELECT complaints.* FROM complaints JOIN bookings ON bookings.id = complaints.booking_id "
+            "WHERE complaints.created_at >= ? AND bookings.area = ?",
+            (cutoff, area),
+        ).fetchall()
+        technicians = conn.execute("SELECT * FROM technicians WHERE area = ?", (area,)).fetchall()
+    else:
+        bookings = conn.execute(
+            BOOKING_SELECT + " WHERE bookings.created_at >= ? ORDER BY created_at", (cutoff,)
+        ).fetchall()
+        complaints = conn.execute(
+            "SELECT * FROM complaints WHERE created_at >= ?", (cutoff,)
+        ).fetchall()
+        technicians = conn.execute("SELECT * FROM technicians").fetchall()
     conn.close()
 
     completed = [b for b in bookings if b["status"] == "Completed"]

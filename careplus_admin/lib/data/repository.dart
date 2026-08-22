@@ -14,12 +14,15 @@
 import 'models.dart';
 
 abstract interface class AdminRepository {
-  AdminOverview? overview();
+  /// [district] scopes every number to one operating area (see
+  /// lib/data/locations.dart's State -> District picker) — null means the
+  /// whole business, matching this method's original no-argument behavior.
+  AdminOverview? overview({String? district});
   List<AdminBooking>? bookings();
   List<AdminTeamMember>? team();
   List<AdminStockItem>? stock();
   List<StaffAccount>? staffAccounts();
-  ReportBundle? report(ReportRange range);
+  ReportBundle? report(ReportRange range, {String? district});
 
   /// Approves a self-signed-up technician's application (see
   /// careplus_partner's TechApplyScreen) — flips them verified/online so

@@ -6,20 +6,27 @@ import '../../core/theme/care_plus_theme.dart';
 import '../../data/models.dart';
 import '../../state/providers.dart';
 import 'dashboard_header.dart';
+import 'location_picker.dart';
 
 class TeamScreen extends ConsumerWidget {
   const TeamScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final team = ref.watch(repositoryProvider).team();
+    final allTeam = ref.watch(repositoryProvider).team();
+    final filter = ref.watch(locationFilterProvider);
+    final team = allTeam?.where((t) => filter.matches(t.area)).toList();
 
     return Scaffold(
       body: SafeArea(
         bottom: false,
         child: Column(
           children: [
-            const DashboardHeader(eyebrow: 'Rasoi Care operations', title: 'Technician team'),
+            const DashboardHeader(
+              eyebrow: 'Rasoi Care operations',
+              title: 'Technician team',
+              trailing: LocationPickerChip(),
+            ),
             Expanded(
               child: team == null
                   ? const Center(child: CircularProgressIndicator())
@@ -80,8 +87,12 @@ class _TeamBody extends ConsumerWidget {
                         Text(t.name,
                             style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
                         const SizedBox(height: 3),
-                        Text('${t.specialties} · ${t.statsLabel}',
-                            style: context.type.bodySmall),
+                        Text(
+                          t.partnerCode != null
+                              ? '${t.specialties} · ${t.statsLabel} · ${t.partnerCode}'
+                              : '${t.specialties} · ${t.statsLabel}',
+                          style: context.type.bodySmall,
+                        ),
                       ],
                     ),
                   ),
@@ -271,7 +282,12 @@ class _TechnicianDetailSheetState extends ConsumerState<_TechnicianDetailSheet> 
               )
             else if (t.verified)
               Center(
-                child: Text('Already verified', style: context.type.bodySmall),
+                child: Text(
+                  t.partnerCode != null
+                      ? 'Verified · Partner ID ${t.partnerCode}'
+                      : 'Already verified',
+                  style: context.type.bodySmall,
+                ),
               ),
           ],
         ),
@@ -281,7 +297,24 @@ class _TechnicianDetailSheetState extends ConsumerState<_TechnicianDetailSheet> 
 
   Widget _docThumb(BuildContext context, String? url, String label) {
     if (url == null) {
-      return Text('$label — not uploaded', style: context.type.bodySmall);
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: Radii.rMd,
+          border: Border.all(color: context.care.warning.withValues(alpha: 0.4)),
+          color: context.care.warning.withValues(alpha: 0.08),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, size: 16, color: context.care.warning),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text('$label — missing',
+                  style: context.type.bodySmall!.copyWith(color: context.care.warning)),
+            ),
+          ],
+        ),
+      );
     }
     return ClipRRect(
       borderRadius: Radii.rMd,

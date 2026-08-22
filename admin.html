@@ -614,9 +614,9 @@ async function loadTeam(){
           <button class="btn btn-p btn-sm btn-block" style="margin-top:11px" onclick="verifyTechnician('${t.id}')">Verify &amp; bring online</button>
         </div>`;
       }
-      return `<div class="card card-p tap row" onclick="toast('${t.name} · ${t.jobsCompleted} jobs completed')">
+      return `<div class="card card-p tap row" onclick="toast('${t.name}${t.partnerCode?' · '+t.partnerCode:''} · ${t.jobsCompleted} jobs completed')">
         <div class="avatar" style="width:40px;height:40px;flex:0 0 40px;font-size:12px">${tInitials}</div>
-        <div style="flex:1"><b style="font-size:13.5px">${t.name}</b><p class="tiny muted" style="margin:2px 0 0">${t.category} · ${t.area}</p></div>
+        <div style="flex:1"><b style="font-size:13.5px">${t.name}</b><p class="tiny muted" style="margin:2px 0 0">${(t.categories&&t.categories.length?t.categories.join(', '):t.category)} · ${t.area}${t.partnerCode?' · '+t.partnerCode:''}</p></div>
         <div style="text-align:right"><b class="price tiny" style="color:var(--accent)">★ ${t.rating}</b><p class="tiny muted" style="margin:3px 0 0">${t.online?'On duty':'Offline'}</p></div></div>`;
     }).join('');
   }catch(e){ console.warn(e); }
