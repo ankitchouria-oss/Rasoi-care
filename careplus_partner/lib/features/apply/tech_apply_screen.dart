@@ -117,6 +117,7 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
   bool _agreedToTerms = false;
   bool _submitting = false;
   bool _addressAutofilled = false;
+  bool _autofillingAddress = false;
   Timer? _ifscDebounce;
   String? _ifscBankBranch;
   bool _ifscLookupFailed = false;
@@ -227,20 +228,32 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
     if (picked == null) return;
     final file = File(picked.path);
     setState(() => _aadharDocumentBack = file);
-    await _tryAutofillAddress(file);
+    setState(() => _autofillingAddress = true);
+    final found = await _tryAutofillAddress(file);
+    if (!mounted) return;
+    setState(() => _autofillingAddress = false);
+    if (!found) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(context.l10n.applyAddressAutofillFailed)));
+    }
   }
 
   /// Runs on-device OCR against the just-picked Aadhaar back photo and, if
   /// it can find an address-shaped block of text, prefills the address
   /// field with it — always still editable, never silently trusted (see
   /// aadhaar_ocr.dart for why).
-  Future<void> _tryAutofillAddress(File file) async {
+  /// Returns whether an address was actually found and filled in, so the
+  /// caller can tell the technician plainly when it wasn't (rather than the
+  /// picker just silently doing nothing, which is indistinguishable from a
+  /// broken feature).
+  Future<bool> _tryAutofillAddress(File file) async {
     final address = await extractAddressFromImage(file);
-    if (!mounted || address == null || address.isEmpty) return;
+    if (!mounted || address == null || address.isEmpty) return false;
     setState(() {
       _addressCtrl.text = address;
       _addressAutofilled = true;
     });
+    return true;
   }
 
   Future<void> _pickPanDocument() async {
@@ -500,6 +513,19 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
                                     : t.applyAadhaarBackUpload),
                             onTap: _pickAadharDocumentBack,
                           ),
+                          if (_autofillingAddress) ...[
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                const SizedBox(
+                                    width: 13,
+                                    height: 13,
+                                    child: CircularProgressIndicator(strokeWidth: 2)),
+                                const SizedBox(width: 8),
+                                Text(t.applyReadingAddress, style: context.type.bodySmall),
+                              ],
+                            ),
+                          ],
                         ],
                       ),
                     ),

@@ -201,6 +201,8 @@
   "applyPassbookUpload": "पासबुक या कैंसिल चेक की फ़ोटो अपलोड करें (वैकल्पिक)",
   "applyIfscNotFound": "यह IFSC कोड नहीं मिला — कृपया दोबारा जांचें",
   "applyAddressAutofilled": "आपके आधार कार्ड से अपने आप भरा गया — कृपया जांच लें कि यह सही है",
+  "applyReadingAddress": "फ़ोटो से पता पढ़ा जा रहा है…",
+  "applyAddressAutofillFailed": "उस फ़ोटो से पता नहीं पढ़ा जा सका — कृपया नीचे खुद टाइप करें",
   "applyEnterAddress": "अपना पता डालें।",
 
   "pendingStillReview": "अभी समीक्षा जारी है — थोड़ी देर बाद देखें।",
