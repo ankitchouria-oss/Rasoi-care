@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/api/api_repository.dart';
+import '../data/locations.dart';
 import '../data/models.dart';
 
 /// [ApiRepository] (see lib/data/api/api_repository.dart) is the sole
@@ -39,4 +40,20 @@ class ReportRangeVM extends Notifier<ReportRange> {
   @override
   ReportRange build() => ReportRange.week;
   void set(ReportRange r) => state = r;
+}
+
+/// Which State/District the whole dashboard (Overview, Reports, Bookings,
+/// Team) is currently scoped to — see lib/data/locations.dart.
+final locationFilterProvider = NotifierProvider<LocationFilterVM, LocationFilter>(
+  LocationFilterVM.new,
+);
+
+class LocationFilterVM extends Notifier<LocationFilter> {
+  @override
+  LocationFilter build() => LocationFilter(stateName: kStatesAndDistricts.keys.first);
+
+  void setStateName(String stateName) => state = LocationFilter(stateName: stateName);
+
+  void setDistrict(String? district) =>
+      state = LocationFilter(stateName: state.stateName, district: district);
 }

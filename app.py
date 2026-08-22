@@ -2046,15 +2046,39 @@ def stats_reports():
     period = request.args.get("period", "week")
     days = PERIOD_DAYS.get(period, 7)
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat(timespec="seconds") + "Z"
+    # Optional district filter (see careplus_admin's State -> District picker)
+    # — scopes every number in this report down to one operating area
+    # instead of the whole business.
+    area = (request.args.get("area") or "").strip() or None
 
     conn = get_db()
-    bookings = conn.execute(
-        BOOKING_SELECT + " WHERE created_at >= ? ORDER BY created_at", (cutoff,)
-    ).fetchall()
-    complaints = conn.execute(
-        "SELECT * FROM complaints WHERE created_at >= ?", (cutoff,)
-    ).fetchall()
-    technicians = conn.execute("SELECT * FROM technicians").fetchall()
+    # bookings.created_at must be qualified — BOOKING_SELECT LEFT JOINs
+    # technicians and users, and users has its own created_at column, so an
+    # unqualified WHERE created_at >= ? is ambiguous to SQLite (unlike an
+    # unqualified ORDER BY, which resolves against the result-set's column
+    # names rather than the source tables, so that form alone was fine).
+    # This was silently 500ing every single call before this fix, filtered
+    # or not — a pre-existing regression from BOOKING_SELECT gaining that
+    # users join, unrelated to the district filter added here.
+    if area:
+        bookings = conn.execute(
+            BOOKING_SELECT + " WHERE bookings.created_at >= ? AND bookings.area = ? ORDER BY created_at",
+            (cutoff, area),
+        ).fetchall()
+        complaints = conn.execute(
+            "SELECT complaints.* FROM complaints JOIN bookings ON bookings.id = complaints.booking_id "
+            "WHERE complaints.created_at >= ? AND bookings.area = ?",
+            (cutoff, area),
+        ).fetchall()
+        technicians = conn.execute("SELECT * FROM technicians WHERE area = ?", (area,)).fetchall()
+    else:
+        bookings = conn.execute(
+            BOOKING_SELECT + " WHERE bookings.created_at >= ? ORDER BY created_at", (cutoff,)
+        ).fetchall()
+        complaints = conn.execute(
+            "SELECT * FROM complaints WHERE created_at >= ?", (cutoff,)
+        ).fetchall()
+        technicians = conn.execute("SELECT * FROM technicians").fetchall()
     conn.close()
 
     completed = [b for b in bookings if b["status"] == "Completed"]

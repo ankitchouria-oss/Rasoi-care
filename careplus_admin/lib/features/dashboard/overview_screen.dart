@@ -6,19 +6,25 @@ import '../../core/theme/care_plus_theme.dart';
 import '../../data/models.dart';
 import '../../state/providers.dart';
 import 'dashboard_header.dart';
+import 'location_picker.dart';
 
 class OverviewScreen extends ConsumerWidget {
   const OverviewScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final o = ref.watch(repositoryProvider).overview();
+    final filter = ref.watch(locationFilterProvider);
+    final o = ref.watch(repositoryProvider).overview(district: filter.district);
     return Scaffold(
       body: SafeArea(
         bottom: false,
         child: Column(
           children: [
-            const DashboardHeader(eyebrow: 'Rasoi Care operations', title: 'Nashik cluster'),
+            DashboardHeader(
+              eyebrow: 'Rasoi Care operations',
+              title: filter.stateName,
+              trailing: const LocationPickerChip(),
+            ),
             Expanded(
               child: o == null
                   ? const Center(child: CircularProgressIndicator())

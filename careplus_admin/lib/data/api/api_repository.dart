@@ -50,13 +50,14 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
       unawaited(_fetchComplaints());
       unawaited(_fetchTechnicians());
       unawaited(_fetchStaffAccounts());
-      unawaited(_fetchReport(_lastReportRange));
+      unawaited(_fetchReport(_lastReportRange, district: _lastReportDistrict));
     });
   }
 
   final http.Client _client;
   StreamSubscription<User?>? _authSub;
   ReportRange _lastReportRange = ReportRange.week;
+  String? _lastReportDistrict;
 
   // ---- raw cached pieces (null = not yet fetched / fetch failed) --------
   Map<String, dynamic>? _statsRaw;
@@ -65,53 +66,90 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
   List<dynamic>? _inventoryRaw;
   List<dynamic>? _complaintsRaw;
   List<dynamic>? _staffRaw;
-  final Map<ReportRange, Map<String, dynamic>> _reportsRaw = {};
-  final Set<ReportRange> _reportsFetching = {};
+  // Keyed by (range, district) — a district-scoped report is a genuinely
+  // different backend query (see stats_reports's `area` param in app.py),
+  // not just a client-side filter of the whole-business one.
+  final Map<(ReportRange, String?), Map<String, dynamic>> _reportsRaw = {};
+  final Set<(ReportRange, String?)> _reportsFetching = {};
 
   // ============================================================ OVERVIEW
   @override
-  AdminOverview? overview() {
+  AdminOverview? overview({String? district}) {
     final stats = _statsRaw;
     final bookings = _bookingsRaw;
     final technicians = _techniciansRaw;
     if (stats == null || bookings == null || technicians == null) return null;
 
-    final completedJobs =
-        bookings.cast<Map<String, dynamic>>().where((b) => b['status'] == 'Completed').length;
+    final allBookings = bookings.cast<Map<String, dynamic>>();
+    final allTechnicians = technicians.cast<Map<String, dynamic>>();
+    final scopedBookings =
+        district == null ? allBookings : allBookings.where((b) => b['area'] == district).toList();
+    final scopedTechnicians = district == null
+        ? allTechnicians
+        : allTechnicians.where((t) => t['area'] == district).toList();
+
+    final completedJobs = scopedBookings.where((b) => b['status'] == 'Completed').length;
 
     var ratingWeightedSum = 0.0;
     var ratingCount = 0;
-    for (final t in technicians.cast<Map<String, dynamic>>()) {
+    for (final t in scopedTechnicians) {
       final count = _asInt(t['ratingCount']);
       ratingWeightedSum += _asDouble(t['rating']) * count;
       ratingCount += count;
     }
     final avgRating = ratingCount == 0 ? 0.0 : ratingWeightedSum / ratingCount;
 
-    final totalTechnicians = _asInt(stats['totalTechnicians']);
-    final onlineTechnicians = _asInt(stats['onlineTechnicians']);
+    // Unfiltered ("whole business") keeps using the backend's own aggregate
+    // stats exactly as before — only a district selection switches to
+    // recomputing from the already-fetched full booking/technician lists,
+    // so the default view's numbers are untouched by this filter existing.
+    final int revenuePaise;
+    final int openComplaints;
+    final int totalTechnicians;
+    final int onlineTechnicians;
+    if (district == null) {
+      revenuePaise = _asInt(stats['revenue']) * 100;
+      openComplaints = _asInt(stats['openComplaints']);
+      totalTechnicians = _asInt(stats['totalTechnicians']);
+      onlineTechnicians = _asInt(stats['onlineTechnicians']);
+    } else {
+      revenuePaise = scopedBookings
+              .where((b) => b['status'] == 'Completed')
+              .fold<int>(0, (sum, b) => sum + _asInt(b['total_amount'] ?? b['price'])) *
+          100;
+      final bookingAreaById = {
+        for (final b in allBookings) b['id'] as String?: b['area'] as String?,
+      };
+      openComplaints = (_complaintsRaw?.cast<Map<String, dynamic>>() ?? const [])
+          .where((c) => c['status'] != 'Resolved')
+          .where((c) => bookingAreaById[c['bookingId'] as String?] == district)
+          .length;
+      totalTechnicians = scopedTechnicians.length;
+      onlineTechnicians = scopedTechnicians.where((t) => t['online'] == true).length;
+    }
     final utilisationPct =
         totalTechnicians == 0 ? 0 : ((onlineTechnicians / totalTechnicians) * 100).round();
 
     return AdminOverview(
-      revenuePaise: _asInt(stats['revenue']) * 100,
+      revenuePaise: revenuePaise,
       completedJobs: completedJobs,
-      openComplaints: _asInt(stats['openComplaints']),
+      openComplaints: openComplaints,
       avgRating: avgRating,
       ratingCount: ratingCount,
-      weekBars: _weekBars(),
+      weekBars: _weekBars(district: district),
       weekLabels: _weekLabels(),
       technicianUtilisationPct: utilisationPct,
-      attention: _attention(),
+      attention: _attention(district: district),
     );
   }
 
   /// The last 7 calendar days (today last), zero-filled for any day with no
   /// completed revenue — real data, not a canned week shape.
-  List<int> _weekBars() {
+  List<int> _weekBars({String? district}) {
     final byDay = <String, int>{};
     for (final b in _bookingsRaw?.cast<Map<String, dynamic>>() ?? const []) {
       if (b['status'] != 'Completed') continue;
+      if (district != null && b['area'] != district) continue;
       final updatedAt = b['updatedAt'] as String?;
       final dt = updatedAt == null ? null : DateTime.tryParse(updatedAt);
       if (dt == null) continue;
@@ -135,11 +173,16 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
   }
 
   /// Real unassigned bookings and open complaints — nothing canned.
-  List<AttentionItem> _attention() {
+  List<AttentionItem> _attention({String? district}) {
     final items = <AttentionItem>[];
+    final bookingAreaById = {
+      for (final b in _bookingsRaw?.cast<Map<String, dynamic>>() ?? const [])
+        b['id'] as String?: b['area'] as String?,
+    };
     for (final b in _bookingsRaw?.cast<Map<String, dynamic>>() ?? const []) {
       if (b['status'] != 'Requested') continue;
       final area = (b['area'] as String?)?.trim();
+      if (district != null && area != district) continue;
       items.add(AttentionItem(
         jobId: (b['id'] as String?) ?? '—',
         title: 'Unassigned · ${(b['service'] as String?) ?? 'Service'}',
@@ -150,6 +193,7 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
     }
     for (final c in _complaintsRaw?.cast<Map<String, dynamic>>() ?? const []) {
       if (c['status'] == 'Resolved') continue;
+      if (district != null && bookingAreaById[c['bookingId'] as String?] != district) continue;
       final text = (c['text'] as String?)?.trim();
       items.add(AttentionItem(
         jobId: (c['id'] as String?) ?? '—',
@@ -490,14 +534,16 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
 
   // ============================================================= REPORTS
   @override
-  ReportBundle? report(ReportRange range) {
+  ReportBundle? report(ReportRange range, {String? district}) {
     _lastReportRange = range;
-    final raw = _reportsRaw[range];
+    _lastReportDistrict = district;
+    final key = (range, district);
+    final raw = _reportsRaw[key];
     if (raw == null) {
-      // Kick off a fetch for whichever range was just asked for (the week
-      // range is already fetched eagerly in the constructor) — at most one
-      // in-flight attempt per range at a time.
-      if (!_reportsFetching.contains(range)) unawaited(_fetchReport(range));
+      // Kick off a fetch for whichever (range, district) was just asked for
+      // (the week range with no district is already fetched eagerly in the
+      // constructor) — at most one in-flight attempt per key at a time.
+      if (!_reportsFetching.contains(key)) unawaited(_fetchReport(range, district: district));
       return null;
     }
     return _reportBundleFrom(range, raw);
@@ -575,8 +621,9 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
     ];
   }
 
-  Future<void> _fetchReport(ReportRange range) async {
-    _reportsFetching.add(range);
+  Future<void> _fetchReport(ReportRange range, {String? district}) async {
+    final key = (range, district);
+    _reportsFetching.add(key);
     try {
       final token = await _idToken();
       if (token == null) return; // staff-gated — nothing to fetch without one
@@ -585,19 +632,20 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
         ReportRange.month => 'month',
         ReportRange.quarter => 'quarter',
       };
+      final areaQuery = district == null ? '' : '&area=${Uri.encodeQueryComponent(district)}';
       final res = await _client
           .get(
-            Uri.parse('${ApiConfig.baseUrl}/api/stats/reports?period=$period'),
+            Uri.parse('${ApiConfig.baseUrl}/api/stats/reports?period=$period$areaQuery'),
             headers: _headers(token),
           )
           .timeout(_timeout);
       if (res.statusCode != 200) return;
-      _reportsRaw[range] = jsonDecode(res.body) as Map<String, dynamic>;
+      _reportsRaw[key] = jsonDecode(res.body) as Map<String, dynamic>;
       notifyListeners();
     } catch (_) {
       // keep null
     } finally {
-      _reportsFetching.remove(range);
+      _reportsFetching.remove(key);
     }
   }
 

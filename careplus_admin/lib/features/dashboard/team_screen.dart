@@ -6,20 +6,27 @@ import '../../core/theme/care_plus_theme.dart';
 import '../../data/models.dart';
 import '../../state/providers.dart';
 import 'dashboard_header.dart';
+import 'location_picker.dart';
 
 class TeamScreen extends ConsumerWidget {
   const TeamScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final team = ref.watch(repositoryProvider).team();
+    final allTeam = ref.watch(repositoryProvider).team();
+    final filter = ref.watch(locationFilterProvider);
+    final team = allTeam?.where((t) => filter.matches(t.area)).toList();
 
     return Scaffold(
       body: SafeArea(
         bottom: false,
         child: Column(
           children: [
-            const DashboardHeader(eyebrow: 'Rasoi Care operations', title: 'Technician team'),
+            const DashboardHeader(
+              eyebrow: 'Rasoi Care operations',
+              title: 'Technician team',
+              trailing: LocationPickerChip(),
+            ),
             Expanded(
               child: team == null
                   ? const Center(child: CircularProgressIndicator())
