@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS bookings (
     category        TEXT NOT NULL,
     service         TEXT NOT NULL,
     price           INTEGER NOT NULL,
-    technician_id   TEXT NOT NULL REFERENCES technicians(id),
+    technician_id   TEXT REFERENCES technicians(id),
     customer_name   TEXT NOT NULL DEFAULT 'Amit Sharma',
     status          TEXT NOT NULL DEFAULT 'Requested',
     bachat_slot     INTEGER,
@@ -278,6 +278,14 @@ class _PgCursor:
     def close(self):
         self._cur.close()
 
+    @property
+    def rowcount(self):
+        """Needed by claim_booking's atomic UPDATE ... WHERE technician_id
+        IS NULL — the row count is how it tells a real claim from a race
+        it just lost, exactly like sqlite3.Cursor.rowcount already works
+        for the SQLite path."""
+        return self._cur.rowcount
+
 
 _QMARK_RE = re.compile(r"\?")
 
@@ -484,6 +492,52 @@ def migrate_bookings_columns(conn):
     conn.commit()
 
 
+def migrate_bookings_technician_nullable(conn):
+    """Bookings used to require a technician_id at creation — one picked
+    up front by _route_technician's "closest available match" logic. Real
+    dispatch now works like Uber/Ola/Rapido instead: a booking is created
+    unassigned and broadcast to every eligible technician, and whoever
+    accepts first claims it (see /api/bookings/<id>/claim in app.py) — so
+    technician_id has to be allowed to sit NULL until that happens.
+    Postgres can drop the NOT NULL constraint directly; SQLite has no
+    ALTER COLUMN for constraints at all, so this rebuilds the table (once,
+    guarded by the notnull check below) copying whatever columns actually
+    exist today rather than a hardcoded list, so it can't drift out of
+    sync with migrate_bookings_columns as more columns get added later."""
+    if DATABASE_URL:
+        conn.execute("ALTER TABLE bookings ALTER COLUMN technician_id DROP NOT NULL")
+        conn.commit()
+        return
+    info = conn.execute("PRAGMA table_info(bookings)").fetchall()
+    tech_col = next((r for r in info if r["name"] == "technician_id"), None)
+    if tech_col is None or not tech_col["notnull"]:
+        return  # already nullable (or migrated in a previous run)
+    col_defs = []
+    col_names = []
+    for r in info:
+        name = r["name"]
+        col_names.append(name)
+        if name == "technician_id":
+            col_defs.append("technician_id TEXT REFERENCES technicians(id)")
+            continue
+        parts = [name, r["type"] or "TEXT"]
+        if r["pk"]:
+            parts.append("PRIMARY KEY")
+        elif r["notnull"]:
+            parts.append("NOT NULL")
+        if r["dflt_value"] is not None:
+            parts.append(f"DEFAULT {r['dflt_value']}")
+        col_defs.append(" ".join(parts))
+    col_list = ", ".join(col_names)
+    conn.executescript(
+        "CREATE TABLE bookings_new (" + ", ".join(col_defs) + ");\n"
+        f"INSERT INTO bookings_new ({col_list}) SELECT {col_list} FROM bookings;\n"
+        "DROP TABLE bookings;\n"
+        "ALTER TABLE bookings_new RENAME TO bookings;"
+    )
+    conn.commit()
+
+
 def migrate_technicians_columns(conn):
     """Older rasoicare.db files predate the area/verification work."""
     cols = _table_columns(conn, "technicians")
@@ -678,6 +732,7 @@ def init_db():
     conn.executescript(SCHEMA)
     conn.commit()
     migrate_bookings_columns(conn)
+    migrate_bookings_technician_nullable(conn)
     migrate_technicians_columns(conn)
     migrate_firebase_columns(conn)
     migrate_users_columns(conn)

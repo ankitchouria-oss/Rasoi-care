@@ -52,7 +52,7 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
   Future<void> _pollForNewWork() async {
     final repo = ref.read(repositoryProvider);
     if (repo is ApiRepository) {
-      await repo.refreshBookings();
+      await Future.wait([repo.refreshBookings(), repo.refreshAvailableBookings()]);
       if (mounted) ref.read(jobsFeedTickProvider.notifier).bump();
     }
   }
@@ -100,33 +100,24 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
     }
   }
 
-  bool _passing = false;
-
-  Future<void> _passRequest(String jobId) async {
-    setState(() => _passing = true);
-    final repo = ref.read(repositoryProvider);
-    bool? reassigned;
-    if (repo is ApiRepository) reassigned = await repo.declineJob(jobId);
-    if (!mounted) return;
-    setState(() {
-      _passing = false;
-      if (reassigned != null) _requestOpen = false;
-    });
-    ref.read(jobsFeedTickProvider.notifier).bump();
-    final t = context.l10n;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(switch (reassigned) {
-      true => t.jobsPassedToast,
-      false => t.jobsPassedCancelledToast,
-      null => t.jobsPassError,
-    })));
+  /// Passing on a broadcast request is purely local now — this technician
+  /// never claimed it (see [claimJob]/technician_available_bookings in
+  /// app.py), so there's nothing server-side to update; every other
+  /// eligible technician still sees the exact same request, unaffected.
+  /// Just hides today's card; the next poll may show it again if nobody
+  /// else has claimed it yet, same as it would for any of them.
+  void _passRequest(String jobId) {
+    setState(() => _requestOpen = false);
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(context.l10n.jobsPassedToast)));
   }
 
   Future<void> _acceptRequest(String jobId) async {
     setState(() => _accepting = true);
     final repo = ref.read(repositoryProvider);
+    ({bool ok, String? error})? result;
     if (repo is ApiRepository) {
-      final result = await repo.advanceJob(jobId); // Requested -> Accepted
+      result = await repo.claimJob(jobId);
       if (result.ok) ref.read(jobsFeedTickProvider.notifier).bump();
     }
     if (!mounted) return;
@@ -134,6 +125,14 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
       _accepting = false;
       _requestOpen = false;
     });
+    if (result != null && !result.ok) {
+      // Someone else claimed it first (or it's no longer open) — the
+      // request card is already gone (see claimJob), so just say why
+      // instead of navigating into a job this technician doesn't have.
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result.error ?? context.l10n.jobsClaimError)));
+      return;
+    }
     context.push('/tech/job/$jobId');
   }
 
@@ -345,16 +344,8 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
                             children: [
                               Expanded(
                                 child: OutlinedButton(
-                                  onPressed: _passing
-                                      ? null
-                                      : () => _passRequest(request.jobId),
-                                  child: _passing
-                                      ? const SizedBox(
-                                          width: 16,
-                                          height: 16,
-                                          child: CircularProgressIndicator(strokeWidth: 2),
-                                        )
-                                      : Text(t.jobsPass),
+                                  onPressed: () => _passRequest(request.jobId),
+                                  child: Text(t.jobsPass),
                                 ),
                               ),
                               const SizedBox(width: 9),

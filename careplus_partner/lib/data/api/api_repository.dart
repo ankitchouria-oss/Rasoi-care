@@ -42,10 +42,18 @@ class ApiRepository implements PartnerRepository {
 
   /// True once `/technician/bookings` has been fetched successfully at
   /// least once. Until then — backend not deployed, no network, still
-  /// loading — [incomingRequest] and [routeToday] serve Mock-shaped data so
-  /// the feed is never just blank; after a real fetch, an empty result is
-  /// trusted as genuinely empty (no more falling back to Mock).
+  /// loading — [routeToday] serves Mock-shaped data so the feed is never
+  /// just blank; after a real fetch, an empty result is trusted as
+  /// genuinely empty (no more falling back to Mock).
   bool _bookingsFetched = false;
+
+  /// Unclaimed requests currently broadcast to this technician — real
+  /// Uber/Ola/Rapido-style dispatch: every verified, on-duty technician
+  /// whose category/area matches sees the same booking here at once, and
+  /// whoever taps Accept first (see [claimJob]) actually gets it. See
+  /// [refreshAvailableBookings].
+  List<BookingDto> _available = const [];
+  bool _availableFetched = false;
 
   /// Null until the first successful `/technician/online` or
   /// `/technician/me` response — falls back to the mock's onDuty until then.
@@ -96,6 +104,34 @@ class ApiRepository implements PartnerRepository {
     }
   }
 
+  /// Refreshes the broadcast feed of unclaimed requests this technician is
+  /// currently eligible for, via `GET /api/technician/bookings/available`.
+  /// Best-effort, same failure handling as [refreshBookings] — keeps
+  /// whatever was already cached (or empty) rather than blanking the
+  /// incoming-request card on a hiccup.
+  Future<void> refreshAvailableBookings() async {
+    try {
+      final token = await _idToken();
+      if (token == null) return;
+      final res = await http
+          .get(
+            Uri.parse('${ApiConfig.baseUrl}/api/technician/bookings/available'),
+            headers: {'Authorization': 'Bearer $token'},
+          )
+          .timeout(_timeout);
+      if (res.statusCode != 200) return;
+      final data = jsonDecode(res.body);
+      if (data is! List) return;
+      _available = data
+          .whereType<Map<String, dynamic>>()
+          .map(BookingDto.fromJson)
+          .toList(growable: false);
+      _availableFetched = true;
+    } catch (_) {
+      // Backend unreachable or not deployed yet — keep whatever we had.
+    }
+  }
+
   /// Refreshes on-duty state and this technician's real rating/completed-
   /// job total from `/api/technician/me`. Best-effort, same failure
   /// handling as [refreshBookings].
@@ -126,9 +162,11 @@ class ApiRepository implements PartnerRepository {
     }
   }
 
-  /// Fetches bookings and on-duty state together — call once after sign-in
-  /// / whenever the job feed wants a fresh look at the server.
-  Future<void> refreshAll() => Future.wait([refreshBookings(), refreshMe()]);
+  /// Fetches bookings, the incoming-request broadcast feed, and on-duty
+  /// state together — call once after sign-in / whenever the job feed
+  /// wants a fresh look at the server.
+  Future<void> refreshAll() =>
+      Future.wait([refreshBookings(), refreshAvailableBookings(), refreshMe()]);
 
   // -------------------------------------------------------------- actions
 
@@ -298,38 +336,71 @@ class ApiRepository implements PartnerRepository {
     }
   }
 
-  /// Passes on [jobId] via the real backend — previously "Pass" only
-  /// removed the request from this screen, leaving the booking assigned
-  /// to this technician forever with the customer's job never actually
-  /// moving. Returns whether the booking was handed to a different
-  /// technician (true) or had to be cancelled because nobody else was
-  /// available (false) — null on outright failure, in which case the local
-  /// cache is left untouched so the request stays visible to retry.
-  Future<bool?> declineJob(String jobId) async {
+  /// Accepts a broadcast request via `PATCH /api/bookings/<id>/claim` —
+  /// real Uber/Ola/Rapido-style dispatch: several technicians can see the
+  /// same unclaimed request at once (see [refreshAvailableBookings]), and
+  /// only the first to actually call this wins it — the backend's own
+  /// atomic UPDATE is the race guard, not anything client-side. `error`
+  /// carries the backend's own message on a 409 (someone else already
+  /// claimed it, or it's no longer open) so the screen can say exactly
+  /// what happened instead of a generic failure. Either way the request
+  /// is no longer open, so it's dropped from the local available-list so
+  /// a stale copy doesn't keep showing as tappable.
+  Future<({bool ok, String? error})> claimJob(String jobId) async {
     try {
       final token = await _idToken();
-      if (token == null) return null;
+      if (token == null) return (ok: false, error: null);
+      final res = await http
+          .patch(
+            Uri.parse('${ApiConfig.baseUrl}/api/bookings/$jobId/claim'),
+            headers: {'Authorization': 'Bearer $token'},
+          )
+          .timeout(_timeout);
+      _available = _available.where((b) => b.id != jobId).toList(growable: false);
+      if (res.statusCode != 200) {
+        String? error;
+        try {
+          final body = jsonDecode(res.body);
+          if (body is Map<String, dynamic>) error = body['message'] as String?;
+        } catch (_) {
+          // Non-JSON error body — fall through with no message.
+        }
+        return (ok: false, error: error);
+      }
+      final decoded = jsonDecode(res.body);
+      if (decoded is Map<String, dynamic>) {
+        _bookings = [BookingDto.fromJson(decoded), ..._bookings.where((b) => b.id != jobId)];
+      }
+      return (ok: true, error: null);
+    } catch (_) {
+      return (ok: false, error: null);
+    }
+  }
+
+  /// Backs out of [jobId] after already accepting it, before actually
+  /// heading over, via `PATCH /api/bookings/<id>/decline` — puts it back
+  /// in the broadcast pool (real Uber/Ola/Rapido-style: any other
+  /// eligible technician can claim it next) instead of the old single-
+  /// reassign-to-one-other-technician chain a hard-assigned dispatch
+  /// model needed. Returns true on success, dropping the job from this
+  /// technician's own cache since it's no longer theirs; false on
+  /// failure (wrong state, or a real network error), leaving the local
+  /// cache untouched.
+  Future<bool> unclaimJob(String jobId) async {
+    try {
+      final token = await _idToken();
+      if (token == null) return false;
       final res = await http
           .patch(
             Uri.parse('${ApiConfig.baseUrl}/api/bookings/$jobId/decline'),
             headers: {'Authorization': 'Bearer $token'},
           )
           .timeout(_timeout);
-      if (res.statusCode != 200) return null;
-      final data = jsonDecode(res.body);
-      if (data is! Map<String, dynamic>) return null;
-      final reassigned = data['reassigned'] == true;
-      if (reassigned) {
-        // No longer this technician's job — drop it from the local cache
-        // entirely rather than showing a status update for a booking that
-        // isn't theirs any more.
-        _bookings = _bookings.where((b) => b.id != jobId).toList(growable: false);
-      } else if (data['status'] is String) {
-        _replaceBookingStatus(jobId, data['status'] as String);
-      }
-      return reassigned;
+      if (res.statusCode != 200) return false;
+      _bookings = _bookings.where((b) => b.id != jobId).toList(growable: false);
+      return true;
     } catch (_) {
-      return null;
+      return false;
     }
   }
 
@@ -452,10 +523,9 @@ class ApiRepository implements PartnerRepository {
 
   @override
   JobRequest? incomingRequest() {
-    if (!_bookingsFetched) return _mock.incomingRequest();
-    final requested = _bookings.where((b) => b.status == 'Requested');
-    if (requested.isEmpty) return null;
-    final b = requested.first;
+    if (!_availableFetched) return _mock.incomingRequest();
+    if (_available.isEmpty) return null;
+    final b = _available.first; // oldest first — see refreshAvailableBookings
     double? distanceKm;
     if (_myLat != null && _myLng != null && b.lat != null && b.lng != null) {
       distanceKm = Geolocator.distanceBetween(_myLat!, _myLng!, b.lat!, b.lng!) / 1000;
