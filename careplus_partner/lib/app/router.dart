@@ -72,7 +72,14 @@ final router = GoRouter(
     GoRoute(
       path: '/tech/job/:id/close',
       parentNavigatorKey: _rootKey,
-      builder: (_, s) => TechCloseScreen(jobId: s.pathParameters['id']!),
+      builder: (_, s) {
+        final extra = s.extra as (int?, int?)?;
+        return TechCloseScreen(
+          jobId: s.pathParameters['id']!,
+          suctionBefore: extra?.$1,
+          suctionAfter: extra?.$2,
+        );
+      },
     ),
     GoRoute(
       path: '/tech/job/:id/airflow',

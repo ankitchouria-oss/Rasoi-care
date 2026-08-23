@@ -76,6 +76,14 @@ class JobPhotosVM extends FamilyNotifier<List<String>, String> {
   void add(String path) {
     if (state.length < 2) state = [...state, path];
   }
+
+  /// Rolls back a capture whose backend upload failed — see _capturePhoto
+  /// in tech_job_screen.dart. Without this, a failed upload would still
+  /// show the thumbnail as "done" even though completing the job actually
+  /// depends on the backend having received it.
+  void remove(String path) {
+    state = state.where((p) => p != path).toList(growable: false);
+  }
 }
 
 /// Whether this device should get job-critical updates over WhatsApp —

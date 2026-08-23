@@ -8,6 +8,7 @@ separate devices.
 """
 
 import os
+import base64
 import json
 import re
 import secrets
@@ -19,7 +20,7 @@ from functools import wraps
 from threading import Lock
 
 import jwt
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, Response
 from werkzeug.security import generate_password_hash, check_password_hash
 from database import get_db, init_db, next_id, now, new_uuid_id
 
@@ -184,7 +185,7 @@ BOOKING_SELECT = (
 )
 
 
-def booking_row_to_dict(row):
+def booking_row_to_dict(row, *, include_start_code=False):
     keys = row.keys()
     return {
         "id": row["id"],
@@ -233,6 +234,23 @@ def booking_row_to_dict(row):
         # of a fake "Calling — masked" toast. Null for bookings made before
         # this was captured, or if the customer never verified a phone.
         "customerPhone": row["customer_phone"] if "customer_phone" in keys else None,
+        # Shown to the customer so they can hand it to the technician in
+        # person before work starts — advance_booking refuses to move a
+        # booking into "In Progress" without a matching code, so a
+        # technician can't mark a visit started without actually being
+        # there. Deliberately omitted from the technician's own
+        # /api/technician/bookings response (include_start_code stays
+        # False there) — the whole point is that only the customer's app
+        # ever shows it.
+        "startCode": row["start_code"]
+        if (include_start_code and "start_code" in keys) else None,
+        # Booleans, not the raw base64 — the Partner app uses these to know
+        # what's still missing before "Complete and invoice" can succeed;
+        # the actual image bytes are fetched separately via
+        # /api/bookings/<id>/photo/<kind> only when actually needed.
+        "beforePhotoReady": bool(row["before_photo_b64"]) if "before_photo_b64" in keys else False,
+        "afterPhotoReady": bool(row["after_photo_b64"]) if "after_photo_b64" in keys else False,
+        "signatureReady": bool(row["signature_b64"]) if "signature_b64" in keys else False,
     }
 
 
@@ -1233,7 +1251,7 @@ def list_bookings():
     else:
         rows = conn.execute(BOOKING_SELECT + " ORDER BY created_at DESC").fetchall()
     conn.close()
-    return jsonify([booking_row_to_dict(r) for r in rows])
+    return jsonify([booking_row_to_dict(r, include_start_code=bool(user)) for r in rows])
 
 
 @app.route("/api/bookings/<booking_id>", methods=["GET"])
@@ -1252,7 +1270,7 @@ def get_booking(booking_id):
         return jsonify({"error": "not found"}), 404
     if user and row["user_id"] and row["user_id"] != user["id"]:
         return jsonify({"error": "not found"}), 404
-    return jsonify(booking_row_to_dict(row))
+    return jsonify(booking_row_to_dict(row, include_start_code=bool(user)))
 
 
 def _route_technician(conn, category, area, exclude_id=None, allow_any_category=True):
@@ -1376,20 +1394,26 @@ def create_booking():
 
     booking_id = next_id(conn, "order", "RC")
     ts = now()
+    # A 4-digit code the customer hands the technician in person once
+    # they've arrived — see advance_booking, which refuses to move this
+    # booking into "In Progress" without it. Not required to be globally
+    # unique since it's only ever checked against this one booking's row.
+    start_code = f"{secrets.randbelow(10000):04d}"
     conn.execute(
         "INSERT INTO bookings (id, category, service, price, technician_id, customer_name, "
         "status, bachat_slot, service_rating, tech_rating, area, created_at, updated_at, "
-        "user_id, service_id, total_amount, lat, lng, directions, notes, issues_json) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "user_id, service_id, total_amount, lat, lng, directions, notes, issues_json, "
+        "start_code) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (booking_id, category, service, price, technician_id, request.user["name"],
          "Requested", bachat_slot, None, None, area, ts, ts,
          request.user["id"], service_id, total_amount, lat, lng, directions,
-         notes, issues_json),
+         notes, issues_json, start_code),
     )
     conn.commit()
     row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
     conn.close()
-    return jsonify(booking_row_to_dict(row)), 201
+    return jsonify(booking_row_to_dict(row, include_start_code=True)), 201
 
 
 @app.route("/api/bookings/<booking_id>/advance", methods=["PATCH"])
@@ -1416,6 +1440,41 @@ def advance_booking(booking_id):
         return jsonify(booking_row_to_dict(row))
 
     new_status = STATUS_ORDER[idx + 1]
+
+    # Moving into "In Progress" is the technician claiming they've arrived
+    # and are starting the actual work — require the 4-digit code the
+    # Customer app shows that customer, so this can't happen without the
+    # technician genuinely being there in person.
+    if new_status == "In Progress":
+        submitted_code = (data.get("startCode") or "").strip()
+        if not submitted_code or submitted_code != (row["start_code"] or ""):
+            conn.close()
+            return jsonify({
+                "error": "Incorrect verification code",
+                "message": "Ask the customer for the 4-digit code shown in their app.",
+            }), 400
+
+    # Completing the job is the moment the customer's invoice appears and
+    # they're asked to rate the visit — previously this succeeded no
+    # matter what (the on-screen checklist/photos/signature were never
+    # actually checked anywhere), so an invoice could appear before any
+    # real work, photo, or signature existed. Now it requires all three to
+    # have actually been submitted first via the endpoints below.
+    if new_status == "Completed":
+        missing = [
+            label for label, present in (
+                ("a before photo", row["before_photo_b64"]),
+                ("an after photo", row["after_photo_b64"]),
+                ("the customer's signature", row["signature_b64"]),
+            ) if not present
+        ]
+        if missing:
+            conn.close()
+            return jsonify({
+                "error": "Job not ready to complete",
+                "message": "Still missing: " + ", ".join(missing) + ".",
+            }), 400
+
     ts = now()
     conn.execute(
         "UPDATE bookings SET status = ?, updated_at = ? WHERE id = ?",
@@ -1460,6 +1519,83 @@ def advance_booking(booking_id):
     row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
     conn.close()
     return jsonify(booking_row_to_dict(row))
+
+
+_PHOTO_KINDS = {"before": "before_photo_b64", "after": "after_photo_b64"}
+
+
+@app.route("/api/bookings/<booking_id>/photo", methods=["PATCH"])
+@require_technician_auth
+def upload_job_photo(booking_id):
+    """Stores a before/after job photo as base64 — directly in this
+    booking's row rather than Firebase Storage, so completing a job never
+    depends on a Storage bucket/rules setup existing. advance_booking
+    refuses to mark a job Completed until both of these are present."""
+    data = request.get_json(force=True, silent=True) or {}
+    kind = data.get("kind")
+    column = _PHOTO_KINDS.get(kind)
+    if not column:
+        return jsonify({"error": "kind must be 'before' or 'after'"}), 400
+    data_b64 = data.get("dataBase64")
+    if not data_b64:
+        return jsonify({"error": "dataBase64 is required"}), 400
+    conn = get_db()
+    row = conn.execute("SELECT technician_id FROM bookings WHERE id = ?", (booking_id,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": "not found"}), 404
+    if row["technician_id"] != request.technician["id"]:
+        conn.close()
+        return jsonify({"error": "Forbidden", "message": "Not your job"}), 403
+    conn.execute(f"UPDATE bookings SET {column} = ? WHERE id = ?", (data_b64, booking_id))
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/bookings/<booking_id>/signature", methods=["PATCH"])
+@require_technician_auth
+def upload_job_signature(booking_id):
+    """Stores the customer's captured signature as base64, same reasoning
+    as upload_job_photo above."""
+    data = request.get_json(force=True, silent=True) or {}
+    data_b64 = data.get("dataBase64")
+    if not data_b64:
+        return jsonify({"error": "dataBase64 is required"}), 400
+    conn = get_db()
+    row = conn.execute("SELECT technician_id FROM bookings WHERE id = ?", (booking_id,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": "not found"}), 404
+    if row["technician_id"] != request.technician["id"]:
+        conn.close()
+        return jsonify({"error": "Forbidden", "message": "Not your job"}), 403
+    conn.execute("UPDATE bookings SET signature_b64 = ? WHERE id = ?", (data_b64, booking_id))
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True})
+
+
+_PHOTO_MIME = {"before": "image/jpeg", "after": "image/jpeg", "signature": "image/png"}
+_PHOTO_COLUMNS = {"before": "before_photo_b64", "after": "after_photo_b64", "signature": "signature_b64"}
+
+
+@app.route("/api/bookings/<booking_id>/photo/<kind>", methods=["GET"])
+def get_job_photo(booking_id, kind):
+    """Serves a stored before/after photo or signature as an actual image
+    response — lets the Admin/Partner/Customer apps display it with a
+    plain Image.network(url) the same way they already do for Firebase
+    Storage document URLs, without needing a separate download step."""
+    column = _PHOTO_COLUMNS.get(kind)
+    if not column:
+        return jsonify({"error": "kind must be 'before', 'after', or 'signature'"}), 400
+    conn = get_db()
+    row = conn.execute(f"SELECT {column} AS data FROM bookings WHERE id = ?", (booking_id,)).fetchone()
+    conn.close()
+    if not row or not row["data"]:
+        return jsonify({"error": "not found"}), 404
+    image_bytes = base64.b64decode(row["data"])
+    return Response(image_bytes, mimetype=_PHOTO_MIME[kind])
 
 
 @app.route("/api/bookings/<booking_id>/decline", methods=["PATCH"])

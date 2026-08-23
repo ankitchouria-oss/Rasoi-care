@@ -12,7 +12,6 @@ import '../../core/config/maps_config.dart';
 import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
 import '../../data/api/api_repository.dart';
-import '../../data/firebase/technician_upload_service.dart';
 import '../../data/models.dart';
 import '../../l10n/app_localizations.dart';
 import '../../l10n/l10n_extensions.dart';
@@ -143,21 +142,87 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
       context.push('/tech/job/${widget.jobId}/close');
       return;
     }
-    // Completing the job — this is the one real chance to record suction
-    // readings for the customer's invoice, so ask before advancing. Chimney
-    // jobs get the richer airflow (CFM) screen instead of the plain dialog.
-    (int?, int?) suction = (null, null);
+    final t = context.l10n;
+
+    // "Arrived — start job": the backend refuses to move into "In
+    // Progress" without the 4-digit code the Customer app shows that
+    // customer, so a technician can't mark a visit started without
+    // actually being there in person to ask for it.
+    if (liveStatus == 'On the way') {
+      final code = await _askStartCode();
+      if (code == null || !mounted) return; // cancelled
+      await _advanceStatus(startCode: code);
+      return;
+    }
+
     if (liveStatus == 'In Progress') {
+      final checklist = ref.read(techChecklistProvider(widget.jobId));
+      if (checklist.any((c) => !c.checked)) {
+        _toast(context, t.jobDetailChecklistIncomplete);
+        return;
+      }
+      final beforeDone = ref.read(techBeforePhotosProvider(widget.jobId)).isNotEmpty;
+      final afterDone = ref.read(techAfterPhotosProvider(widget.jobId)).isNotEmpty;
+      if (!beforeDone || !afterDone) {
+        _toast(context, t.jobDetailPhotosMissing);
+        return;
+      }
+      // This is the one real chance to record suction readings for the
+      // customer's invoice, so ask before moving on. Chimney jobs get the
+      // richer airflow (CFM) screen instead of the plain dialog. The
+      // actual advance-to-Completed call now happens on the close screen,
+      // once the customer's signature is captured — not here, which is
+      // exactly what let an invoice appear before a signature ever existed.
       final repo = ref.read(repositoryProvider);
       final category = repo is ApiRepository ? repo.categoryOf(widget.jobId) : null;
-      suction = category == 'RasoiAir'
+      final suction = category == 'RasoiAir'
           ? await _askAirflowReadings(job)
           : await _askSuctionReadings();
+      if (!mounted) return;
+      context.push('/tech/job/${widget.jobId}/close', extra: suction);
+      return;
     }
-    await _advanceStatus(suctionBefore: suction.$1, suctionAfter: suction.$2);
-    if (liveStatus == 'In Progress' && mounted) {
-      context.push('/tech/job/${widget.jobId}/close');
-    }
+
+    // Requested -> Accepted (shouldn't normally reach this screen — that
+    // happens on the Jobs feed's incoming-request card) or Accepted -> On
+    // the way: a plain advance, no gate.
+    await _advanceStatus();
+  }
+
+  Future<String?> _askStartCode() async {
+    final t = context.l10n;
+    final codeCtrl = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(t.jobDetailEnterCodeTitle),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(t.jobDetailEnterCodeSubtitle,
+                style: Theme.of(dialogContext).textTheme.bodySmall),
+            const SizedBox(height: 14),
+            TextField(
+              controller: codeCtrl,
+              keyboardType: TextInputType.number,
+              maxLength: 4,
+              autofocus: true,
+              decoration: InputDecoration(labelText: t.jobDetailStartCode),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(null),
+            child: Text(t.jobDetailCancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(codeCtrl.text.trim()),
+            child: Text(t.jobDetailConfirm),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<(int?, int?)> _askAirflowReadings(JobDetail job) async {
@@ -213,34 +278,44 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
     return result ?? (null, null);
   }
 
-  Future<void> _advanceStatus({int? suctionBefore, int? suctionAfter}) async {
+  Future<void> _advanceStatus({int? suctionBefore, int? suctionAfter, String? startCode}) async {
     setState(() => _advancing = true);
     final repo = ref.read(repositoryProvider);
     if (repo is ApiRepository) {
-      final ok = await repo.advanceJob(widget.jobId,
-          suctionBefore: suctionBefore, suctionAfter: suctionAfter);
-      if (ok) {
+      final result = await repo.advanceJob(widget.jobId,
+          suctionBefore: suctionBefore, suctionAfter: suctionAfter, startCode: startCode);
+      if (result.ok) {
         ref.read(jobsFeedTickProvider.notifier).bump();
       } else if (mounted) {
-        _toast(context, context.l10n.jobDetailStatusError);
+        _toast(context, result.error ?? context.l10n.jobDetailStatusError);
       }
     }
     if (mounted) setState(() => _advancing = false);
   }
 
-  // Opens the real device camera (not a fake "fills a box in" counter) and,
-  // on a successful capture, records it in the matching before/after
-  // provider and best-effort uploads it to Firebase Storage under this
-  // job — mirroring TechnicianUploadService's use during signup. Upload
-  // failure never blocks the technician; the local capture already
-  // satisfied the checklist requirement.
+  // Opens the real device camera (not a fake "fills a box in" counter),
+  // shows the thumbnail immediately, then uploads it to the backend (see
+  // ApiRepository.uploadJobPhoto) — completing the job now genuinely
+  // depends on this having landed there (advance_booking checks for it
+  // server-side), not just on a local thumbnail existing, so a failed
+  // upload removes the thumbnail again and says so rather than letting the
+  // technician believe the requirement was satisfied when it wasn't.
   Future<void> _capturePhoto(bool isBefore) async {
     final picked = await ImagePicker().pickImage(source: ImageSource.camera, imageQuality: 80);
     if (picked == null || !mounted) return;
     final vm = ref.read((isBefore ? techBeforePhotosProvider : techAfterPhotosProvider)(widget.jobId).notifier);
     vm.add(picked.path);
-    final kind = '${isBefore ? 'before' : 'after'}_${DateTime.now().millisecondsSinceEpoch}';
-    unawaited(TechnicianUploadService().upload(File(picked.path), kind: '${widget.jobId}_$kind'));
+    final repo = ref.read(repositoryProvider);
+    final uploaded = repo is ApiRepository
+        ? await repo.uploadJobPhoto(widget.jobId, isBefore: isBefore, file: File(picked.path))
+        : false;
+    if (!mounted) return;
+    if (!uploaded) {
+      vm.remove(picked.path);
+      _toast(context, context.l10n.jobDetailPhotoUploadError);
+    } else {
+      ref.read(jobsFeedTickProvider.notifier).bump();
+    }
   }
 
   @override

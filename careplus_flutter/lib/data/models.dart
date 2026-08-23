@@ -212,6 +212,7 @@ class Booking {
     this.timeOnSiteMin,
     this.cancellationFeePaise,
     this.rawStatus = '',
+    this.startCode,
   });
 
   final String id;
@@ -267,6 +268,14 @@ class Booking {
   /// `scheduled` value — too coarse to preview a cancellation fee, which
   /// differs between the two. Empty for mock/demo bookings.
   final String rawStatus;
+
+  /// The 4-digit code this booking's technician must ask for and enter
+  /// before the backend lets them start work (see advance_booking in
+  /// app.py) — hand it over only once they've actually arrived. Null once
+  /// the job reaches "In Progress" or later (the backend only ever sends
+  /// this to the customer, and only while it's still actionable), and
+  /// always null for mock/demo bookings.
+  final String? startCode;
 }
 
 /// A timeline entry on the tracking screen.

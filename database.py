@@ -473,6 +473,14 @@ def migrate_bookings_columns(conn):
         conn.execute("ALTER TABLE bookings ADD COLUMN issues_json TEXT")
     if "payment_method" not in cols:
         conn.execute("ALTER TABLE bookings ADD COLUMN payment_method TEXT")
+    if "start_code" not in cols:
+        conn.execute("ALTER TABLE bookings ADD COLUMN start_code TEXT")
+    if "before_photo_b64" not in cols:
+        conn.execute("ALTER TABLE bookings ADD COLUMN before_photo_b64 TEXT")
+    if "after_photo_b64" not in cols:
+        conn.execute("ALTER TABLE bookings ADD COLUMN after_photo_b64 TEXT")
+    if "signature_b64" not in cols:
+        conn.execute("ALTER TABLE bookings ADD COLUMN signature_b64 TEXT")
     conn.commit()
 
 
