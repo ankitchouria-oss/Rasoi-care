@@ -92,7 +92,7 @@ class AuthFlowVM extends Notifier<AuthFlowState> {
     state = state.copyWith(verifying: true, clearError: true);
     try {
       await ref.read(authServiceProvider).verifyOtp(verificationId: vid, smsCode: code);
-      _bootstrapBackend();
+      bootstrapBackend();
       state = state.copyWith(verifying: false);
       return true;
     } on AuthException catch (e) {
@@ -117,7 +117,7 @@ class AuthFlowVM extends Notifier<AuthFlowState> {
     state = state.copyWith(submitting: true, clearError: true);
     try {
       await action();
-      _bootstrapBackend();
+      bootstrapBackend();
       state = state.copyWith(submitting: false);
       return true;
     } on AuthException catch (e) {
@@ -137,7 +137,15 @@ class AuthFlowVM extends Notifier<AuthFlowState> {
   /// pattern as UserProfileService's Firestore write-through in
   /// firestore_user_profile_service.dart: never blocks getting into the
   /// app, and a no-op in mock mode (no Firebase project configured yet).
-  void _bootstrapBackend() {
+  ///
+  /// Public so SplashScreen can also call this for an already-signed-in,
+  /// restored session — a returning customer whose Firebase session is
+  /// still valid never goes through sign-in again, so without this the
+  /// backend can permanently lack their `users` row (e.g. if it was reset,
+  /// as a backend migration to a fresh database would do) and every
+  /// authenticated call, including booking creation, would 401 forever
+  /// with no way for the app to ever retry it.
+  void bootstrapBackend() {
     if (Firebase.apps.isEmpty) return;
     unawaited(_doBootstrapBackend());
   }

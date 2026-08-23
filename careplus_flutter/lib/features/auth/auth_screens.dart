@@ -29,6 +29,14 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       // across app restarts) — skip straight past onboarding/login instead
       // of making a returning customer sit through them again.
       final alreadySignedIn = ref.read(authServiceProvider).isSignedIn;
+      if (alreadySignedIn) {
+        // Sign-in itself already did this once, but that was on whatever
+        // backend existed at the time — a returning session never runs
+        // that step again, so if the backend's `users` row was ever lost
+        // (e.g. a database migration reset it) there'd be no other chance
+        // to recreate it, and every authenticated call would 401 forever.
+        ref.read(authFlowProvider.notifier).bootstrapBackend();
+      }
       context.go(alreadySignedIn ? '/' : '/onboarding');
     });
   }
