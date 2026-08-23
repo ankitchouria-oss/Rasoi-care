@@ -88,6 +88,37 @@ class TrackingScreen extends ConsumerWidget {
                 ]),
               ),
             ],
+            // Shown only up through "On the way" — the technician's app
+            // requires this exact code before it lets them start work (see
+            // advance_booking in app.py), so it stops being anything the
+            // customer needs to keep handy once work has actually begun.
+            if (!cancelled && stepIndex >= 1 && stepIndex <= 2 && booking?.startCode != null) ...[
+              const SizedBox(height: 12),
+              CareCard(
+                color: context.scheme.primaryContainer,
+                borderColor: Colors.transparent,
+                child: Row(
+                  children: [
+                    Icon(Icons.pin_outlined, color: context.scheme.onPrimaryContainer, size: 26),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Give this code to your technician',
+                              style: context.type.bodySmall!
+                                  .copyWith(color: context.scheme.onPrimaryContainer)),
+                          const SizedBox(height: 4),
+                          Text(booking!.startCode!,
+                              style: CareType.mono(context.scheme.onPrimaryContainer,
+                                  size: 26, w: FontWeight.w700)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SectionHeader('Progress'),
             if (booking == null)
               Padding(

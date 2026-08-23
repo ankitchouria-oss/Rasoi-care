@@ -17,6 +17,8 @@
 // Customer app's ServiceItem.included lists are real static content.
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -135,10 +137,17 @@ class ApiRepository implements PartnerRepository {
   /// true if the call succeeded, in which case the local cache has already
   /// been advanced to match so the caller can rebuild immediately without
   /// waiting on another round trip.
-  Future<bool> advanceJob(String jobId, {int? suctionBefore, int? suctionAfter}) async {
+  /// [startCode] is required by the backend for the "On the way" -> "In
+  /// Progress" transition (the customer's 4-digit code, proving the
+  /// technician is actually there) — see advance_booking in app.py. The
+  /// error message on a 400 (wrong code, or missing photos/signature for
+  /// the -> Completed transition) is the backend's own, so the technician
+  /// sees exactly what's still needed rather than a generic failure toast.
+  Future<({bool ok, String? error})> advanceJob(String jobId,
+      {int? suctionBefore, int? suctionAfter, String? startCode}) async {
     try {
       final token = await _idToken();
-      if (token == null) return false;
+      if (token == null) return (ok: false, error: null);
       final res = await http
           .patch(
             Uri.parse('${ApiConfig.baseUrl}/api/bookings/$jobId/advance'),
@@ -149,20 +158,119 @@ class ApiRepository implements PartnerRepository {
             body: jsonEncode({
               if (suctionBefore != null) 'suctionBefore': suctionBefore,
               if (suctionAfter != null) 'suctionAfter': suctionAfter,
+              if (startCode != null) 'startCode': startCode,
             }),
           )
           .timeout(_timeout);
-      if (res.statusCode != 200) return false;
+      if (res.statusCode != 200) {
+        String? error;
+        try {
+          final body = jsonDecode(res.body);
+          if (body is Map<String, dynamic>) error = body['message'] as String?;
+        } catch (_) {
+          // Non-JSON error body — fall through with no message.
+        }
+        return (ok: false, error: error);
+      }
       final data = jsonDecode(res.body);
       if (data is Map<String, dynamic> && data['status'] is String) {
         _replaceBookingStatus(jobId, data['status'] as String);
       } else {
         _advanceBookingStatusLocally(jobId);
       }
+      return (ok: true, error: null);
+    } catch (_) {
+      return (ok: false, error: null);
+    }
+  }
+
+  /// Uploads a before/after photo as base64 via `PATCH /api/bookings/<id>/photo`
+  /// — stored directly in the booking's row rather than Firebase
+  /// Storage, so this never depends on a Storage bucket/rules setup.
+  /// Updates the local cache's ready flag on success so the Jobs screen's
+  /// gating reflects it immediately without waiting on a refetch.
+  Future<bool> uploadJobPhoto(String jobId, {required bool isBefore, required File file}) async {
+    try {
+      final token = await _idToken();
+      if (token == null) return false;
+      final bytes = await file.readAsBytes();
+      final res = await http
+          .patch(
+            Uri.parse('${ApiConfig.baseUrl}/api/bookings/$jobId/photo'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({
+              'kind': isBefore ? 'before' : 'after',
+              'dataBase64': base64Encode(bytes),
+            }),
+          )
+          .timeout(_timeout);
+      if (res.statusCode != 200) return false;
+      final i = _bookings.indexWhere((b) => b.id == jobId);
+      if (i != -1) {
+        _bookings = [
+          ..._bookings.sublist(0, i),
+          isBefore
+              ? _bookings[i].copyWith(beforePhotoReady: true)
+              : _bookings[i].copyWith(afterPhotoReady: true),
+          ..._bookings.sublist(i + 1),
+        ];
+      }
       return true;
     } catch (_) {
       return false;
     }
+  }
+
+  /// Uploads the customer's captured signature (PNG bytes) via
+  /// `PATCH /api/bookings/<id>/signature` — same reasoning as [uploadJobPhoto].
+  Future<bool> uploadSignature(String jobId, Uint8List pngBytes) async {
+    try {
+      final token = await _idToken();
+      if (token == null) return false;
+      final res = await http
+          .patch(
+            Uri.parse('${ApiConfig.baseUrl}/api/bookings/$jobId/signature'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({'dataBase64': base64Encode(pngBytes)}),
+          )
+          .timeout(_timeout);
+      if (res.statusCode != 200) return false;
+      final i = _bookings.indexWhere((b) => b.id == jobId);
+      if (i != -1) {
+        _bookings = [
+          ..._bookings.sublist(0, i),
+          _bookings[i].copyWith(signatureReady: true),
+          ..._bookings.sublist(i + 1),
+        ];
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Whether [jobId]'s before/after photo and customer signature have
+  /// already been uploaded — used to gate "Complete and invoice" so it
+  /// can't be tapped only to fail against the backend's own check.
+  bool beforePhotoReady(String jobId) {
+    final match = _bookings.where((b) => b.id == jobId);
+    return match.isEmpty ? false : match.first.beforePhotoReady;
+  }
+
+  bool afterPhotoReady(String jobId) {
+    final match = _bookings.where((b) => b.id == jobId);
+    return match.isEmpty ? false : match.first.afterPhotoReady;
+  }
+
+  bool signatureReady(String jobId) {
+    final match = _bookings.where((b) => b.id == jobId);
+    return match.isEmpty ? false : match.first.signatureReady;
   }
 
   /// Sets on-duty state via `/api/technician/online`. Returns true on
@@ -516,7 +624,6 @@ class ApiRepository implements PartnerRepository {
 List<ChecklistItem> defaultChecklistFor(String category) {
   final steps = switch (category) {
     'RasoiAir' => const [
-        'Start code verified with customer',
         'Floor sheeting laid',
         'Filters and blower degreased',
         'Duct checked for blockage or leaks',
@@ -524,42 +631,36 @@ List<ChecklistItem> defaultChecklistFor(String category) {
         'Site cleaned, customer walkthrough',
       ],
     'RasoiSpark' => const [
-        'Start code verified with customer',
         'Burner caps and igniters inspected',
         'Gas line leak-tested on every joint',
         'Flame colour and evenness checked',
         'Site cleaned, customer walkthrough',
       ],
     'RasoiWash' => const [
-        'Start code verified with customer',
         'Filter, spray arms and seals checked',
         'Drain line tested for blockage',
         'Test cycle run',
         'Site cleaned, customer walkthrough',
       ],
     'RasoiBuilt' => const [
-        'Start code verified with customer',
         'Door seal and hinge checked',
         'Heating element and thermostat tested',
         'Test cycle run',
         'Site cleaned, customer walkthrough',
       ],
     'RasoiChill' => const [
-        'Start code verified with customer',
         'Coolant lines and compressor checked',
         'Door seal tested',
         'Temperature verified after service',
         'Site cleaned, customer walkthrough',
       ],
     'RasoiPure' => const [
-        'Start code verified with customer',
         'Filters inspected and replaced if due',
         'Membrane and tank checked',
         'Output water tested',
         'Site cleaned, customer walkthrough',
       ],
     _ => const [
-        'Start code verified with customer',
         'Fault diagnosed and confirmed with customer',
         'Repair completed',
         'Site cleaned, customer walkthrough',

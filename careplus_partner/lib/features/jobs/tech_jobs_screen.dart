@@ -126,8 +126,8 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
     setState(() => _accepting = true);
     final repo = ref.read(repositoryProvider);
     if (repo is ApiRepository) {
-      final ok = await repo.advanceJob(jobId); // Requested -> Accepted
-      if (ok) ref.read(jobsFeedTickProvider.notifier).bump();
+      final result = await repo.advanceJob(jobId); // Requested -> Accepted
+      if (result.ok) ref.read(jobsFeedTickProvider.notifier).bump();
     }
     if (!mounted) return;
     setState(() {

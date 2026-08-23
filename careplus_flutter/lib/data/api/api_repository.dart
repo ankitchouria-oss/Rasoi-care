@@ -245,6 +245,9 @@ class ApiRepository implements CareRepository {
           ? null
           : (json['cancellationFee'] as num).toInt() * 100,
       rawStatus: json['status'] as String? ?? '',
+      startCode: (json['startCode'] as String?)?.trim().isNotEmpty == true
+          ? json['startCode'] as String
+          : null,
     );
   }
 

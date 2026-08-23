@@ -92,6 +92,14 @@
   "jobDetailPrimaryOnMyWay": "मैं रास्ते में हूं",
   "jobDetailPrimaryArrived": "पहुंच गए — काम शुरू करें",
   "jobDetailPrimaryComplete": "पूरा करें और इनवॉइस बनाएं",
+  "jobDetailEnterCodeTitle": "सत्यापन कोड डालें",
+  "jobDetailEnterCodeSubtitle": "काम शुरू करने से पहले ग्राहक से उनके ऐप में दिखाया गया 4-अंकों का कोड पूछें।",
+  "jobDetailStartCode": "4-अंकों का कोड",
+  "jobDetailCancel": "रद्द करें",
+  "jobDetailConfirm": "पुष्टि करें",
+  "jobDetailChecklistIncomplete": "पहले चेकलिस्ट का हर आइटम पूरा करें।",
+  "jobDetailPhotosMissing": "पहले पहले और बाद की दोनों फ़ोटो जोड़ें।",
+  "jobDetailPhotoUploadError": "फ़ोटो अपलोड नहीं हो सकी — कनेक्शन जांचें और दोबारा फ़ोटो लें।",
 
   "closeTitle": "काम बंद करें",
   "closeInvoice": "इनवॉइस {jobId}-NSK",
@@ -113,6 +121,8 @@
   "closeHintLink": "भुगतान लिंक SMS और WhatsApp पर भेजा गया · {amount}",
   "closePaidToast": "भुगतान मिला · काम बंद हुआ",
   "closePaymentError": "भुगतान का तरीका दर्ज नहीं हो सका — कनेक्शन जांचकर फिर से कोशिश करें।",
+  "closeSignatureRequired": "काम पूरा करने से पहले ग्राहक से ऊपर हस्ताक्षर करवाएं।",
+  "closeSignatureUploadError": "हस्ताक्षर सेव नहीं हो सका — कनेक्शन जांचकर फिर से कोशिश करें।",
   "closeMarkPaid": "भुगतान हुआ चिह्नित करें और बंद करें",
 
   "signatureHint": "उंगली से यहां हस्ताक्षर करें",

@@ -100,6 +100,14 @@
   "jobDetailPrimaryOnMyWay": "On my way",
   "jobDetailPrimaryArrived": "Arrived — start job",
   "jobDetailPrimaryComplete": "Complete and invoice",
+  "jobDetailEnterCodeTitle": "Enter verification code",
+  "jobDetailEnterCodeSubtitle": "Ask the customer for the 4-digit code shown in their app before starting work.",
+  "jobDetailStartCode": "4-digit code",
+  "jobDetailCancel": "Cancel",
+  "jobDetailConfirm": "Confirm",
+  "jobDetailChecklistIncomplete": "Finish every checklist item first.",
+  "jobDetailPhotosMissing": "Add both a before and an after photo first.",
+  "jobDetailPhotoUploadError": "Couldn't upload that photo — check your connection and retake it.",
 
   "closeTitle": "Close the job",
   "closeInvoice": "Invoice {jobId}-NSK",
@@ -126,6 +134,8 @@
   "@closeHintLink": {"placeholders": {"amount": {"type": "String"}}},
   "closePaidToast": "Payment received · job closed",
   "closePaymentError": "Could not record the payment method — check connection and try again.",
+  "closeSignatureRequired": "Please have the customer sign above before completing the job.",
+  "closeSignatureUploadError": "Couldn't save the signature — check your connection and try again.",
   "closeMarkPaid": "Mark paid and close",
 
   "signatureHint": "Sign here with a finger",

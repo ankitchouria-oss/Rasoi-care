@@ -12,8 +12,18 @@ import '../../state/providers.dart';
 import 'signature_pad.dart';
 
 class TechCloseScreen extends ConsumerStatefulWidget {
-  const TechCloseScreen({super.key, required this.jobId});
+  const TechCloseScreen({
+    super.key,
+    required this.jobId,
+    this.suctionBefore,
+    this.suctionAfter,
+  });
   final String jobId;
+  // Collected on the previous screen (see TechJobScreen._handlePrimaryAction)
+  // before pushing here — this screen only records the signature/payment
+  // and drives the final advance-to-Completed call.
+  final int? suctionBefore;
+  final int? suctionAfter;
   @override
   ConsumerState<TechCloseScreen> createState() => _TechCloseScreenState();
 }
@@ -33,22 +43,48 @@ class _TechCloseScreenState extends ConsumerState<TechCloseScreen> {
         (t.closeMethodLinkTitle, t.closeMethodLinkSub),
       ];
 
-  /// Records which payment method was actually used — previously this
-  /// button called nothing at all (the booking was already Completed by
-  /// the prior screen's advance-to-Completed call), so "Mark paid" had no
-  /// real effect beyond a SnackBar. A failure here still lets the
-  /// technician leave (the job itself is genuinely done either way) but
-  /// says so honestly rather than pretending it was recorded.
+  /// This is now the one place the job is actually marked Completed —
+  /// previously that happened on the *prior* screen the moment the
+  /// technician tapped "Complete and invoice", so the customer's invoice
+  /// could appear before a signature (or, before this whole change, before
+  /// any real photo/checklist work) ever existed. Now: export the drawn
+  /// signature, upload it, then advance to Completed (which the backend
+  /// itself refuses unless the before/after photos are already uploaded
+  /// too — see advance_booking in app.py) — only after all of that
+  /// succeeds does the invoice exist for the customer to see and rate.
   Future<void> _markPaid() async {
+    final t = context.l10n;
+    if (!(_sigKey.currentState?.hasSignature ?? false)) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(t.closeSignatureRequired)));
+      return;
+    }
     setState(() => _closing = true);
     final repo = ref.read(repositoryProvider);
-    var ok = false;
-    if (repo is ApiRepository) {
-      ok = await repo.setPaymentMethod(widget.jobId, _methodCodes[_payMethod]);
+    if (repo is! ApiRepository) {
+      setState(() => _closing = false);
+      return;
     }
+    final png = await _sigKey.currentState?.exportPng();
+    if (png == null || !(await repo.uploadSignature(widget.jobId, png))) {
+      if (!mounted) return;
+      setState(() => _closing = false);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(t.closeSignatureUploadError)));
+      return;
+    }
+    final advance = await repo.advanceJob(widget.jobId,
+        suctionBefore: widget.suctionBefore, suctionAfter: widget.suctionAfter);
+    if (!mounted) return;
+    if (!advance.ok) {
+      setState(() => _closing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(advance.error ?? t.closePaymentError)));
+      return;
+    }
+    final ok = await repo.setPaymentMethod(widget.jobId, _methodCodes[_payMethod]);
     if (!mounted) return;
     setState(() => _closing = false);
-    final t = context.l10n;
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(ok ? t.closePaidToast : t.closePaymentError)));
     context.go('/tech/jobs');

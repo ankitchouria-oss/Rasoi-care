@@ -1,3 +1,6 @@
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 
 import '../../l10n/l10n_extensions.dart';
@@ -21,6 +24,35 @@ class SignaturePadState extends State<SignaturePad> {
   void clear() {
     setState(_points.clear);
     widget.onChanged?.call(false);
+  }
+
+  /// Renders the captured strokes to a PNG — fixed black-on-white rather
+  /// than whatever the app's current theme colors happen to be, so the
+  /// signature stays legible wherever it's later displayed (the Admin
+  /// app's review sheet, an emailed invoice) regardless of that context's
+  /// own light/dark mode. Returns null if nothing's been drawn yet.
+  Future<Uint8List?> exportPng() async {
+    if (!hasSignature) return null;
+    final box = context.findRenderObject() as RenderBox?;
+    final size = box?.size ?? const Size(300, 150);
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, size.width, size.height));
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      Paint()..color = Colors.white,
+    );
+    final paint = Paint()
+      ..color = Colors.black
+      ..strokeWidth = 2.4
+      ..strokeCap = StrokeCap.round;
+    for (var i = 0; i < _points.length - 1; i++) {
+      final p1 = _points[i], p2 = _points[i + 1];
+      if (p1 != null && p2 != null) canvas.drawLine(p1, p2, paint);
+    }
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(size.width.round(), size.height.round());
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    return bytes?.buffer.asUint8List();
   }
 
   @override

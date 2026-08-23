@@ -21,6 +21,9 @@ class BookingDto {
     this.issues = const [],
     this.customerPhone,
     this.paymentMethod,
+    this.beforePhotoReady = false,
+    this.afterPhotoReady = false,
+    this.signatureReady = false,
   });
 
   final String id;
@@ -67,6 +70,15 @@ class BookingDto {
   /// close-job screen — null until then. One of upi/card/cash/link.
   final String? paymentMethod;
 
+  /// Whether a before/after photo or the customer's signature has already
+  /// been uploaded via `PATCH /api/bookings/<id>/photo` (or `/signature`)
+  /// — advance (moving to Completed) fails server-side until all three are true, so
+  /// the Jobs screen uses these to show real progress instead of trusting
+  /// its own local capture state (which a killed/reinstalled app would lose).
+  final bool beforePhotoReady;
+  final bool afterPhotoReady;
+  final bool signatureReady;
+
   factory BookingDto.fromJson(Map<String, dynamic> json) {
     // total_amount arrives in rupees (see app.py) — this app stores money in
     // paise everywhere, so convert at the edge.
@@ -103,10 +115,20 @@ class BookingDto {
           ? json['customerPhone'] as String
           : null,
       paymentMethod: json['paymentMethod'] as String?,
+      beforePhotoReady: json['beforePhotoReady'] == true,
+      afterPhotoReady: json['afterPhotoReady'] == true,
+      signatureReady: json['signatureReady'] == true,
     );
   }
 
-  BookingDto copyWith({String? status, String? paymentMethod}) => BookingDto(
+  BookingDto copyWith({
+    String? status,
+    String? paymentMethod,
+    bool? beforePhotoReady,
+    bool? afterPhotoReady,
+    bool? signatureReady,
+  }) =>
+      BookingDto(
         id: id,
         category: category,
         service: service,
@@ -124,6 +146,9 @@ class BookingDto {
         issues: issues,
         customerPhone: customerPhone,
         paymentMethod: paymentMethod ?? this.paymentMethod,
+        beforePhotoReady: beforePhotoReady ?? this.beforePhotoReady,
+        afterPhotoReady: afterPhotoReady ?? this.afterPhotoReady,
+        signatureReady: signatureReady ?? this.signatureReady,
       );
 }
 
