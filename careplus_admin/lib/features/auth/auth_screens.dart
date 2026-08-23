@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,6 +10,7 @@ import '../../core/theme/care_plus_theme.dart';
 import '../../data/auth/mock_auth_service.dart';
 import '../../data/models.dart';
 import '../../state/auth_providers.dart';
+import 'legal_document_screen.dart';
 
 // ============================================================ SPLASH
 class SplashScreen extends ConsumerStatefulWidget {
@@ -271,6 +273,7 @@ class _EmailAuthScreenState extends ConsumerState<EmailAuthScreen> {
   final _passwordCtrl = TextEditingController();
   bool _creatingAccount = false;
   bool _obscure = true;
+  bool _confirmedAdult = false;
 
   @override
   void dispose() {
@@ -281,6 +284,11 @@ class _EmailAuthScreenState extends ConsumerState<EmailAuthScreen> {
 
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (_creatingAccount && !_confirmedAdult) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Confirm you are 18 or older and agree to the Terms to continue.')));
+      return;
+    }
     final email = _emailCtrl.text.trim();
     final password = _passwordCtrl.text;
     final vm = ref.read(authFlowProvider.notifier);
@@ -351,6 +359,13 @@ class _EmailAuthScreenState extends ConsumerState<EmailAuthScreen> {
                     validator: (v) => (v == null || v.length < 6)
                         ? 'Password must be at least 6 characters'
                         : null),
+                if (_creatingAccount) ...[
+                  const SizedBox(height: 18),
+                  _AgeAndTermsRow(
+                    value: _confirmedAdult,
+                    onChanged: (v) => setState(() => _confirmedAdult = v),
+                  ),
+                ],
                 const SizedBox(height: 22),
                 SizedBox(
                   width: double.infinity,
@@ -651,6 +666,67 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// The age-eligibility gate a new Owner/Staff account must clear before it's
+/// created — there's no other age verification step in this sign-up flow.
+class _AgeAndTermsRow extends StatelessWidget {
+  const _AgeAndTermsRow({required this.value, required this.onChanged});
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return CareCard(
+      color: context.scheme.surfaceContainerHigh,
+      borderColor: Colors.transparent,
+      onTap: () => onChanged(!value),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Checkbox(value: value, onChanged: (v) => onChanged(v ?? false)),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 13),
+              child: RichText(
+                text: TextSpan(
+                  style: context.type.bodySmall?.copyWith(color: context.care.inkMuted) ??
+                      TextStyle(color: context.care.inkMuted, fontSize: 12.5),
+                  children: [
+                    const TextSpan(text: 'I confirm I am 18 years or older, and I agree to the '),
+                    TextSpan(
+                      text: 'Terms of Service',
+                      style: TextStyle(
+                          color: context.scheme.primary,
+                          fontWeight: FontWeight.w700,
+                          decoration: TextDecoration.underline),
+                      recognizer: TapGestureRecognizer()
+                        ..onTap = () => Navigator.of(context).push(MaterialPageRoute(
+                            builder: (_) => const LegalDocumentScreen(
+                                kind: 'terms', fallbackTitle: 'Terms of Service'))),
+                    ),
+                    const TextSpan(text: ' and '),
+                    TextSpan(
+                      text: 'Privacy Policy',
+                      style: TextStyle(
+                          color: context.scheme.primary,
+                          fontWeight: FontWeight.w700,
+                          decoration: TextDecoration.underline),
+                      recognizer: TapGestureRecognizer()
+                        ..onTap = () => Navigator.of(context).push(MaterialPageRoute(
+                            builder: (_) => const LegalDocumentScreen(
+                                kind: 'privacy', fallbackTitle: 'Privacy Policy'))),
+                    ),
+                    const TextSpan(text: '.'),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

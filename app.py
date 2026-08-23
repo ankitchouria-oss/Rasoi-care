@@ -147,6 +147,235 @@ def smiler_app():
 def homeservices_app():
     return send_from_directory(FRONTEND_DIR, "homeservices.html")
 
+
+# ---------------------------------------------------------------- legal docs
+# Real Terms of Service / Privacy Policy text, describing what this codebase
+# actually does (booking flow, live location sharing, Partner KYC fields,
+# manually-recorded payment methods — no payment gateway, no analytics SDK).
+# Previously the Customer and Partner apps had "Terms and conditions" /
+# "Terms & conditions" entries that opened either a placeholder saying the
+# real terms weren't live yet, or a checkbox with no linked document at all.
+# Update LEGAL_CONTACT_EMAIL to a real, monitored address before shipping —
+# it's the one address used throughout both documents below.
+LEGAL_CONTACT_EMAIL = "support@rasoicare.in"
+LEGAL_LAST_UPDATED = "23 August 2026"
+
+TERMS_OF_SERVICE_SECTIONS = [
+    ("Who we are and what these terms cover", [
+        "Rasoi Care operates a marketplace connecting customers who need home-appliance "
+        "repair, installation, and annual maintenance with independent service technicians "
+        "(\"Partners\"). These Terms of Service govern your use of the Rasoi Care Customer "
+        "app, the Rasoi Care Partner app, and the Rasoi Care Admin console (together, the "
+        "\"Services\"). By creating an account or booking a service you agree to these terms.",
+    ]),
+    ("Eligibility", [
+        "You must be at least 18 years old to create an account or book a service through "
+        "Rasoi Care. The Services are not directed at anyone under 18, and we do not "
+        "knowingly allow accounts for anyone under that age. If we learn an account belongs "
+        "to someone under 18, we will close it.",
+    ]),
+    ("Your account", [
+        "You can sign in by phone OTP, email and password, or Google sign-in. You're "
+        "responsible for the accuracy of the details on your account and for keeping your "
+        "device and sign-in credentials secure.",
+        "Partner accounts go through an extra step: before a technician account can accept "
+        "jobs, we require identity details, a government ID document, and payout bank "
+        "details, and a member of our team reviews the application before it goes live.",
+    ]),
+    ("Booking a service", [
+        "You choose an appliance category and describe the issue, pick an address and time, "
+        "and a Partner accepts the job. A booking moves through a fixed sequence — Requested, "
+        "Accepted, On the way, In Progress, Completed — and we show you which stage it's at.",
+        "Before a job can be marked Completed, the Partner records a before photo, an after "
+        "photo, and your signature confirming the work was done.",
+    ]),
+    ("Cancelling a booking", [
+        "You can cancel a booking at any time before it's completed. If a Partner has already "
+        "been assigned or has started travelling to you, cancelling may carry a fee that "
+        "scales with how far the job had progressed — shown to you in the app before you "
+        "confirm the cancellation. That fee compensates the Partner for time already "
+        "committed to your job.",
+    ]),
+    ("Payment", [
+        "You pay the Partner directly — in cash, by UPI, by card, or via a payment link — at "
+        "the time of service, and the Partner records which method you used. Rasoi Care does "
+        "not process payments and does not receive or store your card or bank details.",
+    ]),
+    ("Partners", [
+        "Partners are independent technicians, not Rasoi Care employees. We expect Partners "
+        "to behave professionally, honour the agreed price, and use the app's photo and "
+        "signature steps to confirm completed work. We can suspend a Partner account over "
+        "safety issues, fraud, or conduct complaints.",
+    ]),
+    ("Location sharing during a booking", [
+        "Once a Partner accepts your booking, their live location is shared with you inside "
+        "the app so you can track their arrival. That sharing stops as soon as the job is "
+        "completed or cancelled — we don't track a Partner's location outside an active job, "
+        "and we don't share your address with a Partner until they're assigned to your "
+        "booking.",
+    ]),
+    ("Reviews and other features", [
+        "You can rate and review a completed job — reviews should be honest, since other "
+        "customers and our Partner-quality process both rely on them. Optional features like "
+        "annual maintenance (AMC) plans, referral codes, and reward coins are described where "
+        "you use them in the app and are subject to whatever terms are shown there at the "
+        "time.",
+    ]),
+    ("Liability", [
+        "Services are carried out by independent Partners, and we're not liable for "
+        "pre-existing appliance faults unrelated to the work performed. To the extent the law "
+        "allows, our liability arising from a booking is limited to the amount you paid for "
+        "that booking.",
+    ]),
+    ("Suspension and account closure", [
+        "We may suspend or close an account for fraud, abuse, non-payment, or a breach of "
+        "these terms. You can stop using the Services and ask us to delete your account at "
+        f"any time by writing to {LEGAL_CONTACT_EMAIL}.",
+    ]),
+    ("Changes to these terms", [
+        "We may update these terms as the Services change. We'll update the date at the top "
+        "of this page and, for material changes, let you know inside the app.",
+    ]),
+    ("Governing law", [
+        "These terms are governed by the laws of India, and courts located in India have "
+        "exclusive jurisdiction over any dispute arising from them.",
+    ]),
+    ("Contact us", [
+        f"Questions about these terms can be sent to {LEGAL_CONTACT_EMAIL}.",
+    ]),
+]
+
+PRIVACY_POLICY_SECTIONS = [
+    ("Scope", [
+        "This Privacy Policy covers the Rasoi Care Customer app, Partner app, and Admin "
+        "console, and the backend they all talk to.",
+    ]),
+    ("Information we collect", [
+        "Account information: your name, phone number, and email address, from phone-OTP, "
+        "email, or Google sign-in (handled by Firebase Authentication).",
+        "Profile information: your saved address(es) and their map coordinates, and the "
+        "appliances you tell us you own.",
+        "Booking information: the appliance category and issue you describe, any notes or "
+        "photos you attach, and the booking's status history.",
+        "Location: your saved address coordinates, and — only while a Partner is en route to "
+        "or working on your active booking — the Partner's live location, so you can track "
+        "their arrival.",
+        "Job-completion records: a before photo, an after photo, and a signature, captured by "
+        "the Partner to confirm the work performed on your booking.",
+        "Partner verification information (Partner app only): date of birth, address, ID "
+        "numbers (Aadhaar, PAN), ID document photos, and bank account and IFSC details, "
+        "collected to verify identity and pay out earnings.",
+        "Payment method label: whether a booking was paid by cash, UPI, card, or link, as "
+        "recorded by the Partner — we don't collect or store card numbers or bank "
+        "credentials for customer payments, since payment happens directly between you and "
+        "the Partner.",
+        "Device preferences: language, theme, and notification choices, stored on your "
+        "device.",
+        "Ratings and reviews you submit about a completed booking.",
+    ]),
+    ("How we use this information", [
+        "To create and run your account, match you with a Partner, show live tracking, "
+        "verify Partner applications, calculate and pay out Partner earnings, look into "
+        "complaints, and keep improving the Services.",
+    ]),
+    ("Who we share it with", [
+        "The Partner assigned to your booking sees your name, address, phone number, and "
+        "issue details, so they can carry out the job.",
+        "While a booking is active, the Partner app shows the assigned customer's location "
+        "and profile name for that job only.",
+        "Firebase Authentication and Cloud Firestore (Google LLC) provide our sign-in and "
+        "profile-storage infrastructure.",
+        "Google Maps Platform provides maps, address lookup, and live-tracking display.",
+        "We do not sell your personal information. Partner verification documents (ID "
+        "numbers, ID photos, bank details) are used only for verification and payout, and "
+        "are not shared outside that process.",
+    ]),
+    ("Data security", [
+        "We use reasonable technical safeguards — including hashed passwords, signed session "
+        "tokens, and HTTPS in transit — and restrict access to sensitive Partner verification "
+        "documents to the verification and payout process.",
+    ]),
+    ("Data retention", [
+        "We keep account and booking records for as long as your account is active, and as "
+        "long as needed to resolve disputes or meet legal and accounting obligations. You can "
+        "ask us to delete your account and its associated data at any time; some records "
+        "(such as completed-transaction history) may need to be retained for longer where "
+        "the law requires it.",
+    ]),
+    ("Your rights", [
+        f"You can ask to access, correct, or delete your personal information by writing to "
+        f"{LEGAL_CONTACT_EMAIL}. Partners can also update most verification details directly "
+        "from their profile in the Partner app.",
+    ]),
+    ("Children's privacy", [
+        "The Services are for users aged 18 and over, and we do not knowingly collect "
+        "personal information from children. If you believe a child has given us "
+        f"information, contact {LEGAL_CONTACT_EMAIL} and we'll delete it.",
+    ]),
+    ("Changes to this policy", [
+        "We may update this policy as the Services change. We'll update the date at the top "
+        "of this page when we do.",
+    ]),
+    ("Contact us", [
+        f"Questions about this policy can be sent to {LEGAL_CONTACT_EMAIL}.",
+    ]),
+]
+
+
+def _legal_doc_payload(title, sections):
+    return {
+        "title": title,
+        "lastUpdated": LEGAL_LAST_UPDATED,
+        "sections": [{"heading": heading, "paragraphs": paragraphs} for heading, paragraphs in sections],
+    }
+
+
+def _legal_doc_html(title, sections):
+    import html as _html
+    body_parts = []
+    for heading, paragraphs in sections:
+        body_parts.append(f"<h2>{_html.escape(heading)}</h2>")
+        for para in paragraphs:
+            body_parts.append(f"<p>{_html.escape(para)}</p>")
+    return (
+        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
+        "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+        f"<title>Rasoi Care — {_html.escape(title)}</title>"
+        "<style>"
+        "body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;"
+        "max-width:700px;margin:0 auto;padding:32px 20px 60px;color:#1c1c1e;line-height:1.55}"
+        "h1{font-size:26px;margin-bottom:4px}"
+        "h2{font-size:17px;margin-top:28px;margin-bottom:8px}"
+        ".updated{color:#6b6b70;font-size:13px;margin-bottom:24px}"
+        "p{font-size:15px;margin:0 0 10px}"
+        "</style></head><body>"
+        f"<h1>{_html.escape(title)}</h1>"
+        f"<div class=\"updated\">Last updated {_html.escape(LEGAL_LAST_UPDATED)}</div>"
+        + "".join(body_parts) +
+        "</body></html>"
+    )
+
+
+@app.route("/api/legal/terms", methods=["GET"])
+def api_legal_terms():
+    return jsonify(_legal_doc_payload("Terms of Service", TERMS_OF_SERVICE_SECTIONS))
+
+
+@app.route("/api/legal/privacy", methods=["GET"])
+def api_legal_privacy():
+    return jsonify(_legal_doc_payload("Privacy Policy", PRIVACY_POLICY_SECTIONS))
+
+
+@app.route("/terms")
+def terms_page():
+    return Response(_legal_doc_html("Terms of Service", TERMS_OF_SERVICE_SECTIONS), mimetype="text/html")
+
+
+@app.route("/privacy")
+def privacy_page():
+    return Response(_legal_doc_html("Privacy Policy", PRIVACY_POLICY_SECTIONS), mimetype="text/html")
+
+
 STATUS_ORDER = ["Requested", "Accepted", "On the way", "In Progress", "Completed"]
 
 
@@ -1297,6 +1526,22 @@ def _route_technician(conn, category, area, exclude_id=None, allow_any_category=
     exclude_clause = " AND id != ?" if exclude_id else ""
     exclude_args = (exclude_id,) if exclude_id else ()
 
+    # Every tier below picks the FIRST row an unordered `SELECT *` happens to
+    # return whenever more than one technician ties on the tier's own
+    # criteria (same area, same category, all verified+online) — with no
+    # ORDER BY that was always whichever technician's row SQLite returns
+    # first (in practice, usually whoever was inserted first), so one
+    # technician could quietly hoard every new booking forever while an
+    # equally-qualified newer technician never got routed a single job.
+    # Ordering by each technician's own most recent booking (never-assigned
+    # technicians first, via the empty-string fallback sorting before any
+    # real ISO timestamp) spreads new work to whoever's actually gone
+    # longest without one — real round-robin, using data already on hand.
+    _round_robin_order = (
+        " ORDER BY (SELECT COALESCE(MAX(b.created_at), '') FROM bookings b "
+        "WHERE b.technician_id = technicians.id) ASC"
+    )
+
     def _first_matching(rows):
         for row in rows:
             if category in technician_categories(row):
@@ -1307,13 +1552,14 @@ def _route_technician(conn, category, area, exclude_id=None, allow_any_category=
     if area:
         rows = conn.execute(
             "SELECT * FROM technicians WHERE area = ? AND verified = 1 AND online = 1"
-            + exclude_clause,
+            + exclude_clause + _round_robin_order,
             (area,) + exclude_args,
         ).fetchall()
         match = _first_matching(rows)
     if not match:
         rows = conn.execute(
-            "SELECT * FROM technicians WHERE verified = 1 AND online = 1" + exclude_clause,
+            "SELECT * FROM technicians WHERE verified = 1 AND online = 1"
+            + exclude_clause + _round_robin_order,
             exclude_args,
         ).fetchall()
         match = _first_matching(rows)
@@ -1322,12 +1568,15 @@ def _route_technician(conn, category, area, exclude_id=None, allow_any_category=
         # same-specialty technician (even offline/unverified) over an
         # unrelated one; a mismatched specialty is worse than a wait.
         rows = conn.execute(
-            "SELECT * FROM technicians" + (" WHERE id != ?" if exclude_id else ""), exclude_args
+            "SELECT * FROM technicians"
+            + (" WHERE id != ?" if exclude_id else "") + _round_robin_order,
+            exclude_args,
         ).fetchall()
         match = _first_matching(rows)
     if not match and allow_any_category:
         match = conn.execute(
-            "SELECT id FROM technicians" + (" WHERE id != ?" if exclude_id else "") + " LIMIT 1",
+            "SELECT id FROM technicians"
+            + (" WHERE id != ?" if exclude_id else "") + _round_robin_order + " LIMIT 1",
             exclude_args,
         ).fetchone()
     return match["id"] if match else None
@@ -1521,20 +1770,18 @@ def advance_booking(booking_id):
     return jsonify(booking_row_to_dict(row))
 
 
-_PHOTO_KINDS = {"before": "before_photo_b64", "after": "after_photo_b64"}
-
-
 @app.route("/api/bookings/<booking_id>/photo", methods=["PATCH"])
 @require_technician_auth
 def upload_job_photo(booking_id):
     """Stores a before/after job photo as base64 — directly in this
     booking's row rather than Firebase Storage, so completing a job never
     depends on a Storage bucket/rules setup existing. advance_booking
-    refuses to mark a job Completed until both of these are present."""
+    refuses to mark a job Completed until both of these are present.
+    The column is picked via an explicit if/else (not string-built from
+    `kind`) so no request-influenced value ever reaches the SQL text."""
     data = request.get_json(force=True, silent=True) or {}
     kind = data.get("kind")
-    column = _PHOTO_KINDS.get(kind)
-    if not column:
+    if kind not in ("before", "after"):
         return jsonify({"error": "kind must be 'before' or 'after'"}), 400
     data_b64 = data.get("dataBase64")
     if not data_b64:
@@ -1547,7 +1794,10 @@ def upload_job_photo(booking_id):
     if row["technician_id"] != request.technician["id"]:
         conn.close()
         return jsonify({"error": "Forbidden", "message": "Not your job"}), 403
-    conn.execute(f"UPDATE bookings SET {column} = ? WHERE id = ?", (data_b64, booking_id))
+    if kind == "before":
+        conn.execute("UPDATE bookings SET before_photo_b64 = ? WHERE id = ?", (data_b64, booking_id))
+    else:
+        conn.execute("UPDATE bookings SET after_photo_b64 = ? WHERE id = ?", (data_b64, booking_id))
     conn.commit()
     conn.close()
     return jsonify({"ok": True})
@@ -1577,7 +1827,6 @@ def upload_job_signature(booking_id):
 
 
 _PHOTO_MIME = {"before": "image/jpeg", "after": "image/jpeg", "signature": "image/png"}
-_PHOTO_COLUMNS = {"before": "before_photo_b64", "after": "after_photo_b64", "signature": "signature_b64"}
 
 
 @app.route("/api/bookings/<booking_id>/photo/<kind>", methods=["GET"])
@@ -1585,12 +1834,24 @@ def get_job_photo(booking_id, kind):
     """Serves a stored before/after photo or signature as an actual image
     response — lets the Admin/Partner/Customer apps display it with a
     plain Image.network(url) the same way they already do for Firebase
-    Storage document URLs, without needing a separate download step."""
-    column = _PHOTO_COLUMNS.get(kind)
-    if not column:
+    Storage document URLs, without needing a separate download step. The
+    column is picked via an explicit if/elif/else (not string-built from
+    `kind`) so no request-influenced value ever reaches the SQL text."""
+    if kind not in _PHOTO_MIME:
         return jsonify({"error": "kind must be 'before', 'after', or 'signature'"}), 400
     conn = get_db()
-    row = conn.execute(f"SELECT {column} AS data FROM bookings WHERE id = ?", (booking_id,)).fetchone()
+    if kind == "before":
+        row = conn.execute(
+            "SELECT before_photo_b64 AS data FROM bookings WHERE id = ?", (booking_id,)
+        ).fetchone()
+    elif kind == "after":
+        row = conn.execute(
+            "SELECT after_photo_b64 AS data FROM bookings WHERE id = ?", (booking_id,)
+        ).fetchone()
+    else:
+        row = conn.execute(
+            "SELECT signature_b64 AS data FROM bookings WHERE id = ?", (booking_id,)
+        ).fetchone()
     conn.close()
     if not row or not row["data"]:
         return jsonify({"error": "not found"}), 404
