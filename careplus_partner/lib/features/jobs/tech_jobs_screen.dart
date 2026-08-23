@@ -27,6 +27,7 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
   bool _accepting = false;
   bool _togglingDuty = false;
   Timer? _t;
+  Timer? _pollTimer;
 
   @override
   void initState() {
@@ -39,11 +40,27 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
     // with an empty/mock-shaped cache until this completes. Fire-and-forget
     // from the UI's point of view; _bump forces a rebuild when it lands.
     WidgetsBinding.instance.addPostFrameCallback((_) => _initialRefresh());
+    // A booking created while a technician is already sitting on this
+    // screen used to never appear — the only fetch was the one-off above
+    // at screen mount, so a new incoming request needed leaving and
+    // re-entering this tab (or restarting the app) to show up at all.
+    // Polling for new bookings gives new work a chance to actually surface
+    // without the technician having to know to do that.
+    _pollTimer = Timer.periodic(const Duration(seconds: 15), (_) => _pollForNewWork());
+  }
+
+  Future<void> _pollForNewWork() async {
+    final repo = ref.read(repositoryProvider);
+    if (repo is ApiRepository) {
+      await repo.refreshBookings();
+      if (mounted) ref.read(jobsFeedTickProvider.notifier).bump();
+    }
   }
 
   @override
   void dispose() {
     _t?.cancel();
+    _pollTimer?.cancel();
     super.dispose();
   }
 
