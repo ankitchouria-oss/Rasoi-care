@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +8,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../core/config/maps_config.dart';
 import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
+import '../../data/api/api_repository.dart';
 import '../../data/firebase/technician_location_service.dart';
 import '../../data/models.dart';
 import '../../state/firestore_providers.dart';
@@ -15,15 +18,46 @@ import '../../state/providers.dart';
 /// app (app.py enforces the same progression server-side).
 const _statusOrder = ['Requested', 'Accepted', 'On the way', 'In Progress', 'Completed'];
 
-class TrackingScreen extends ConsumerWidget {
+class TrackingScreen extends ConsumerStatefulWidget {
   const TrackingScreen({super.key, required this.bookingId});
   final String bookingId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TrackingScreen> createState() => _TrackingScreenState();
+}
+
+class _TrackingScreenState extends ConsumerState<TrackingScreen> {
+  Timer? _pollTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // A status change (technician accepts, heads over, arrives) used to
+    // never appear here until the customer backed out to the bookings list
+    // and pulled to refresh — the only fetch was whatever BookingsScreen
+    // last did before this screen opened. That's exactly the window this
+    // screen most needs to catch live: the 4-digit code below only shows
+    // for the brief Accepted/On-the-way stretch, so without polling here a
+    // customer who just watches this screen can easily never see it at all.
+    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) => _poll());
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _poll() async {
+    final repo = ref.read(repositoryProvider);
+    if (repo is ApiRepository) await repo.refreshBookings();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     ref.watch(bookingsRefreshProvider);
     final repo = ref.watch(repositoryProvider);
-    final booking = repo.bookingById(bookingId);
+    final booking = repo.bookingById(widget.bookingId);
 
     // The real assigned technician's Firebase uid (and the booking's own
     // address coordinates), when this is a real backend-sourced booking.
