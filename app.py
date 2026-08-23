@@ -1526,6 +1526,22 @@ def _route_technician(conn, category, area, exclude_id=None, allow_any_category=
     exclude_clause = " AND id != ?" if exclude_id else ""
     exclude_args = (exclude_id,) if exclude_id else ()
 
+    # Every tier below picks the FIRST row an unordered `SELECT *` happens to
+    # return whenever more than one technician ties on the tier's own
+    # criteria (same area, same category, all verified+online) — with no
+    # ORDER BY that was always whichever technician's row SQLite returns
+    # first (in practice, usually whoever was inserted first), so one
+    # technician could quietly hoard every new booking forever while an
+    # equally-qualified newer technician never got routed a single job.
+    # Ordering by each technician's own most recent booking (never-assigned
+    # technicians first, via the empty-string fallback sorting before any
+    # real ISO timestamp) spreads new work to whoever's actually gone
+    # longest without one — real round-robin, using data already on hand.
+    _round_robin_order = (
+        " ORDER BY (SELECT COALESCE(MAX(b.created_at), '') FROM bookings b "
+        "WHERE b.technician_id = technicians.id) ASC"
+    )
+
     def _first_matching(rows):
         for row in rows:
             if category in technician_categories(row):
@@ -1536,13 +1552,14 @@ def _route_technician(conn, category, area, exclude_id=None, allow_any_category=
     if area:
         rows = conn.execute(
             "SELECT * FROM technicians WHERE area = ? AND verified = 1 AND online = 1"
-            + exclude_clause,
+            + exclude_clause + _round_robin_order,
             (area,) + exclude_args,
         ).fetchall()
         match = _first_matching(rows)
     if not match:
         rows = conn.execute(
-            "SELECT * FROM technicians WHERE verified = 1 AND online = 1" + exclude_clause,
+            "SELECT * FROM technicians WHERE verified = 1 AND online = 1"
+            + exclude_clause + _round_robin_order,
             exclude_args,
         ).fetchall()
         match = _first_matching(rows)
@@ -1551,12 +1568,15 @@ def _route_technician(conn, category, area, exclude_id=None, allow_any_category=
         # same-specialty technician (even offline/unverified) over an
         # unrelated one; a mismatched specialty is worse than a wait.
         rows = conn.execute(
-            "SELECT * FROM technicians" + (" WHERE id != ?" if exclude_id else ""), exclude_args
+            "SELECT * FROM technicians"
+            + (" WHERE id != ?" if exclude_id else "") + _round_robin_order,
+            exclude_args,
         ).fetchall()
         match = _first_matching(rows)
     if not match and allow_any_category:
         match = conn.execute(
-            "SELECT id FROM technicians" + (" WHERE id != ?" if exclude_id else "") + " LIMIT 1",
+            "SELECT id FROM technicians"
+            + (" WHERE id != ?" if exclude_id else "") + _round_robin_order + " LIMIT 1",
             exclude_args,
         ).fetchone()
     return match["id"] if match else None
