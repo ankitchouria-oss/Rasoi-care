@@ -1521,20 +1521,18 @@ def advance_booking(booking_id):
     return jsonify(booking_row_to_dict(row))
 
 
-_PHOTO_KINDS = {"before": "before_photo_b64", "after": "after_photo_b64"}
-
-
 @app.route("/api/bookings/<booking_id>/photo", methods=["PATCH"])
 @require_technician_auth
 def upload_job_photo(booking_id):
     """Stores a before/after job photo as base64 — directly in this
     booking's row rather than Firebase Storage, so completing a job never
     depends on a Storage bucket/rules setup existing. advance_booking
-    refuses to mark a job Completed until both of these are present."""
+    refuses to mark a job Completed until both of these are present.
+    The column is picked via an explicit if/else (not string-built from
+    `kind`) so no request-influenced value ever reaches the SQL text."""
     data = request.get_json(force=True, silent=True) or {}
     kind = data.get("kind")
-    column = _PHOTO_KINDS.get(kind)
-    if not column:
+    if kind not in ("before", "after"):
         return jsonify({"error": "kind must be 'before' or 'after'"}), 400
     data_b64 = data.get("dataBase64")
     if not data_b64:
@@ -1547,7 +1545,10 @@ def upload_job_photo(booking_id):
     if row["technician_id"] != request.technician["id"]:
         conn.close()
         return jsonify({"error": "Forbidden", "message": "Not your job"}), 403
-    conn.execute(f"UPDATE bookings SET {column} = ? WHERE id = ?", (data_b64, booking_id))
+    if kind == "before":
+        conn.execute("UPDATE bookings SET before_photo_b64 = ? WHERE id = ?", (data_b64, booking_id))
+    else:
+        conn.execute("UPDATE bookings SET after_photo_b64 = ? WHERE id = ?", (data_b64, booking_id))
     conn.commit()
     conn.close()
     return jsonify({"ok": True})
@@ -1577,7 +1578,6 @@ def upload_job_signature(booking_id):
 
 
 _PHOTO_MIME = {"before": "image/jpeg", "after": "image/jpeg", "signature": "image/png"}
-_PHOTO_COLUMNS = {"before": "before_photo_b64", "after": "after_photo_b64", "signature": "signature_b64"}
 
 
 @app.route("/api/bookings/<booking_id>/photo/<kind>", methods=["GET"])
@@ -1585,12 +1585,24 @@ def get_job_photo(booking_id, kind):
     """Serves a stored before/after photo or signature as an actual image
     response — lets the Admin/Partner/Customer apps display it with a
     plain Image.network(url) the same way they already do for Firebase
-    Storage document URLs, without needing a separate download step."""
-    column = _PHOTO_COLUMNS.get(kind)
-    if not column:
+    Storage document URLs, without needing a separate download step. The
+    column is picked via an explicit if/elif/else (not string-built from
+    `kind`) so no request-influenced value ever reaches the SQL text."""
+    if kind not in _PHOTO_MIME:
         return jsonify({"error": "kind must be 'before', 'after', or 'signature'"}), 400
     conn = get_db()
-    row = conn.execute(f"SELECT {column} AS data FROM bookings WHERE id = ?", (booking_id,)).fetchone()
+    if kind == "before":
+        row = conn.execute(
+            "SELECT before_photo_b64 AS data FROM bookings WHERE id = ?", (booking_id,)
+        ).fetchone()
+    elif kind == "after":
+        row = conn.execute(
+            "SELECT after_photo_b64 AS data FROM bookings WHERE id = ?", (booking_id,)
+        ).fetchone()
+    else:
+        row = conn.execute(
+            "SELECT signature_b64 AS data FROM bookings WHERE id = ?", (booking_id,)
+        ).fetchone()
     conn.close()
     if not row or not row["data"]:
         return jsonify({"error": "not found"}), 404
