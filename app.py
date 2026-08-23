@@ -1502,86 +1502,6 @@ def get_booking(booking_id):
     return jsonify(booking_row_to_dict(row, include_start_code=bool(user)))
 
 
-def _route_technician(conn, category, area, exclude_id=None, allow_any_category=True):
-    """Finds a technician to assign a booking to: a verified, on-duty
-    technician in the customer's own area first (fastest to reach them),
-    falling back to any verified on-duty technician for the category, then
-    to anyone in the category at all. [exclude_id] lets a decline (see
-    decline_booking) look for a *different* technician than the one who
-    just passed, without duplicating this whole fallback chain.
-
-    [allow_any_category] adds one final tier: anyone at all, any category.
-    create_booking needs that (a booking's technician_id is NOT NULL, so
-    initial creation must land on *someone*); decline_booking deliberately
-    leaves it off — reassigning a chimney job to an unrelated water-
-    purifier technician who won't be able to do the work is worse than
-    just cancelling it, and unlike creation, a decline has an existing,
-    valid technician_id it can fall back to leaving in place or cancelling
-    instead of forcing a bad match.
-
-    A technician can now be skilled in more than one category (see
-    technician_categories), so category membership can't just be a SQL
-    `WHERE category = ?` any more — it's checked in Python against each
-    row's full category list instead."""
-    exclude_clause = " AND id != ?" if exclude_id else ""
-    exclude_args = (exclude_id,) if exclude_id else ()
-
-    # Every tier below picks the FIRST row an unordered `SELECT *` happens to
-    # return whenever more than one technician ties on the tier's own
-    # criteria (same area, same category, all verified+online) — with no
-    # ORDER BY that was always whichever technician's row SQLite returns
-    # first (in practice, usually whoever was inserted first), so one
-    # technician could quietly hoard every new booking forever while an
-    # equally-qualified newer technician never got routed a single job.
-    # Ordering by each technician's own most recent booking (never-assigned
-    # technicians first, via the empty-string fallback sorting before any
-    # real ISO timestamp) spreads new work to whoever's actually gone
-    # longest without one — real round-robin, using data already on hand.
-    _round_robin_order = (
-        " ORDER BY (SELECT COALESCE(MAX(b.created_at), '') FROM bookings b "
-        "WHERE b.technician_id = technicians.id) ASC"
-    )
-
-    def _first_matching(rows):
-        for row in rows:
-            if category in technician_categories(row):
-                return row
-        return None
-
-    match = None
-    if area:
-        rows = conn.execute(
-            "SELECT * FROM technicians WHERE area = ? AND verified = 1 AND online = 1"
-            + exclude_clause + _round_robin_order,
-            (area,) + exclude_args,
-        ).fetchall()
-        match = _first_matching(rows)
-    if not match:
-        rows = conn.execute(
-            "SELECT * FROM technicians WHERE verified = 1 AND online = 1"
-            + exclude_clause + _round_robin_order,
-            exclude_args,
-        ).fetchall()
-        match = _first_matching(rows)
-    if not match:
-        # No one for this category is online right now — still prefer a
-        # same-specialty technician (even offline/unverified) over an
-        # unrelated one; a mismatched specialty is worse than a wait.
-        rows = conn.execute(
-            "SELECT * FROM technicians"
-            + (" WHERE id != ?" if exclude_id else "") + _round_robin_order,
-            exclude_args,
-        ).fetchall()
-        match = _first_matching(rows)
-    if not match and allow_any_category:
-        match = conn.execute(
-            "SELECT id FROM technicians"
-            + (" WHERE id != ?" if exclude_id else "") + _round_robin_order + " LIMIT 1",
-            exclude_args,
-        ).fetchone()
-    return match["id"] if match else None
-
-
 @app.route("/api/bookings", methods=["POST"])
 @require_auth
 def create_booking():
@@ -1594,7 +1514,6 @@ def create_booking():
     service_id = data.get("service_id")
     bachat_slot = data.get("bachatSlot")
     area = (data.get("area") or "").strip() or None
-    technician_id = data.get("technicianId")
     lat = data.get("lat")
     lng = data.get("lng")
     lat = float(lat) if isinstance(lat, (int, float)) else None
@@ -1629,17 +1548,18 @@ def create_booking():
     total_amount = price
 
     conn = get_db()
-    if not technician_id:
-        technician_id = _route_technician(conn, category, area)
-        if not technician_id:
-            # No technician exists at all — used to silently assign the
-            # literal string "ramesh" here, a demo id that doesn't
-            # correspond to a real account, so every booking "succeeded"
-            # while quietly never reaching anyone. Telling the customer
-            # honestly that nobody's available yet is better than a booking
-            # that looks confirmed but was never actually assigned.
-            conn.close()
-            return jsonify({"error": "No technician is available for this service yet"}), 503
+    # Real dispatch works like Uber/Ola/Rapido, not a single upfront
+    # assignment: the booking goes out unassigned (technician_id NULL) and
+    # every eligible technician sees it in their own broadcast feed (see
+    # GET /api/technician/bookings/available) until one of them claims it
+    # (PATCH .../claim). The one remaining upfront check — at least one
+    # technician exists anywhere at all — just avoids creating a booking
+    # that could never be fulfilled today (e.g. a fresh install with no
+    # technicians signed up yet); it's not a category/area match, since
+    # that's exactly what the broadcast is for.
+    if conn.execute("SELECT 1 FROM technicians LIMIT 1").fetchone() is None:
+        conn.close()
+        return jsonify({"error": "No technician is available for this service yet"}), 503
 
     booking_id = next_id(conn, "order", "RC")
     ts = now()
@@ -1654,7 +1574,7 @@ def create_booking():
         "user_id, service_id, total_amount, lat, lng, directions, notes, issues_json, "
         "start_code) "
         "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (booking_id, category, service, price, technician_id, request.user["name"],
+        (booking_id, category, service, price, None, request.user["name"],
          "Requested", bachat_slot, None, None, area, ts, ts,
          request.user["id"], service_id, total_amount, lat, lng, directions,
          notes, issues_json, start_code),
@@ -1663,6 +1583,76 @@ def create_booking():
     row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
     conn.close()
     return jsonify(booking_row_to_dict(row, include_start_code=True)), 201
+
+
+@app.route("/api/technician/bookings/available", methods=["GET"])
+@require_technician_auth
+def technician_available_bookings():
+    """The Partner app's incoming-request feed — real Uber/Ola/Rapido-style
+    broadcast dispatch: every verified, on-duty technician whose category
+    matches sees the same unclaimed booking here at once (oldest first),
+    and whoever taps Accept first actually gets it — see claim_booking for
+    the race guard. Returns nothing at all if this technician is offline
+    or unverified, matching how those flags already govern eligibility
+    everywhere else in the app."""
+    tech = request.technician
+    if not tech["verified"] or not tech["online"]:
+        return jsonify([])
+    my_categories = technician_categories(tech)
+    conn = get_db()
+    rows = conn.execute(
+        BOOKING_SELECT + " WHERE bookings.technician_id IS NULL AND bookings.status = 'Requested' "
+        "ORDER BY bookings.created_at ASC"
+    ).fetchall()
+    conn.close()
+    # A booking with no area at all (the legacy Bachat-slot promo path,
+    # which never collects one) is shown to any matching-category
+    # technician; one with a real area is only broadcast to technicians
+    # actually in that city — a Nashik technician can't do a Mumbai job.
+    matching = [
+        r for r in rows
+        if r["category"] in my_categories and (not r["area"] or r["area"] == tech["area"])
+    ]
+    return jsonify([booking_row_to_dict(r) for r in matching])
+
+
+@app.route("/api/bookings/<booking_id>/claim", methods=["PATCH"])
+@require_technician_auth
+def claim_booking(booking_id):
+    """Accepting a broadcast request. The UPDATE's own WHERE clause
+    (technician_id IS NULL AND status = 'Requested') is the actual race
+    guard — if two technicians tap Accept on the same broadcast request
+    at the same instant, only one UPDATE can possibly match a row,
+    whichever the database happens to process first. The loser gets a
+    clear "someone else already took this" instead of silently
+    overwriting the winner's claim or the two of them somehow sharing it."""
+    conn = get_db()
+    ts = now()
+    cur = conn.execute(
+        "UPDATE bookings SET technician_id = ?, status = 'Accepted', updated_at = ? "
+        "WHERE id = ? AND technician_id IS NULL AND status = 'Requested'",
+        (request.technician["id"], ts, booking_id),
+    )
+    conn.commit()
+    if cur.rowcount != 1:
+        row = conn.execute(
+            "SELECT status, technician_id FROM bookings WHERE id = ?", (booking_id,)
+        ).fetchone()
+        conn.close()
+        if not row:
+            return jsonify({"error": "not found"}), 404
+        if row["technician_id"] is not None:
+            return jsonify({
+                "error": "Already claimed",
+                "message": "Another technician already accepted this job.",
+            }), 409
+        return jsonify({
+            "error": "No longer available",
+            "message": "This request isn't open to accept any more.",
+        }), 409
+    row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
+    conn.close()
+    return jsonify(booking_row_to_dict(row))
 
 
 @app.route("/api/bookings/<booking_id>/advance", methods=["PATCH"])
@@ -1862,14 +1852,16 @@ def get_job_photo(booking_id, kind):
 @app.route("/api/bookings/<booking_id>/decline", methods=["PATCH"])
 @require_technician_auth
 def decline_booking(booking_id):
-    """Called by the Technician app's "Pass" button. Previously that button
-    only removed the request from the technician's own screen — the
-    booking stayed assigned to them server-side forever, so the customer's
-    job silently never moved. This tries to route the job to a different
-    verified technician (same fallback chain as create_booking, just
-    excluding whoever just passed); if truly nobody else is available, the
-    booking is cancelled fee-free rather than left stuck on a technician
-    who won't take it."""
+    """Called by the Technician app when a technician backs out of a job
+    they'd already claimed, before actually heading over. Real dispatch
+    now broadcasts an unclaimed request to every eligible technician (see
+    technician_available_bookings/claim_booking), so there's no longer a
+    single other technician to hand this off to the way the old reroute
+    chain did — instead this just puts it back in that same broadcast
+    pool (technician_id NULL, status back to Requested) for whoever
+    claims it next. Only allowed while still just Accepted; once a
+    technician is actually on the way, backing out needs a real
+    cancellation instead of a quiet handoff."""
     conn = get_db()
     row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
     if not row:
@@ -1878,33 +1870,20 @@ def decline_booking(booking_id):
     if row["technician_id"] != request.technician["id"]:
         conn.close()
         return jsonify({"error": "Forbidden", "message": "Not your job"}), 403
-    if row["status"] != "Requested":
+    if row["status"] != "Accepted":
         conn.close()
-        return jsonify({"error": f"Cannot decline a {row['status'].lower()} job"}), 400
+        return jsonify({"error": f"Cannot back out of a {row['status'].lower()} job"}), 400
 
     ts = now()
-    next_technician_id = _route_technician(conn, row["category"], row["area"],
-                                            exclude_id=row["technician_id"],
-                                            allow_any_category=False)
-    if next_technician_id:
-        conn.execute(
-            "UPDATE bookings SET technician_id = ?, updated_at = ? WHERE id = ?",
-            (next_technician_id, ts, booking_id),
-        )
-        reassigned = True
-    else:
-        conn.execute(
-            "UPDATE bookings SET status = 'Cancelled', updated_at = ?, cancelled_at = ?, "
-            "cancellation_fee = 0 WHERE id = ?",
-            (ts, ts, booking_id),
-        )
-        reassigned = False
+    conn.execute(
+        "UPDATE bookings SET technician_id = NULL, status = 'Requested', updated_at = ? "
+        "WHERE id = ?",
+        (ts, booking_id),
+    )
     conn.commit()
     row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
     conn.close()
-    result = booking_row_to_dict(row)
-    result["reassigned"] = reassigned
-    return jsonify(result)
+    return jsonify(booking_row_to_dict(row))
 
 
 @app.route("/api/bookings/<booking_id>/payment", methods=["PATCH"])

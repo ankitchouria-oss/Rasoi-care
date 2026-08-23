@@ -28,6 +28,7 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
   int _elapsedSecs = 84; // 01:24 — matches the on-site timer already running
   Timer? _t;
   bool _advancing = false;
+  bool _unclaiming = false;
 
   // ---- job-tracking map (only ever used when MapsConfig.isConfigured) ----
   GoogleMapController? _mapController;
@@ -293,6 +294,27 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
     if (mounted) setState(() => _advancing = false);
   }
 
+  /// Backs out of a job before heading over — real Uber/Ola/Rapido-style:
+  /// puts it back in the broadcast pool (see unclaimJob/decline_booking in
+  /// app.py) for any other eligible technician to claim, instead of the
+  /// old single-reassign-to-one-other-technician chain a hard-assigned
+  /// dispatch model needed. Only offered while still just Accepted (see
+  /// the Dock below) — once actually on the way, backing out needs a real
+  /// cancellation, not a quiet handoff.
+  Future<void> _unclaim() async {
+    setState(() => _unclaiming = true);
+    final repo = ref.read(repositoryProvider);
+    var ok = false;
+    if (repo is ApiRepository) ok = await repo.unclaimJob(widget.jobId);
+    if (!mounted) return;
+    setState(() => _unclaiming = false);
+    if (ok) {
+      context.pop();
+    } else {
+      _toast(context, context.l10n.jobDetailUnclaimError);
+    }
+  }
+
   // Opens the real device camera (not a fake "fills a box in" counter),
   // shows the thumbnail immediately, then uploads it to the backend (see
   // ApiRepository.uploadJobPhoto) — completing the job now genuinely
@@ -539,18 +561,33 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
               ),
             ),
             Dock(
-              child: SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed:
-                      _advancing ? null : () => _handlePrimaryAction(liveStatus, job),
-                  child: _advancing
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : Text(_primaryLabel(t, liveStatus)),
-                ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed:
+                          _advancing ? null : () => _handlePrimaryAction(liveStatus, job),
+                      child: _advancing
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : Text(_primaryLabel(t, liveStatus)),
+                    ),
+                  ),
+                  if (liveStatus == 'Accepted') ...[
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: TextButton(
+                        onPressed: _unclaiming ? null : _unclaim,
+                        child: Text(t.jobDetailUnclaim),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
           ],
