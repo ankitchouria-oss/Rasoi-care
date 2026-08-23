@@ -14,6 +14,7 @@ import '../../core/widgets/care_widgets.dart';
 import '../../l10n/l10n_extensions.dart';
 import '../../state/auth_providers.dart';
 import '../../state/providers.dart';
+import 'legal_document_screen.dart';
 
 class TechMoreScreen extends ConsumerStatefulWidget {
   const TechMoreScreen({super.key});
@@ -156,6 +157,29 @@ class _TechMoreScreenState extends ConsumerState<TechMoreScreen> {
                       ],
                     ),
                   ),
+                  const SizedBox(height: 18),
+                  Eyebrow(t.moreLegalSection),
+                  const SizedBox(height: 8),
+                  CareCard(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      children: [
+                        _menuRow(
+                          context,
+                          Icons.description_outlined,
+                          t.moreTerms,
+                          onTap: () => _openLegalDocument(context, 'terms', t.moreTerms),
+                        ),
+                        _menuRow(
+                          context,
+                          Icons.privacy_tip_outlined,
+                          t.morePrivacy,
+                          onTap: () => _openLegalDocument(context, 'privacy', t.morePrivacy),
+                          last: true,
+                        ),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 22),
                   SizedBox(
                     width: double.infinity,
@@ -176,6 +200,11 @@ class _TechMoreScreenState extends ConsumerState<TechMoreScreen> {
       ),
     );
   }
+
+  void _openLegalDocument(BuildContext context, String kind, String title) =>
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => LegalDocumentScreen(kind: kind, fallbackTitle: title),
+      ));
 
   void _openComingSoon(BuildContext context, String title) =>
       context.push('/tech/soon', extra: title);

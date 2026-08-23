@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +12,7 @@ import '../../state/firestore_providers.dart';
 import '../../data/firebase/mock_auth_service.dart';
 import '../../data/local/recent_phone_store.dart';
 import '../../data/models.dart';
+import '../account/legal_document_screen.dart';
 
 // ============================================================ SPLASH
 class SplashScreen extends ConsumerStatefulWidget {
@@ -763,6 +765,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   SavedAddress? _pickedAddress;
   Set<String> _owned = {'Chimney', 'Hob', 'Refrigerator', 'Water purifier'};
   bool _saving = false;
+  bool _confirmedAdult = false;
 
   @override
   void dispose() {
@@ -780,6 +783,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     if (_pickedAddress == null) {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('Add your address to continue.')));
+      return;
+    }
+    if (!_confirmedAdult) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Confirm you are 18 or older and agree to the Terms to continue.')));
       return;
     }
     setState(() => _saving = true);
@@ -846,6 +854,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     Eyebrow('Which appliances do you own?'),
                     const SizedBox(height: 10),
                     _OwnedChips(owned: _owned, onChanged: (s) => _owned = s),
+                    const SizedBox(height: 22),
+                    _AgeAndTermsRow(
+                      value: _confirmedAdult,
+                      onChanged: (v) => setState(() => _confirmedAdult = v),
+                    ),
                   ],
                 ),
               ),
@@ -899,4 +912,67 @@ class _OwnedChipsState extends State<_OwnedChips> {
                     })),
         ],
       );
+}
+
+/// The age-eligibility gate every account must clear before finishing
+/// sign-up — Rasoi Care doesn't verify age any other way (no ID upload at
+/// registration), so this checkbox plus the required Terms/Privacy tap-
+/// throughs are the real check in place today.
+class _AgeAndTermsRow extends StatelessWidget {
+  const _AgeAndTermsRow({required this.value, required this.onChanged});
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return CareCard(
+      color: context.scheme.surfaceContainerHigh,
+      borderColor: Colors.transparent,
+      onTap: () => onChanged(!value),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Checkbox(value: value, onChanged: (v) => onChanged(v ?? false)),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 13),
+              child: RichText(
+                text: TextSpan(
+                  style: context.type.bodySmall?.copyWith(color: context.care.inkMuted) ??
+                      TextStyle(color: context.care.inkMuted, fontSize: 12.5),
+                  children: [
+                    const TextSpan(text: 'I confirm I am 18 years or older, and I agree to the '),
+                    TextSpan(
+                      text: 'Terms of Service',
+                      style: TextStyle(
+                          color: context.scheme.primary,
+                          fontWeight: FontWeight.w700,
+                          decoration: TextDecoration.underline),
+                      recognizer: TapGestureRecognizer()
+                        ..onTap = () => Navigator.of(context).push(MaterialPageRoute(
+                            builder: (_) => const LegalDocumentScreen(
+                                kind: 'terms', fallbackTitle: 'Terms of Service'))),
+                    ),
+                    const TextSpan(text: ' and '),
+                    TextSpan(
+                      text: 'Privacy Policy',
+                      style: TextStyle(
+                          color: context.scheme.primary,
+                          fontWeight: FontWeight.w700,
+                          decoration: TextDecoration.underline),
+                      recognizer: TapGestureRecognizer()
+                        ..onTap = () => Navigator.of(context).push(MaterialPageRoute(
+                            builder: (_) => const LegalDocumentScreen(
+                                kind: 'privacy', fallbackTitle: 'Privacy Policy'))),
+                    ),
+                    const TextSpan(text: '.'),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

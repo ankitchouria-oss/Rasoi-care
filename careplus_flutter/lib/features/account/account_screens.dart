@@ -14,6 +14,7 @@ import '../../state/providers.dart';
 import '../../state/auth_providers.dart';
 import '../../state/firestore_providers.dart';
 import '../settings/language_screen.dart';
+import 'legal_document_screen.dart';
 
 /// True while a just-picked profile photo is uploading — the avatar shows a
 /// spinner instead of letting you fire off a second upload mid-flight.
@@ -384,7 +385,11 @@ class AccountScreen extends ConsumerWidget {
                 _NavRow(
                     icon: Icons.description_outlined,
                     label: t.accountTerms,
-                    onTap: () => _showTerms(context),
+                    onTap: () => _openLegalDocument(context, 'terms', t.accountTerms)),
+                _NavRow(
+                    icon: Icons.privacy_tip_outlined,
+                    label: t.accountPrivacy,
+                    onTap: () => _openLegalDocument(context, 'privacy', t.accountPrivacy),
                     last: true),
               ]),
             ),
@@ -409,8 +414,10 @@ class AccountScreen extends ConsumerWidget {
     );
   }
 
-  void _showTerms(BuildContext context) =>
-      _showComingSoon(context, context.l10n.accountTerms, context.l10n.accountTermsBody);
+  void _openLegalDocument(BuildContext context, String kind, String title) =>
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => LegalDocumentScreen(kind: kind, fallbackTitle: title),
+      ));
 
   void _showComingSoon(BuildContext context, String title, String body) {
     showModalBottomSheet<void>(

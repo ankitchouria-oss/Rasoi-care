@@ -87,12 +87,12 @@ class JobPhotosVM extends FamilyNotifier<List<String>, String> {
 }
 
 /// Whether this device should get job-critical updates over WhatsApp —
-/// a real, persisted device preference (see More tab), matching Urban
-/// Company Partner's "Send WhatsApp updates" toggle. What it doesn't do,
+/// a real, persisted device preference (see More tab). What it doesn't do,
 /// because there's no WhatsApp Business API wired into this backend yet,
 /// is actually deliver anything over WhatsApp — the preference is real,
-/// the delivery channel behind it isn't built. Defaults to on, same as
-/// UC's own default, until the real stored value (if any) loads.
+/// the delivery channel behind it isn't built. Defaults to off — WhatsApp
+/// messaging requires the technician's opt-in consent, not an opt-out
+/// toggle — until the real stored value (if any) loads.
 final whatsappUpdatesProvider =
     NotifierProvider<WhatsAppUpdatesVM, bool>(WhatsAppUpdatesVM.new);
 
@@ -102,7 +102,7 @@ class WhatsAppUpdatesVM extends Notifier<bool> {
   @override
   bool build() {
     _load();
-    return true;
+    return false;
   }
 
   Future<void> _load() async {

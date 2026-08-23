@@ -260,4 +260,22 @@ class BackendClient {
       return (order: null, error: 'Could not reach the server — check your connection.');
     }
   }
+
+  /// GET /api/legal/{terms|privacy} — the real Terms of Service / Privacy
+  /// Policy text served by the backend (`kind` is 'terms' or 'privacy').
+  /// Returns null on any failure so the caller can show a real "couldn't
+  /// load" state instead of silently rendering nothing.
+  Future<Map<String, dynamic>?> fetchLegalDocument(String kind) async {
+    try {
+      final res =
+          await http.get(Uri.parse('${ApiConfig.baseUrl}/api/legal/$kind')).timeout(_timeout);
+      if (res.statusCode == 200) {
+        final decoded = jsonDecode(res.body);
+        if (decoded is Map<String, dynamic>) return decoded;
+      }
+    } catch (_) {
+      // Best-effort — see file header.
+    }
+    return null;
+  }
 }

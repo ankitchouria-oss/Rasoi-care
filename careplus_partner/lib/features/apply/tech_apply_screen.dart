@@ -315,6 +315,14 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
           .showSnackBar(SnackBar(content: Text(t.applyPickCity)));
       return;
     }
+    // The date picker itself only lets you pick a date 18+ years ago (see
+    // _pickDob's `lastDate`), so a non-empty value here is already an
+    // enforced adult date of birth — this just makes sure one was actually
+    // picked, since nothing else on the form requires it.
+    if (_dobCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t.applyPickDob)));
+      return;
+    }
     if (!_isEditing && !_agreedToTerms) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(t.applyAcceptTerms)));
