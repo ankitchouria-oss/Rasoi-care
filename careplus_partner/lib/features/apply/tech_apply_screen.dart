@@ -215,8 +215,18 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
     if (picked != null) setState(() => _photo = File(picked.path));
   }
 
+  // KYC document photos (as opposed to the casual profile photo above) need
+  // to preserve fine print — both for the on-device OCR address read below
+  // and for an admin to actually read the card during review — so these use
+  // much lighter compression than the default. A technician's gallery photo
+  // is very often itself a recompressed WhatsApp forward (small print
+  // already softened once); compressing it again at the default quality
+  // only makes a marginal read worse.
+  static const _documentImageQuality = 95;
+
   Future<void> _pickAadharDocument() async {
-    final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 80);
+    final picked = await ImagePicker()
+        .pickImage(source: ImageSource.gallery, imageQuality: _documentImageQuality);
     if (picked != null) setState(() => _aadharDocument = File(picked.path));
   }
 
@@ -224,10 +234,27 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
   /// not the front — so this is also the photo the OCR autofill in
   /// [_tryAutofillAddress] reads from.
   Future<void> _pickAadharDocumentBack() async {
-    final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 80);
+    final picked = await ImagePicker()
+        .pickImage(source: ImageSource.gallery, imageQuality: _documentImageQuality);
     if (picked == null) return;
     final file = File(picked.path);
     setState(() => _aadharDocumentBack = file);
+    setState(() => _autofillingAddress = true);
+    final found = await _tryAutofillAddress(file);
+    if (!mounted) return;
+    setState(() => _autofillingAddress = false);
+    if (!found) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(context.l10n.applyAddressAutofillFailed)));
+    }
+  }
+
+  /// Re-runs OCR against the already-picked back photo — lets a technician
+  /// retry a failed read without leaving the screen to re-pick the same
+  /// image from their gallery.
+  Future<void> _retryAutofillAddress() async {
+    final file = _aadharDocumentBack;
+    if (file == null) return;
     setState(() => _autofillingAddress = true);
     final found = await _tryAutofillAddress(file);
     if (!mounted) return;
@@ -257,12 +284,14 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
   }
 
   Future<void> _pickPanDocument() async {
-    final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 80);
+    final picked = await ImagePicker()
+        .pickImage(source: ImageSource.gallery, imageQuality: _documentImageQuality);
     if (picked != null) setState(() => _panDocument = File(picked.path));
   }
 
   Future<void> _pickPassbookDocument() async {
-    final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 80);
+    final picked = await ImagePicker()
+        .pickImage(source: ImageSource.gallery, imageQuality: _documentImageQuality);
     if (picked != null) setState(() => _passbookDocument = File(picked.path));
   }
 
@@ -591,6 +620,21 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
                             Text(t.applyAddressAutofilled,
                                 style: context.type.bodySmall!
                                     .copyWith(color: context.care.success)),
+                          ] else if (_aadharDocumentBack != null && !_autofillingAddress) ...[
+                            const SizedBox(height: 8),
+                            InkWell(
+                              onTap: _retryAutofillAddress,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.refresh, size: 15, color: context.scheme.primary),
+                                  const SizedBox(width: 4),
+                                  Text(t.applyRetryAddressAutofill,
+                                      style: context.type.bodySmall!
+                                          .copyWith(color: context.scheme.primary)),
+                                ],
+                              ),
+                            ),
                           ],
                         ],
                       ),

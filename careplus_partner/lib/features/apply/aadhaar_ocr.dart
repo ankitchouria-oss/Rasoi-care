@@ -20,15 +20,30 @@ Future<String?> extractAddressFromImage(File file) async {
   final recognizer = TextRecognizer(script: TextRecognitionScript.latin);
   try {
     final input = InputImage.fromFile(file);
-    final result = await recognizer.processImage(input);
-    return _parseAddress(result.text);
+    // The very first OCR call on a device downloads the on-device text
+    // model over the network (Google Play Services fetches it lazily,
+    // not at app install) — that first call fails outright rather than
+    // just running slow, which reads as "OCR never works" on a technician's
+    // first-ever application even though every later attempt succeeds
+    // fine once the model's cached. One short-delay retry turns that
+    // one-time failure into a normal success without the technician
+    // having to notice or do anything.
+    for (var attempt = 0; ; attempt++) {
+      try {
+        final result = await recognizer.processImage(input);
+        return _parseAddress(result.text);
+      } catch (e) {
+        if (attempt > 0) rethrow;
+        debugPrint('extractAddressFromImage: OCR failed, retrying once — $e');
+        await Future.delayed(const Duration(seconds: 2));
+      }
+    }
   } catch (e) {
-    // Most likely cause on a real device: the on-device text-recognition
-    // model hasn't finished downloading yet (Google Play Services fetches
-    // it lazily on first use, which needs a moment of network access) or
-    // Play Services isn't available at all. Either way this is caught, not
-    // rethrown — the caller falls back to the manual address field, which
-    // is why this is only ever a convenience, never a requirement.
+    // Still failing after the retry — most likely Play Services isn't
+    // available at all, or there's no network to fetch the model over.
+    // Caught, not rethrown: the caller falls back to the manual address
+    // field, which is why this is only ever a convenience, never a
+    // requirement.
     debugPrint('extractAddressFromImage: OCR failed — $e');
     return null;
   } finally {

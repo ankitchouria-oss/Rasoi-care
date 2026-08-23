@@ -218,6 +218,7 @@
   "applyAddressAutofilled": "Auto-filled from your Aadhaar card — please check it's correct",
   "applyReadingAddress": "Reading address from photo…",
   "applyAddressAutofillFailed": "Couldn't read an address from that photo — please type it in below",
+  "applyRetryAddressAutofill": "Try reading the address again",
   "applyUploadFailedPhoto": "Couldn't upload your profile photo — check your connection and try again",
   "applyUploadFailedAadhaarFront": "Couldn't upload the front of your Aadhaar card — check your connection and try again",
   "applyUploadFailedAadhaarBack": "Couldn't upload the back of your Aadhaar card — check your connection and try again",
