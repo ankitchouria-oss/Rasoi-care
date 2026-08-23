@@ -43,8 +43,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
+        # autobuild can't work here: this is a Flutter/Dart repo with no
+        # root-level Gradle/Maven build — the only Java/Kotlin present is
+        # each of the three apps' generated Android shell, nested under
+        # careplus_{flutter,partner,admin}/android. build-mode: none scans
+        # the Kotlin/Java source directly without needing any of those
+        # subprojects to actually build.
         - language: java-kotlin
-          build-mode: autobuild
+          build-mode: none
         - language: python
           build-mode: none
         # CodeQL supports the following values keywords for 'language': 'actions', 'c-cpp', 'csharp', 'go', 'java-kotlin', 'javascript-typescript', 'python', 'ruby', 'rust', 'swift'
