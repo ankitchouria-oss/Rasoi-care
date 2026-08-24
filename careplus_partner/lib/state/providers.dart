@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/api/api_repository.dart';
+import '../data/local/biometric_service.dart';
 import '../data/models.dart';
 import '../data/repository.dart';
 
@@ -124,6 +125,40 @@ class WhatsAppUpdatesVM extends Notifier<bool> {
 /// real stored choice (if any) loads. Data that actually came from the
 /// server — a customer's name, an address a technician typed — is never
 /// translated; only this app's own UI chrome changes.
+/// Fingerprint/face unlock — see BiometricService for what "enabled" means
+/// on top of just "the phone has biometric hardware".
+final biometricServiceProvider =
+    Provider<BiometricService>((ref) => BiometricService());
+
+/// Whether this account has actually turned biometric login on — offered
+/// once right after sign-up and toggleable in the More tab. Defaults to
+/// off until the real stored value (if any) loads.
+final biometricEnabledProvider =
+    NotifierProvider<BiometricEnabledVM, bool>(BiometricEnabledVM.new);
+
+class BiometricEnabledVM extends Notifier<bool> {
+  @override
+  bool build() {
+    _load();
+    return false;
+  }
+
+  Future<void> _load() async {
+    state = await ref.read(biometricServiceProvider).isEnabled();
+  }
+
+  Future<void> set(bool value) async {
+    state = value;
+    await ref.read(biometricServiceProvider).setEnabled(value);
+  }
+}
+
+/// Whether this device actually has usable biometric hardware — gates
+/// whether the More tab even shows the biometric login row.
+final biometricSupportedProvider = FutureProvider<bool>(
+  (ref) => ref.watch(biometricServiceProvider).isDeviceSupported(),
+);
+
 final localeProvider = NotifierProvider<LocaleVM, Locale>(LocaleVM.new);
 
 const supportedLocales = [Locale('en'), Locale('hi')];
