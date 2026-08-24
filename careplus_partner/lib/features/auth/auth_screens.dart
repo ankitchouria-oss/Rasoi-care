@@ -341,19 +341,33 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                         // cover the whole box row so tapping anywhere focuses
                         // it. Mock mode has nothing here; the boxes above
                         // just animate _mockCode on a timer.
+                        //
+                        // Two independent auto-fill paths feed this same
+                        // field, whichever fires first: SmartAuth's User
+                        // Consent API above (a system "Allow?" banner reading
+                        // the SMS directly), and — new here — the platform
+                        // Autofill Framework's own SMS suggestion chip above
+                        // the keyboard, triggered by `autofillHints:
+                        // oneTimeCode` inside a real `AutofillGroup`. The
+                        // second one needs no dialog at all and is what iOS
+                        // and most modern Android keyboards surface as a
+                        // one-tap "123456" suggestion.
                         if (!isMock)
                           Positioned.fill(
                             child: Opacity(
                               opacity: 0,
-                              child: TextField(
-                                controller: _codeCtrl,
-                                focusNode: _codeFocus,
-                                autofocus: true,
-                                keyboardType: TextInputType.number,
-                                maxLength: _length,
-                                decoration: const InputDecoration(
-                                    counterText: '', border: InputBorder.none),
-                                onChanged: _onCodeChanged,
+                              child: AutofillGroup(
+                                child: TextField(
+                                  controller: _codeCtrl,
+                                  focusNode: _codeFocus,
+                                  autofocus: true,
+                                  keyboardType: TextInputType.number,
+                                  maxLength: _length,
+                                  autofillHints: const [AutofillHints.oneTimeCode],
+                                  decoration: const InputDecoration(
+                                      counterText: '', border: InputBorder.none),
+                                  onChanged: _onCodeChanged,
+                                ),
                               ),
                             ),
                           ),
