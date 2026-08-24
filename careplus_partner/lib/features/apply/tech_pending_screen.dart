@@ -25,7 +25,7 @@ class _TechPendingScreenState extends ConsumerState<TechPendingScreen> {
     setState(() => _checking = false);
     final stage = stageFromTechnicianJson(tech);
     if (stage == TechnicianStage.jobs) {
-      context.go('/tech/jobs');
+      routeToStage(context, ref, stage);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(context.l10n.pendingStillReview)));

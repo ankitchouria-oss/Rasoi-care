@@ -8,6 +8,7 @@ import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
 import '../../l10n/l10n_extensions.dart';
 import '../../state/auth_providers.dart';
+import '../../state/providers.dart';
 import '../../data/auth/mock_auth_service.dart';
 
 // ============================================================ SPLASH
@@ -30,7 +31,17 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       // actually belong (still applying, awaiting verification, or fully
       // onboarded) instead of always dropping them at the job feed.
       final tech = await fetchTechnicianMe();
-      if (mounted) routeToStage(context, stageFromTechnicianJson(tech));
+      if (!mounted) return;
+      final stage = stageFromTechnicianJson(tech);
+      // A returning, already-verified session with biometric login turned
+      // on gets locked behind a fingerprint/face check instead of dropping
+      // straight into the job feed — routeToStage's one-time enroll offer
+      // is for a session reaching the feed for the first time, not this.
+      if (stage == TechnicianStage.jobs && await ref.read(biometricServiceProvider).isEnabled()) {
+        if (mounted) context.go('/lock');
+        return;
+      }
+      if (mounted) routeToStage(context, ref, stage);
     });
   }
 
@@ -278,7 +289,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     if (!mounted) return;
     setState(() => _verifying = false);
     if (ok) {
-      routeToStage(context, ref.read(authFlowProvider).stage);
+      routeToStage(context, ref, ref.read(authFlowProvider).stage);
     } else {
       final err = ref.read(authFlowProvider).error ?? context.l10n.otpErrorGeneric;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
@@ -327,22 +338,10 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                           children: [
                             for (var i = 0; i < _length; i++) ...[
                               Expanded(
-                                child: AnimatedContainer(
-                                  duration: Motion.press,
-                                  height: 64,
-                                  alignment: Alignment.center,
-                                  decoration: BoxDecoration(
-                                    color: context.scheme.surface,
-                                    borderRadius: Radii.rMd,
-                                    border: Border.all(
-                                        color: i < _code.length
-                                            ? context.scheme.primary
-                                            : context.care.hairline,
-                                        width: 1.5),
-                                  ),
-                                  child: Text(i < _code.length ? _code[i] : '',
-                                      style: CareType.mono(context.scheme.onSurface,
-                                          size: 24, w: FontWeight.w600)),
+                                child: _OtpBox(
+                                  digit: i < _code.length ? _code[i] : '',
+                                  filled: i < _code.length,
+                                  active: i == _code.length && _code.length < _length,
                                 ),
                               ),
                               if (i != _length - 1) const SizedBox(width: 11),
@@ -353,19 +352,33 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                         // cover the whole box row so tapping anywhere focuses
                         // it. Mock mode has nothing here; the boxes above
                         // just animate _mockCode on a timer.
+                        //
+                        // Two independent auto-fill paths feed this same
+                        // field, whichever fires first: SmartAuth's User
+                        // Consent API above (a system "Allow?" banner reading
+                        // the SMS directly), and — new here — the platform
+                        // Autofill Framework's own SMS suggestion chip above
+                        // the keyboard, triggered by `autofillHints:
+                        // oneTimeCode` inside a real `AutofillGroup`. The
+                        // second one needs no dialog at all and is what iOS
+                        // and most modern Android keyboards surface as a
+                        // one-tap "123456" suggestion.
                         if (!isMock)
                           Positioned.fill(
                             child: Opacity(
                               opacity: 0,
-                              child: TextField(
-                                controller: _codeCtrl,
-                                focusNode: _codeFocus,
-                                autofocus: true,
-                                keyboardType: TextInputType.number,
-                                maxLength: _length,
-                                decoration: const InputDecoration(
-                                    counterText: '', border: InputBorder.none),
-                                onChanged: _onCodeChanged,
+                              child: AutofillGroup(
+                                child: TextField(
+                                  controller: _codeCtrl,
+                                  focusNode: _codeFocus,
+                                  autofocus: true,
+                                  keyboardType: TextInputType.number,
+                                  maxLength: _length,
+                                  autofillHints: const [AutofillHints.oneTimeCode],
+                                  decoration: const InputDecoration(
+                                      counterText: '', border: InputBorder.none),
+                                  onChanged: _onCodeChanged,
+                                ),
                               ),
                             ),
                           ),
@@ -430,4 +443,85 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       ),
     );
   }
+}
+
+/// One digit cell in the OTP row. A filled digit gets a soft primary-tinted
+/// fill and a matching glow; the next box waiting for input gets a brighter
+/// glow, a thicker border, a slight pop (via the caller's scale), and a
+/// blinking cursor so it's obvious exactly where typing lands — same
+/// underlying single-hidden-TextField input as before (see the Stack this
+/// sits in), just a clearer view of the state that field is already tracking.
+class _OtpBox extends StatelessWidget {
+  const _OtpBox({required this.digit, required this.filled, required this.active});
+  final String digit;
+  final bool filled;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = context.scheme.primary;
+    return AnimatedScale(
+      scale: active ? 1.06 : 1.0,
+      duration: Motion.press,
+      curve: Motion.ease,
+      child: AnimatedContainer(
+        duration: Motion.press,
+        curve: Motion.ease,
+        height: 68,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: filled ? accent.withValues(alpha: 0.10) : context.scheme.surface,
+          borderRadius: Radii.rLg,
+          border: Border.all(
+            color: filled || active ? accent : context.care.hairline,
+            width: active ? 2 : 1.5,
+          ),
+          boxShadow: filled || active
+              ? [
+                  BoxShadow(
+                    color: accent.withValues(alpha: active ? 0.32 : 0.14),
+                    blurRadius: active ? 18 : 8,
+                    spreadRadius: active ? 1 : 0,
+                  ),
+                ]
+              : null,
+        ),
+        child: digit.isNotEmpty
+            ? Text(digit,
+                style: CareType.mono(context.scheme.onSurface, size: 24, w: FontWeight.w700))
+            : (active ? _BlinkCursor(color: accent) : null),
+      ),
+    );
+  }
+}
+
+/// A slow, steady fade in/out — the "something is waiting for you here"
+/// signal on the OTP row's next empty box, independent of the real input
+/// field's own (invisible) cursor.
+class _BlinkCursor extends StatefulWidget {
+  const _BlinkCursor({required this.color});
+  final Color color;
+  @override
+  State<_BlinkCursor> createState() => _BlinkCursorState();
+}
+
+class _BlinkCursorState extends State<_BlinkCursor> with SingleTickerProviderStateMixin {
+  late final _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))
+    ..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => FadeTransition(
+        opacity: _c.drive(CurveTween(curve: Curves.easeInOut)),
+        child: Container(
+          width: 2,
+          height: 26,
+          decoration: BoxDecoration(color: widget.color, borderRadius: BorderRadius.circular(1)),
+        ),
+      );
 }
