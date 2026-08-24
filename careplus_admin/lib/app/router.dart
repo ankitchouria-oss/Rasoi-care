@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/auth/auth_screens.dart';
-import '../features/auth/biometric_screens.dart';
 import '../features/dashboard/overview_screen.dart';
 import '../features/dashboard/reports_screen.dart';
 import '../features/dashboard/bookings_screen.dart';
@@ -27,8 +26,6 @@ final router = GoRouter(
         GoRoute(path: 'email', builder: (_, __) => const EmailAuthScreen()),
       ],
     ),
-    GoRoute(path: '/biometric-enroll', builder: (_, __) => const BiometricEnrollScreen()),
-    GoRoute(path: '/lock', builder: (_, __) => const BiometricLockScreen()),
 
     GoRoute(
         path: '/account',

@@ -49,7 +49,6 @@ dependencies:
   url_launcher: ^6.3.2
   smart_auth: ^3.2.0          # real SMS auto-read on the OTP screen (User Consent API)
   shared_preferences: ^2.5.5  # persisted device preferences — see WhatsApp updates toggle + language
-  local_auth: ^2.3.0          # fingerprint/face unlock, offered after sign-up — see BiometricService
   flutter_localizations:
     sdk: flutter               # English/Hindi UI strings — see lib/l10n/
 

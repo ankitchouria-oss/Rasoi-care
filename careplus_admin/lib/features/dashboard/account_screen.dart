@@ -8,22 +8,6 @@ import '../../data/models.dart';
 import '../../state/providers.dart';
 import '../../state/auth_providers.dart';
 
-Future<void> _toggleBiometric(BuildContext context, WidgetRef ref, bool value) async {
-  if (!value) {
-    await ref.read(biometricEnabledProvider.notifier).set(false);
-    return;
-  }
-  final ok = await ref
-      .read(biometricServiceProvider)
-      .authenticate('Confirm your fingerprint or face to turn on biometric login');
-  if (ok) {
-    await ref.read(biometricEnabledProvider.notifier).set(true);
-  } else if (context.mounted) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text("Couldn't verify — biometric login stays off.")));
-  }
-}
-
 class AccountScreen extends ConsumerWidget {
   const AccountScreen({super.key});
 
@@ -31,8 +15,6 @@ class AccountScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final auth = ref.watch(authFlowProvider);
     final mode = ref.watch(themeModeProvider);
-    final biometricSupported = ref.watch(biometricSupportedProvider).valueOrNull ?? false;
-    final biometricOn = ref.watch(biometricEnabledProvider);
 
     return Scaffold(
       appBar: AppBar(leading: BackButton(onPressed: context.pop), title: const Text('Account')),
@@ -74,21 +56,6 @@ class AccountScreen extends ConsumerWidget {
                 ),
               ]),
             ),
-            if (biometricSupported)
-              CareCard(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(children: [
-                  const Icon(Icons.fingerprint, size: 20),
-                  const SizedBox(width: 13),
-                  const Expanded(
-                      child: Text('Biometric login',
-                          style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700))),
-                  Switch(
-                    value: biometricOn,
-                    onChanged: (v) => _toggleBiometric(context, ref, v),
-                  ),
-                ]),
-              ),
             if (auth.role == AdminRole.owner) ...[
               const SectionHeader('Owner tools'),
               CareCard(

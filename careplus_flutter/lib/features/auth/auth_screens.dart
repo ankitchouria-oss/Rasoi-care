@@ -9,7 +9,6 @@ import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
 import '../../state/auth_providers.dart';
 import '../../state/firestore_providers.dart';
-import '../../state/providers.dart';
 import '../../data/firebase/mock_auth_service.dart';
 import '../../data/local/recent_phone_store.dart';
 import '../../data/models.dart';
@@ -26,7 +25,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    Timer(const Duration(milliseconds: 2100), () async {
+    Timer(const Duration(milliseconds: 2100), () {
       if (!mounted) return;
       // Already signed in from a previous session (Firebase persists this
       // across app restarts) — skip straight past onboarding/login instead
@@ -40,13 +39,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
         // to recreate it, and every authenticated call would 401 forever.
         ref.read(authFlowProvider.notifier).bootstrapBackend();
       }
-      if (!alreadySignedIn) {
-        context.go('/onboarding');
-        return;
-      }
-      final biometricOn = await ref.read(biometricServiceProvider).isEnabled();
-      if (!mounted) return;
-      context.go(biometricOn ? '/lock' : '/');
+      context.go(alreadySignedIn ? '/' : '/onboarding');
     });
   }
 
@@ -642,10 +635,22 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                           children: [
                             for (var i = 0; i < _length; i++) ...[
                               Expanded(
-                                child: _OtpBox(
-                                  digit: i < _code.length ? _code[i] : '',
-                                  filled: i < _code.length,
-                                  active: i == _code.length && _code.length < _length,
+                                child: AnimatedContainer(
+                                  duration: Motion.press,
+                                  height: 64,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: context.scheme.surface,
+                                    borderRadius: Radii.rMd,
+                                    border: Border.all(
+                                        color: i < _code.length
+                                            ? context.scheme.primary
+                                            : context.care.hairline,
+                                        width: 1.5),
+                                  ),
+                                  child: Text(i < _code.length ? _code[i] : '',
+                                      style: CareType.mono(context.scheme.onSurface,
+                                          size: 24, w: FontWeight.w600)),
                                 ),
                               ),
                               if (i != _length - 1) const SizedBox(width: 11),
@@ -656,33 +661,19 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                         // cover the whole box row so tapping anywhere focuses
                         // it. Mock mode has nothing here; the boxes above
                         // just animate _mockCode on a timer.
-                        //
-                        // Two independent auto-fill paths feed this same
-                        // field, whichever fires first: SmartAuth's User
-                        // Consent API above (a system "Allow?" banner reading
-                        // the SMS directly), and — new here — the platform
-                        // Autofill Framework's own SMS suggestion chip above
-                        // the keyboard, triggered by `autofillHints:
-                        // oneTimeCode` inside a real `AutofillGroup`. The
-                        // second one needs no dialog at all and is what iOS
-                        // and most modern Android keyboards surface as a
-                        // one-tap "123456" suggestion.
                         if (!isMock)
                           Positioned.fill(
                             child: Opacity(
                               opacity: 0,
-                              child: AutofillGroup(
-                                child: TextField(
-                                  controller: _codeCtrl,
-                                  focusNode: _codeFocus,
-                                  autofocus: true,
-                                  keyboardType: TextInputType.number,
-                                  maxLength: _length,
-                                  autofillHints: const [AutofillHints.oneTimeCode],
-                                  decoration: const InputDecoration(
-                                      counterText: '', border: InputBorder.none),
-                                  onChanged: _onCodeChanged,
-                                ),
+                              child: TextField(
+                                controller: _codeCtrl,
+                                focusNode: _codeFocus,
+                                autofocus: true,
+                                keyboardType: TextInputType.number,
+                                maxLength: _length,
+                                decoration: const InputDecoration(
+                                    counterText: '', border: InputBorder.none),
+                                onChanged: _onCodeChanged,
                               ),
                             ),
                           ),
@@ -811,12 +802,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           ownedAppliances: _owned,
         ));
     if (!mounted) return;
-    // Offer biometric login right after sign-up, but only on a device that
-    // can actually satisfy it — no dead-end "no fingerprint enrolled" screen.
-    final biometricSupported =
-        await ref.read(biometricServiceProvider).isDeviceSupported();
-    if (!mounted) return;
-    context.go(biometricSupported ? '/biometric-enroll' : '/');
+    context.go('/');
   }
 
   @override
@@ -989,85 +975,4 @@ class _AgeAndTermsRow extends StatelessWidget {
       ),
     );
   }
-}
-
-/// One digit cell in the OTP row. A filled digit gets a soft primary-tinted
-/// fill and a matching glow; the next box waiting for input gets a brighter
-/// glow, a thicker border, a slight pop (via the caller's scale), and a
-/// blinking cursor so it's obvious exactly where typing lands — same
-/// underlying single-hidden-TextField input as before (see the Stack this
-/// sits in), just a clearer view of the state that field is already tracking.
-class _OtpBox extends StatelessWidget {
-  const _OtpBox({required this.digit, required this.filled, required this.active});
-  final String digit;
-  final bool filled;
-  final bool active;
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = context.scheme.primary;
-    return AnimatedScale(
-      scale: active ? 1.06 : 1.0,
-      duration: Motion.press,
-      curve: Motion.ease,
-      child: AnimatedContainer(
-        duration: Motion.press,
-        curve: Motion.ease,
-        height: 68,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: filled ? accent.withValues(alpha: 0.10) : context.scheme.surface,
-          borderRadius: Radii.rLg,
-          border: Border.all(
-            color: filled || active ? accent : context.care.hairline,
-            width: active ? 2 : 1.5,
-          ),
-          boxShadow: filled || active
-              ? [
-                  BoxShadow(
-                    color: accent.withValues(alpha: active ? 0.32 : 0.14),
-                    blurRadius: active ? 18 : 8,
-                    spreadRadius: active ? 1 : 0,
-                  ),
-                ]
-              : null,
-        ),
-        child: digit.isNotEmpty
-            ? Text(digit,
-                style: CareType.mono(context.scheme.onSurface, size: 24, w: FontWeight.w700))
-            : (active ? _BlinkCursor(color: accent) : null),
-      ),
-    );
-  }
-}
-
-/// A slow, steady fade in/out — the "something is waiting for you here"
-/// signal on the OTP row's next empty box, independent of the real input
-/// field's own (invisible) cursor.
-class _BlinkCursor extends StatefulWidget {
-  const _BlinkCursor({required this.color});
-  final Color color;
-  @override
-  State<_BlinkCursor> createState() => _BlinkCursorState();
-}
-
-class _BlinkCursorState extends State<_BlinkCursor> with SingleTickerProviderStateMixin {
-  late final _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))
-    ..repeat(reverse: true);
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => FadeTransition(
-        opacity: _c.drive(CurveTween(curve: Curves.easeInOut)),
-        child: Container(
-          width: 2,
-          height: 26,
-          decoration: BoxDecoration(color: widget.color, borderRadius: BorderRadius.circular(1)),
-        ),
-      );
 }
