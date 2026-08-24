@@ -419,7 +419,7 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
       if (_isEditing) {
         Navigator.of(context).pop();
       } else {
-        routeToStage(context, stageFromTechnicianJson(result));
+        routeToStage(context, ref, stageFromTechnicianJson(result));
       }
     } on AuthException catch (e) {
       if (mounted) {

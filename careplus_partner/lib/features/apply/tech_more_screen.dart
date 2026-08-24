@@ -28,6 +28,8 @@ class _TechMoreScreenState extends ConsumerState<TechMoreScreen> {
     final me = ref.watch(technicianMeProvider);
     final verified = me?['verified'] == true;
     final whatsappOn = ref.watch(whatsappUpdatesProvider);
+    final biometricSupported = ref.watch(biometricSupportedProvider).valueOrNull ?? false;
+    final biometricOn = ref.watch(biometricEnabledProvider);
     final locale = ref.watch(localeProvider);
     final t = context.l10n;
     final languageLabel = locale.languageCode == 'hi' ? t.languageHindi : t.languageEnglish;
@@ -139,6 +141,14 @@ class _TechMoreScreenState extends ConsumerState<TechMoreScreen> {
                           t.moreShop,
                           onTap: () => _openComingSoon(context, t.moreShop),
                         ),
+                        if (biometricSupported)
+                          _menuRow(
+                            context,
+                            Icons.fingerprint,
+                            t.moreBiometricLogin,
+                            subtitle: biometricOn ? t.moreBiometricOn : t.moreBiometricOff,
+                            onTap: () => _toggleBiometric(context, ref, biometricOn),
+                          ),
                         _menuRow(
                           context,
                           Icons.chat_bubble_outline,
@@ -208,6 +218,22 @@ class _TechMoreScreenState extends ConsumerState<TechMoreScreen> {
 
   void _openComingSoon(BuildContext context, String title) =>
       context.push('/tech/soon', extra: title);
+
+  Future<void> _toggleBiometric(BuildContext context, WidgetRef ref, bool currentlyOn) async {
+    if (currentlyOn) {
+      await ref.read(biometricEnabledProvider.notifier).set(false);
+      return;
+    }
+    final ok = await ref
+        .read(biometricServiceProvider)
+        .authenticate('Confirm your fingerprint or face to turn on biometric login');
+    if (ok) {
+      await ref.read(biometricEnabledProvider.notifier).set(true);
+    } else if (context.mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text("Couldn't verify — biometric login stays off.")));
+    }
+  }
 
   /// Mirrors Urban Company Partner's own confirmation dialog before turning
   /// WhatsApp updates off. This toggle is a real, persisted device

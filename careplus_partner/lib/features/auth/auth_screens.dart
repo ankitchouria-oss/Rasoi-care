@@ -8,6 +8,7 @@ import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
 import '../../l10n/l10n_extensions.dart';
 import '../../state/auth_providers.dart';
+import '../../state/providers.dart';
 import '../../data/auth/mock_auth_service.dart';
 
 // ============================================================ SPLASH
@@ -30,7 +31,17 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       // actually belong (still applying, awaiting verification, or fully
       // onboarded) instead of always dropping them at the job feed.
       final tech = await fetchTechnicianMe();
-      if (mounted) routeToStage(context, stageFromTechnicianJson(tech));
+      if (!mounted) return;
+      final stage = stageFromTechnicianJson(tech);
+      // A returning, already-verified session with biometric login turned
+      // on gets locked behind a fingerprint/face check instead of dropping
+      // straight into the job feed — routeToStage's one-time enroll offer
+      // is for a session reaching the feed for the first time, not this.
+      if (stage == TechnicianStage.jobs && await ref.read(biometricServiceProvider).isEnabled()) {
+        if (mounted) context.go('/lock');
+        return;
+      }
+      if (mounted) routeToStage(context, ref, stage);
     });
   }
 
@@ -278,7 +289,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     if (!mounted) return;
     setState(() => _verifying = false);
     if (ok) {
-      routeToStage(context, ref.read(authFlowProvider).stage);
+      routeToStage(context, ref, ref.read(authFlowProvider).stage);
     } else {
       final err = ref.read(authFlowProvider).error ?? context.l10n.otpErrorGeneric;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));

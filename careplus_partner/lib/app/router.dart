@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/auth/auth_screens.dart';
+import '../features/auth/biometric_screens.dart';
 import '../features/apply/tech_apply_screen.dart';
 import '../features/apply/tech_financial_screen.dart';
 import '../features/apply/tech_pending_screen.dart';
@@ -30,6 +31,14 @@ final router = GoRouter(
       path: '/login',
       builder: (_, _) => const PhoneScreen(),
       routes: [GoRoute(path: 'otp', builder: (_, _) => const OtpScreen())],
+    ),
+    GoRoute(
+      path: '/biometric-enroll',
+      builder: (_, __) => const BiometricEnrollScreen(),
+    ),
+    GoRoute(
+      path: '/lock',
+      builder: (_, __) => const BiometricLockScreen(),
     ),
 
     GoRoute(
