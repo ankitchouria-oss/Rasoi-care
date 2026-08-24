@@ -29,6 +29,7 @@ dependencies:
   geolocator: ^13.0.2           # "use my current location" in the address picker
   smart_auth: ^3.2.0
   shared_preferences: ^2.5.5
+  local_auth: ^2.3.0           # fingerprint/face unlock, offered after sign-up — see BiometricService
   image_picker: ^1.2.3         # profile photo upload — see AccountScreen
   firebase_storage: ^12.3.7    # profile photo upload — see UserProfileService
   flutter_localizations:

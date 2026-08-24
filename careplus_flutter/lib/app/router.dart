@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../data/models.dart';
 import 'customer_shell.dart';
 import '../features/auth/auth_screens.dart';
+import '../features/auth/biometric_screens.dart';
 import '../features/home/home_screen.dart';
 import '../features/catalog/catalog_screens.dart';
 import '../features/booking/booking_screens.dart';
@@ -49,6 +50,8 @@ final router = GoRouter(
       ],
     ),
     GoRoute(path: '/register', builder: (_, __) => const RegisterScreen()),
+    GoRoute(path: '/biometric-enroll', builder: (_, __) => const BiometricEnrollScreen()),
+    GoRoute(path: '/lock', builder: (_, __) => const BiometricLockScreen()),
 
     // Service detail sits above the shell so it can push the booking flow.
     GoRoute(
