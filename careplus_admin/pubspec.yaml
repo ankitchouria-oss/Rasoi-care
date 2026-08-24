@@ -42,8 +42,6 @@ dependencies:
   smart_auth: ^3.2.0           # real SMS auto-read on the OTP screen (User Consent API)
   cloud_firestore: ^5.6.0      # staff profile write-through on sign-in
   http: ^1.2.0                 # live Flask+SQLite backend calls — see lib/data/api/
-  shared_preferences: ^2.5.5   # persisted device preferences — biometric-enabled flag
-  local_auth: ^2.3.0           # fingerprint/face unlock, offered after sign-up — see BiometricService
 
 dev_dependencies:
   flutter_test:

@@ -10,22 +10,7 @@ import '../../core/theme/care_plus_theme.dart';
 import '../../data/auth/mock_auth_service.dart';
 import '../../data/models.dart';
 import '../../state/auth_providers.dart';
-import '../../state/providers.dart';
 import 'legal_document_screen.dart';
-
-/// Routes a just-signed-in staff/owner to the dashboard — the first time
-/// this ever happens on a device that can actually satisfy fingerprint/face
-/// unlock, it detours through a one-time "turn on biometric login?" offer
-/// instead (see BiometricService.hasPrompted).
-Future<void> _completeSignIn(BuildContext context, WidgetRef ref) async {
-  final biometric = ref.read(biometricServiceProvider);
-  final alreadyPrompted = await biometric.hasPrompted();
-  if (!alreadyPrompted && await biometric.isDeviceSupported()) {
-    if (context.mounted) context.go('/biometric-enroll');
-    return;
-  }
-  if (context.mounted) context.go('/dashboard');
-}
 
 // ============================================================ SPLASH
 class SplashScreen extends ConsumerStatefulWidget {
@@ -53,15 +38,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       // whatever AuthFlowState.role defaults to (owner) — a restored
       // session never went through the login flow that normally sets it.
       await ref.read(authFlowProvider.notifier).bootstrapAndSyncRole();
-      if (!mounted) return;
-      // A returning session with biometric login turned on gets locked
-      // behind a fingerprint/face check instead of dropping straight into
-      // the dashboard — the one-time enroll offer in _completeSignIn is for
-      // a fresh sign-in, not a resumed one.
-      if (await ref.read(biometricServiceProvider).isEnabled()) {
-        if (mounted) context.go('/lock');
-        return;
-      }
       if (mounted) context.go('/dashboard');
     });
   }
@@ -163,7 +139,7 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
     if (!mounted) return;
     setState(() => _googleBusy = false);
     if (ok) {
-      _completeSignIn(context, ref);
+      context.go('/dashboard');
     } else {
       final err = ref.read(authFlowProvider).error;
       if (err != null && err != 'Sign-in cancelled.') {
@@ -321,7 +297,7 @@ class _EmailAuthScreenState extends ConsumerState<EmailAuthScreen> {
         : await vm.signInWithEmail(email, password);
     if (!mounted) return;
     if (ok) {
-      _completeSignIn(context, ref);
+      context.go('/dashboard');
     } else {
       final err = ref.read(authFlowProvider).error ?? 'Something went wrong.';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
@@ -540,7 +516,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     if (!mounted) return;
     setState(() => _verifying = false);
     if (ok) {
-      _completeSignIn(context, ref);
+      context.go('/dashboard');
     } else {
       final err = ref.read(authFlowProvider).error ?? 'Verification failed.';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));

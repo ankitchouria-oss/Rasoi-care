@@ -1,5 +1,5 @@
 package com.rasoicare.care_plus_partner
 
-import io.flutter.embedding.android.FlutterFragmentActivity
+import io.flutter.embedding.android.FlutterActivity
 
-class MainActivity : FlutterFragmentActivity()
+class MainActivity : FlutterActivity()

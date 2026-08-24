@@ -276,8 +276,6 @@ class AccountScreen extends ConsumerWidget {
     ref.watch(coinsRefreshProvider);
     final coinsBalance = ref.watch(apiRepositoryProvider).coinsBalance;
     final locale = ref.watch(localeProvider);
-    final biometricSupported = ref.watch(biometricSupportedProvider).valueOrNull ?? false;
-    final biometricOn = ref.watch(biometricEnabledProvider);
     final t = context.l10n;
     final languageLabel = switch (locale.languageCode) {
       'hi' => t.languageHindi,
@@ -373,21 +371,6 @@ class AccountScreen extends ConsumerWidget {
                     ),
                   ]),
                 ),
-                if (biometricSupported)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: Row(children: [
-                      const Icon(Icons.fingerprint, size: 20),
-                      const SizedBox(width: 13),
-                      Expanded(
-                          child: Text(t.accountBiometricLogin,
-                              style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700))),
-                      Switch(
-                        value: biometricOn,
-                        onChanged: (v) => _setBiometric(context, ref, v),
-                      ),
-                    ]),
-                  ),
                 _NavRow(icon: Icons.language, label: t.accountLanguage,
                     trailing: '$languageLabel ›',
                     onTap: () => Navigator.of(context)
@@ -429,22 +412,6 @@ class AccountScreen extends ConsumerWidget {
         ),
       ),
     );
-  }
-
-  Future<void> _setBiometric(BuildContext context, WidgetRef ref, bool value) async {
-    if (!value) {
-      await ref.read(biometricEnabledProvider.notifier).set(false);
-      return;
-    }
-    final ok = await ref
-        .read(biometricServiceProvider)
-        .authenticate('Confirm your fingerprint or face to turn on biometric login');
-    if (ok) {
-      await ref.read(biometricEnabledProvider.notifier).set(true);
-    } else if (context.mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text("Couldn't verify — biometric login stays off.")));
-    }
   }
 
   void _openLegalDocument(BuildContext context, String kind, String title) =>

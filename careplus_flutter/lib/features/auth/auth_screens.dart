@@ -9,7 +9,6 @@ import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
 import '../../state/auth_providers.dart';
 import '../../state/firestore_providers.dart';
-import '../../state/providers.dart';
 import '../../data/firebase/mock_auth_service.dart';
 import '../../data/local/recent_phone_store.dart';
 import '../../data/models.dart';
@@ -26,7 +25,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    Timer(const Duration(milliseconds: 2100), () async {
+    Timer(const Duration(milliseconds: 2100), () {
       if (!mounted) return;
       // Already signed in from a previous session (Firebase persists this
       // across app restarts) — skip straight past onboarding/login instead
@@ -40,13 +39,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
         // to recreate it, and every authenticated call would 401 forever.
         ref.read(authFlowProvider.notifier).bootstrapBackend();
       }
-      if (!alreadySignedIn) {
-        context.go('/onboarding');
-        return;
-      }
-      final biometricOn = await ref.read(biometricServiceProvider).isEnabled();
-      if (!mounted) return;
-      context.go(biometricOn ? '/lock' : '/');
+      context.go(alreadySignedIn ? '/' : '/onboarding');
     });
   }
 
@@ -811,12 +804,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           ownedAppliances: _owned,
         ));
     if (!mounted) return;
-    // Offer biometric login right after sign-up, but only on a device that
-    // can actually satisfy it — no dead-end "no fingerprint enrolled" screen.
-    final biometricSupported =
-        await ref.read(biometricServiceProvider).isDeviceSupported();
-    if (!mounted) return;
-    context.go(biometricSupported ? '/biometric-enroll' : '/');
+    context.go('/');
   }
 
   @override

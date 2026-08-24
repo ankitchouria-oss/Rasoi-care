@@ -14,7 +14,6 @@ import '../data/auth/firebase_auth_service.dart';
 import '../data/auth/mock_auth_service.dart';
 import '../data/firestore/technician_profile_service.dart';
 import '../data/firebase/technician_upload_service.dart';
-import 'providers.dart';
 
 /// Picks the real service if `Firebase.initializeApp()` succeeded in
 /// main.dart, otherwise the mock.
@@ -167,25 +166,15 @@ TechnicianStage stageFromTechnicianJson(Map<String, dynamic>? json) {
 }
 
 /// Routes a just-signed-in (or just-resumed) technician to wherever their
-/// real application status says they belong. The first time this ever
-/// lands someone on the job feed — fresh sign-up, or the day their
-/// application gets verified — it detours through a one-time "turn on
-/// biometric login?" offer instead, gated on the device actually
-/// supporting it (see BiometricService.hasPrompted).
-Future<void> routeToStage(BuildContext context, WidgetRef ref, TechnicianStage stage) async {
+/// real application status says they belong.
+void routeToStage(BuildContext context, TechnicianStage stage) {
   switch (stage) {
     case TechnicianStage.apply:
       context.go('/tech/apply');
     case TechnicianStage.pending:
       context.go('/tech/pending');
     case TechnicianStage.jobs:
-      final biometric = ref.read(biometricServiceProvider);
-      final alreadyPrompted = await biometric.hasPrompted();
-      if (!alreadyPrompted && await biometric.isDeviceSupported()) {
-        if (context.mounted) context.go('/biometric-enroll');
-        return;
-      }
-      if (context.mounted) context.go('/tech/jobs');
+      context.go('/tech/jobs');
   }
 }
 
