@@ -564,22 +564,10 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                           children: [
                             for (var i = 0; i < _length; i++) ...[
                               Expanded(
-                                child: AnimatedContainer(
-                                  duration: Motion.press,
-                                  height: 64,
-                                  alignment: Alignment.center,
-                                  decoration: BoxDecoration(
-                                    color: context.scheme.surface,
-                                    borderRadius: Radii.rMd,
-                                    border: Border.all(
-                                        color: i < _code.length
-                                            ? context.scheme.primary
-                                            : context.care.hairline,
-                                        width: 1.5),
-                                  ),
-                                  child: Text(i < _code.length ? _code[i] : '',
-                                      style: CareType.mono(context.scheme.onSurface,
-                                          size: 24, w: FontWeight.w600)),
+                                child: _OtpBox(
+                                  digit: i < _code.length ? _code[i] : '',
+                                  filled: i < _code.length,
+                                  active: i == _code.length && _code.length < _length,
                                 ),
                               ),
                               if (i != _length - 1) const SizedBox(width: 11),
@@ -669,6 +657,87 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       ),
     );
   }
+}
+
+/// One digit cell in the OTP row. A filled digit gets a soft primary-tinted
+/// fill and a matching glow; the next box waiting for input gets a brighter
+/// glow, a thicker border, a slight pop (via the caller's scale), and a
+/// blinking cursor so it's obvious exactly where typing lands — same
+/// underlying single-hidden-TextField input as before (see the Stack this
+/// sits in), just a clearer view of the state that field is already tracking.
+class _OtpBox extends StatelessWidget {
+  const _OtpBox({required this.digit, required this.filled, required this.active});
+  final String digit;
+  final bool filled;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = context.scheme.primary;
+    return AnimatedScale(
+      scale: active ? 1.06 : 1.0,
+      duration: Motion.press,
+      curve: Motion.ease,
+      child: AnimatedContainer(
+        duration: Motion.press,
+        curve: Motion.ease,
+        height: 68,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: filled ? accent.withValues(alpha: 0.10) : context.scheme.surface,
+          borderRadius: Radii.rLg,
+          border: Border.all(
+            color: filled || active ? accent : context.care.hairline,
+            width: active ? 2 : 1.5,
+          ),
+          boxShadow: filled || active
+              ? [
+                  BoxShadow(
+                    color: accent.withValues(alpha: active ? 0.32 : 0.14),
+                    blurRadius: active ? 18 : 8,
+                    spreadRadius: active ? 1 : 0,
+                  ),
+                ]
+              : null,
+        ),
+        child: digit.isNotEmpty
+            ? Text(digit,
+                style: CareType.mono(context.scheme.onSurface, size: 24, w: FontWeight.w700))
+            : (active ? _BlinkCursor(color: accent) : null),
+      ),
+    );
+  }
+}
+
+/// A slow, steady fade in/out — the "something is waiting for you here"
+/// signal on the OTP row's next empty box, independent of the real input
+/// field's own (invisible) cursor.
+class _BlinkCursor extends StatefulWidget {
+  const _BlinkCursor({required this.color});
+  final Color color;
+  @override
+  State<_BlinkCursor> createState() => _BlinkCursorState();
+}
+
+class _BlinkCursorState extends State<_BlinkCursor> with SingleTickerProviderStateMixin {
+  late final _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))
+    ..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => FadeTransition(
+        opacity: _c.drive(CurveTween(curve: Curves.easeInOut)),
+        child: Container(
+          width: 2,
+          height: 26,
+          decoration: BoxDecoration(color: widget.color, borderRadius: BorderRadius.circular(1)),
+        ),
+      );
 }
 
 /// The age-eligibility gate a new Owner/Staff account must clear before it's
