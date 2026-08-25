@@ -489,6 +489,13 @@ def migrate_bookings_columns(conn):
         conn.execute("ALTER TABLE bookings ADD COLUMN after_photo_b64 TEXT")
     if "signature_b64" not in cols:
         conn.execute("ALTER TABLE bookings ADD COLUMN signature_b64 TEXT")
+    if "scheduled_at" not in cols:
+        # ISO 8601, customer's chosen day+slot — real enough to measure
+        # "hours before service" against for the time-based cancellation
+        # policy (see app.py's _cancellation_fee_for). Null for anything
+        # booked before this column existed, or if the client ever omits
+        # it; callers fall back to the older status-based tiers for those.
+        conn.execute("ALTER TABLE bookings ADD COLUMN scheduled_at TEXT")
     conn.commit()
 
 

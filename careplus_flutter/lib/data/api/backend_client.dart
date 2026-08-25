@@ -57,6 +57,7 @@ class BackendClient {
     String? directions,
     String? notes,
     List<String>? issues,
+    DateTime? scheduledAt,
   }) async {
     try {
       final res = await http
@@ -73,6 +74,11 @@ class BackendClient {
               if (directions != null && directions.isNotEmpty) 'directions': directions,
               if (notes != null && notes.isNotEmpty) 'notes': notes,
               if (issues != null && issues.isNotEmpty) 'issues': issues,
+              // .toUtc() first — a bare local-time ISO string (no offset)
+              // would otherwise be silently misread as UTC server-side,
+              // shifting the real cancellation-policy deadline by however
+              // far local time is from UTC.
+              if (scheduledAt != null) 'scheduledAt': scheduledAt.toUtc().toIso8601String(),
             }),
           )
           .timeout(_timeout);

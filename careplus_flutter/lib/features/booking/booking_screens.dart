@@ -247,13 +247,14 @@ class SlotScreen extends ConsumerWidget {
   /// Today plus the next 5 real calendar days — this used to be six days
   /// hardcoded to "24 Jul – 29 Jul" regardless of the actual date, so every
   /// booking after that one week showed the wrong "Today".
-  static List<(String, String)> get _days {
+  static List<(String, String, DateTime)> get _days {
     final now = DateTime.now();
     return [
       for (var i = 0; i < 6; i++)
         (
           i == 0 ? 'Today' : DateFormat('E').format(now.add(Duration(days: i))),
           DateFormat('d MMM').format(now.add(Duration(days: i))),
+          DateTime(now.year, now.month, now.day).add(Duration(days: i)),
         ),
     ];
   }
@@ -297,7 +298,7 @@ class SlotScreen extends ConsumerWidget {
                 final label = '${_days[i].$1} ${_days[i].$2}';
                 final sel = draft.day == label;
                 return Pressable(
-                  onTap: () => vm.setSlot(label, draft.slot),
+                  onTap: () => vm.setSlot(label, draft.slot, dayDate: _days[i].$3),
                   child: Container(
                     width: 66,
                     decoration: BoxDecoration(
@@ -558,6 +559,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             directions: directions.isEmpty ? null : directions,
             notes: notes.isEmpty ? null : notes,
             issues: selectedIssues,
+            scheduledAt: draft.scheduledAt,
           );
       if (result.booking != null) created.add(result.booking!);
       if (result.error != null) bookingError = result.error;

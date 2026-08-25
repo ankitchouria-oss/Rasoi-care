@@ -213,6 +213,7 @@ class Booking {
     this.cancellationFeePaise,
     this.rawStatus = '',
     this.startCode,
+    this.scheduledAt,
   });
 
   final String id;
@@ -276,6 +277,57 @@ class Booking {
   /// this to the customer, and only while it's still actionable), and
   /// always null for mock/demo bookings.
   final String? startCode;
+
+  /// The real day+slot the customer picked, sent as an ISO timestamp from
+  /// [providers.dart]'s BookingDraft.scheduledAt — see app.py's
+  /// _cancellation_fee_for, which this drives. Null for a booking made
+  /// before this existed, or with no picked slot.
+  final DateTime? scheduledAt;
+}
+
+/// The cancellation-fee policy shown to the customer — mirrors (for
+/// preview only) app.py's CANCELLATION_FEE_FAR_HOURS/NEAR_HOURS/
+/// FAR_RUPEES/NEAR_RUPEES defaults. The server always recomputes and
+/// applies the real fee independently when a cancellation actually
+/// happens, so a stale preview here can never under- or overcharge — it
+/// just shows the wrong estimate for a moment.
+abstract final class CancellationPolicy {
+  static const farHours = 12;
+  static const nearHours = 3;
+  static const farFeePaise = 10000;
+  static const nearFeePaise = 20000;
+
+  /// One row per tier, in display order, for the Cancellation Policy
+  /// screen/sheet.
+  static const tiers = [
+    (label: 'More than $farHours hrs before the service', feePaise: 0),
+    (label: 'Within $farHours hrs of the service', feePaise: farFeePaise),
+    (label: 'Within $nearHours hrs of the service', feePaise: nearFeePaise),
+  ];
+
+  /// What cancelling [booking] right now would cost, or null if it can't
+  /// be cancelled at all (already completed/cancelled, or a mock/demo
+  /// booking with no real status). Uses [Booking.scheduledAt] when set;
+  /// falls back to the older status-based tiers for a booking made before
+  /// that was captured, matching app.py's own fallback.
+  static int? feePaisePreview(Booking booking) {
+    if (booking.rawStatus == 'Completed' || booking.rawStatus == 'Cancelled') {
+      return null;
+    }
+    final scheduledAt = booking.scheduledAt;
+    if (scheduledAt != null) {
+      final hoursLeft = scheduledAt.difference(DateTime.now()).inMinutes / 60;
+      if (hoursLeft > farHours) return 0;
+      if (hoursLeft > nearHours) return farFeePaise;
+      return nearFeePaise;
+    }
+    return switch (booking.rawStatus) {
+      'Requested' => 0,
+      'Accepted' => farFeePaise,
+      'On the way' || 'In Progress' => nearFeePaise,
+      _ => null,
+    };
+  }
 }
 
 /// A timeline entry on the tracking screen.

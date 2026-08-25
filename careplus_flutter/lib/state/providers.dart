@@ -170,6 +170,19 @@ final etaProvider = StreamProvider.autoDispose.family<int, String>(
 // The View reads it; intents mutate it. This is the MVVM "one state object per
 // flow" pattern from the build spec.
 // ---------------------------------------------------------------------------
+
+/// Maps SlotScreen's fixed slot labels to their real start time — the set
+/// of choices is a small closed list (see SlotScreen._am/_pm), so this is
+/// safe as a literal lookup rather than parsing the label text.
+const Map<String, (int, int)> _slotStartTimes = {
+  '10:00 – 11:30 am': (10, 0),
+  '11:30 am – 1:00 pm': (11, 30),
+  '1:00 – 2:30 pm': (13, 0),
+  '2:30 – 4:00 pm': (14, 30),
+  '4:00 – 5:30 pm': (16, 0),
+  '5:30 – 7:00 pm': (17, 30),
+};
+
 class BookingDraft {
   const BookingDraft({
     this.services = const [],
@@ -177,6 +190,7 @@ class BookingDraft {
     this.notes = '',
     this.day = 'Sat 25 Jul',
     this.slot = '10:00 – 11:30 am',
+    this.dayDate,
     this.addressId = 'a_home',
     this.pickedAddress,
     this.directions = '',
@@ -193,6 +207,15 @@ class BookingDraft {
   final String notes;
   final String day;
   final String slot;
+
+  /// The real calendar date [day] displays (midnight, local time) — kept
+  /// alongside the display label since that label ("Today", "Mon" — see
+  /// SlotScreen._days) can't be parsed back into a real date reliably.
+  /// Combined with [slot] via [_slotStartTimes] to produce [scheduledAt].
+  /// Null until BookingDraftVM.start() sets it to today's real date; a
+  /// DateTime literal can't be a const default, so this can't default to
+  /// one directly in the constructor above.
+  final DateTime? dayDate;
   final String addressId;
 
   /// A one-off address confirmed through the map picker
@@ -227,12 +250,23 @@ class BookingDraft {
   /// payable total shown at checkout.
   int get totalPaise => services.fold(0, (sum, s) => sum + s.pricePaise);
 
+  /// A real timestamp for the chosen day+slot, for the backend's
+  /// time-based cancellation policy (see app.py's _cancellation_fee_for).
+  /// Null if [slot] somehow isn't one of SlotScreen's fixed choices.
+  DateTime? get scheduledAt {
+    final date = dayDate;
+    final time = _slotStartTimes[slot];
+    if (date == null || time == null) return null;
+    return DateTime(date.year, date.month, date.day, time.$1, time.$2);
+  }
+
   BookingDraft copyWith({
     List<ServiceItem>? services,
     List<Issue>? issues,
     String? notes,
     String? day,
     String? slot,
+    DateTime? dayDate,
     String? addressId,
     SavedAddress? pickedAddress,
     String? directions,
@@ -245,6 +279,7 @@ class BookingDraft {
         notes: notes ?? this.notes,
         day: day ?? this.day,
         slot: slot ?? this.slot,
+        dayDate: dayDate ?? this.dayDate,
         addressId: addressId ?? this.addressId,
         pickedAddress: pickedAddress ?? this.pickedAddress,
         directions: directions ?? this.directions,
@@ -343,8 +378,14 @@ class BookingDraftVM extends Notifier<BookingDraft> {
     // Matches the label SlotScreen builds for its "Today" chip — so that
     // chip shows selected by default instead of the flow opening on a
     // mismatched, permanently-stale hardcoded date.
-    final today = 'Today ${DateFormat('d MMM').format(DateTime.now())}';
-    state = BookingDraft(services: services, issues: issues, day: today);
+    final now = DateTime.now();
+    final today = 'Today ${DateFormat('d MMM').format(now)}';
+    state = BookingDraft(
+      services: services,
+      issues: issues,
+      day: today,
+      dayDate: DateTime(now.year, now.month, now.day),
+    );
   }
 
   void toggleIssue(int i) {
@@ -354,8 +395,12 @@ class BookingDraftVM extends Notifier<BookingDraft> {
   }
 
   void setNotes(String v) => state = state.copyWith(notes: v);
-  void setSlot(String day, String slot) =>
-      state = state.copyWith(day: day, slot: slot);
+
+  /// [dayDate] is the real calendar date for [day] — pass it when the day
+  /// tile itself changed (see SlotScreen); omit it when only the slot
+  /// changed, so the day's real date carries over unchanged.
+  void setSlot(String day, String slot, {DateTime? dayDate}) =>
+      state = state.copyWith(day: day, slot: slot, dayDate: dayDate);
   void setAddress(String id) => state = state.copyWith(addressId: id);
 
   /// Called when the map picker (or its no-Maps-configured fallback form)

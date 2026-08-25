@@ -153,6 +153,7 @@ class ApiRepository implements CareRepository {
     String? directions,
     String? notes,
     List<String>? issues,
+    DateTime? scheduledAt,
   }) async {
     final token = await _idToken();
     if (token == null) return (booking: null, error: 'You need to be signed in to book.');
@@ -168,6 +169,7 @@ class ApiRepository implements CareRepository {
       directions: directions,
       notes: notes,
       issues: issues,
+      scheduledAt: scheduledAt,
     );
     // A 401 here is almost always a stale cached ID token (Firebase tokens
     // expire hourly; getIdToken() without forceRefresh can hand back one
@@ -190,6 +192,7 @@ class ApiRepository implements CareRepository {
           directions: directions,
           notes: notes,
           issues: issues,
+          scheduledAt: scheduledAt,
         );
       }
     }
@@ -248,22 +251,16 @@ class ApiRepository implements CareRepository {
       startCode: (json['startCode'] as String?)?.trim().isNotEmpty == true
           ? json['startCode'] as String
           : null,
+      scheduledAt: DateTime.tryParse((json['scheduledAt'] as String?) ?? ''),
     );
   }
 
-  /// A preview of what cancelling [booking] right now would cost — the
-  /// same tiers as app.py's CANCELLATION_FEE_BY_STATUS, so the "are you
-  /// sure" dialog can show a real number instead of a vague warning. The
-  /// server recomputes this independently when the cancellation actually
-  /// happens, so a stale preview (job advanced a step since this was read)
-  /// can never under- or overcharge — it just shows the wrong estimate for
-  /// a moment.
-  static int? cancellationFeePreviewPaise(Booking booking) => switch (booking.rawStatus) {
-        'Requested' => 0,
-        'Accepted' => 10000,
-        'On the way' || 'In Progress' => 20000,
-        _ => null,
-      };
+  /// A preview of what cancelling [booking] right now would cost — see
+  /// [CancellationPolicy]. The server recomputes this independently when
+  /// the cancellation actually happens, so a stale preview can never
+  /// under- or overcharge.
+  static int? cancellationFeePreviewPaise(Booking booking) =>
+      CancellationPolicy.feePaisePreview(booking);
 
   BookingStatus _statusFromBackend(String? status) => switch (status) {
         'Requested' => BookingStatus.scheduled,

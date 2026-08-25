@@ -13,6 +13,7 @@ import '../../l10n/l10n_extensions.dart';
 import '../../state/providers.dart';
 import '../../state/auth_providers.dart';
 import '../../state/firestore_providers.dart';
+import '../booking/cancellation_policy_sheet.dart';
 import '../settings/language_screen.dart';
 import 'legal_document_screen.dart';
 
@@ -149,7 +150,22 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Cancel this booking?'),
-        content: Text(feeLine),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(feeLine),
+            if (feePreview != null)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  style: TextButton.styleFrom(padding: EdgeInsets.zero),
+                  onPressed: () => showCancellationPolicySheet(context, booking: booking),
+                  child: const Text('View full cancellation policy'),
+                ),
+              ),
+          ],
+        ),
         actions: [
           TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
