@@ -129,31 +129,66 @@ class BackendClient {
     return [];
   }
 
-  /// PATCH /api/bookings/{id}/cancel — the backend computes and applies the
-  /// real cancellation fee itself (based on how far the job had progressed;
-  /// see app.py's CANCELLATION_FEE_BY_STATUS), so this call carries no fee
-  /// the client could tamper with. Returns the updated booking JSON on a
-  /// 200, or null on any failure (network error, forbidden, already past
-  /// the point a booking can be cancelled).
-  Future<Map<String, dynamic>?> cancelBooking({
+  /// POST /api/bookings/{id}/cancel/request-otp — texts the customer a
+  /// short-lived code that [cancelBooking] below now requires before it
+  /// takes effect. Returns true if the backend says the SMS actually went
+  /// out, false if it says it didn't (no phone on file, httpSMS
+  /// unreachable) — distinguishing that from a hard failure talking to our
+  /// own backend at all (null), so the UI can show the right message.
+  Future<bool?> requestCancelOtp({
     required String idToken,
     required String bookingId,
   }) async {
     try {
       final res = await http
-          .patch(
-            Uri.parse('${ApiConfig.baseUrl}/api/bookings/$bookingId/cancel'),
+          .post(
+            Uri.parse('${ApiConfig.baseUrl}/api/bookings/$bookingId/cancel/request-otp'),
             headers: {'Authorization': 'Bearer $idToken'},
           )
           .timeout(_timeout);
       if (res.statusCode == 200) {
         final decoded = jsonDecode(res.body);
-        if (decoded is Map<String, dynamic>) return decoded;
+        if (decoded is Map<String, dynamic>) return decoded['sent'] == true;
       }
     } catch (_) {
       // Best-effort — see file header.
     }
     return null;
+  }
+
+  /// PATCH /api/bookings/{id}/cancel — the backend computes and applies the
+  /// real cancellation fee itself (based on how far the job had progressed;
+  /// see app.py's CANCELLATION_FEE_BY_STATUS), so this call carries no fee
+  /// the client could tamper with. Requires the SMS code from
+  /// [requestCancelOtp] above. Returns the updated booking JSON on a 200;
+  /// on failure returns null plus a human-readable message where the
+  /// backend supplied one (wrong/expired code, no such booking, etc.) —
+  /// unlike this class's other methods, a caller here needs to tell "wrong
+  /// code, try again" apart from "check your connection".
+  Future<({Map<String, dynamic>? booking, String? error})> cancelBooking({
+    required String idToken,
+    required String bookingId,
+    required String otp,
+  }) async {
+    try {
+      final res = await http
+          .patch(
+            Uri.parse('${ApiConfig.baseUrl}/api/bookings/$bookingId/cancel'),
+            headers: _headers(idToken),
+            body: jsonEncode({'otp': otp}),
+          )
+          .timeout(_timeout);
+      final decoded = jsonDecode(res.body);
+      if (res.statusCode == 200 && decoded is Map<String, dynamic>) {
+        return (booking: decoded, error: null);
+      }
+      final message = decoded is Map<String, dynamic>
+          ? (decoded['message'] ?? decoded['error']) as String?
+          : null;
+      return (booking: null, error: message ?? 'Could not cancel — try again.');
+    } catch (_) {
+      return (booking: null, error: 'Could not cancel — check your connection and try again.');
+    }
   }
 
   /// POST /api/bookings/{id}/rating — the real endpoint the RateScreen

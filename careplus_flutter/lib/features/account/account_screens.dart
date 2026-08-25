@@ -164,15 +164,60 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
     if (confirmed != true || !mounted) return;
     final repo = ref.read(repositoryProvider);
     if (repo is! ApiRepository) return;
-    final fee = await repo.cancelBooking(booking.id);
+
+    final sent = await repo.requestCancelOtp(booking.id);
     if (!mounted) return;
+    if (sent != true) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(sent == null
+              ? 'Could not send a cancellation code — check your connection and try again.'
+              : 'Could not send a cancellation code — add a phone number in Account settings first.')));
+      return;
+    }
+
+    final otp = await _promptForOtp();
+    if (otp == null || !mounted) return;
+
+    final result = await repo.cancelBooking(booking.id, otp: otp);
+    if (!mounted) return;
+    if (result.error != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(result.error!)));
+      return;
+    }
     ref.read(bookingsRefreshProvider.notifier).state++;
+    final fee = result.feePaise ?? 0;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(fee == null
-            ? 'Could not cancel — check connection and try again.'
-            : fee == 0
-                ? 'Booking cancelled — no fee.'
-                : 'Booking cancelled — ${Money.rupees(fee)} fee credited to the technician.')));
+        content: Text(fee == 0
+            ? 'Booking cancelled — no fee.'
+            : 'Booking cancelled — ${Money.rupees(fee)} fee credited to the technician.')));
+  }
+
+  /// Collects the 4-digit code just texted by [_confirmCancel] above.
+  /// Returns null if the person backs out.
+  Future<String?> _promptForOtp() async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Enter the code we texted you'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          maxLength: 4,
+          decoration: const InputDecoration(counterText: '', hintText: '0000'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Back')),
+          FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(controller.text.trim()),
+              child: const Text('Confirm')),
+        ],
+      ),
+    );
   }
 }
 

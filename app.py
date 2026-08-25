@@ -96,6 +96,47 @@ RATE_LIMIT_AUTH_IP_FREE_ATTEMPTS = _env_int("RATE_LIMIT_AUTH_IP_FREE_ATTEMPTS", 
 RATE_LIMIT_AUTH_IP_BACKOFF_BASE_SECONDS = _env_int("RATE_LIMIT_AUTH_IP_BACKOFF_BASE_SECONDS", 2)
 RATE_LIMIT_AUTH_IP_BACKOFF_MAX_SECONDS = _env_int("RATE_LIMIT_AUTH_IP_BACKOFF_MAX_SECONDS", 900)
 
+# Booking-cancellation OTP — an extra SMS-verified confirmation step before
+# PATCH /api/bookings/<id>/cancel takes effect (see request_cancel_otp/
+# cancel_booking below), since a real job — and any technician cancellation
+# fee — can't be undone. Codes live only in memory: short-lived by design,
+# and losing them on a restart just means a customer requests a fresh one.
+CANCEL_OTP_TTL_SECONDS = _env_int("CANCEL_OTP_TTL_SECONDS", 300)
+CANCEL_OTP_MAX_ATTEMPTS = _env_int("CANCEL_OTP_MAX_ATTEMPTS", 5)
+_cancel_otp_state = {}
+_cancel_otp_lock = Lock()
+
+
+def _cancel_otp_request(booking_id):
+    code = f"{secrets.randbelow(10000):04d}"
+    with _cancel_otp_lock:
+        _cancel_otp_state[booking_id] = {
+            "code": code,
+            "expires_at": time.time() + CANCEL_OTP_TTL_SECONDS,
+            "attempts": 0,
+        }
+    return code
+
+
+def _cancel_otp_verify(booking_id, submitted_code):
+    """Returns None on a correct, still-valid code (and clears it — one-time
+    use), or an error message otherwise."""
+    with _cancel_otp_lock:
+        entry = _cancel_otp_state.get(booking_id)
+        if not entry:
+            return "Request a cancellation code first."
+        if time.time() > entry["expires_at"]:
+            del _cancel_otp_state[booking_id]
+            return "That code expired — request a new one."
+        if entry["attempts"] >= CANCEL_OTP_MAX_ATTEMPTS:
+            del _cancel_otp_state[booking_id]
+            return "Too many incorrect attempts — request a new code."
+        if submitted_code != entry["code"]:
+            entry["attempts"] += 1
+            return "Incorrect code."
+        del _cancel_otp_state[booking_id]
+        return None
+
 
 _rate_buckets = defaultdict(deque)
 _rate_lock = Lock()
@@ -2164,6 +2205,16 @@ def advance_booking(booking_id):
                     "UPDATE users SET coins_balance = coins_balance + ? WHERE id = ?",
                     (coins_earned, row["user_id"]),
                 )
+                # Best-effort — a customer without a phone on file, or with
+                # httpSMS unconfigured, just doesn't get this text; the
+                # coins are already credited either way.
+                if row["customer_phone"]:
+                    send_sms(
+                        f"+91{row['customer_phone']}",
+                        f"Rasoi Care: you earned {coins_earned} Care Coins for your "
+                        f"{row['service']} booking. Redeem them on your next visit!",
+                        request_id=f"coins-{booking_id}",
+                    )
         suction_before = data.get("suctionBefore")
         suction_after = data.get("suctionAfter")
         if suction_before is not None or suction_after is not None:
@@ -2368,12 +2419,50 @@ CANCELLATION_FEE_BY_STATUS = {
 }
 
 
+@app.route("/api/bookings/<booking_id>/cancel/request-otp", methods=["POST"])
+@require_auth
+def request_cancel_otp(booking_id):
+    """Texts the customer a short-lived 4-digit code that PATCH .../cancel
+    below now requires. Never includes the code itself in this response —
+    only whether the SMS actually went out, so the app can tell "check your
+    phone" apart from "we couldn't send it" (no phone on file, httpSMS
+    unreachable) without ever having to trust the client with the code."""
+    conn = get_db()
+    row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
+    conn.close()
+    if not row:
+        return jsonify({"error": "not found"}), 404
+    if row["user_id"] != request.user["id"]:
+        return jsonify({"error": "Forbidden"}), 403
+    if row["status"] not in CANCELLATION_FEE_BY_STATUS:
+        return jsonify({"error": f"Cannot cancel a {row['status'].lower()} booking"}), 400
+    if not request.user["phone"]:
+        return jsonify({
+            "error": "No phone on file",
+            "message": "Add a phone number to your account before cancelling.",
+        }), 400
+
+    code = _cancel_otp_request(booking_id)
+    sent = send_sms(
+        f"+91{request.user['phone']}",
+        f"Rasoi Care: your cancellation code is {code}. It expires in "
+        f"{CANCEL_OTP_TTL_SECONDS // 60} minutes.",
+        request_id=f"cancel-{booking_id}",
+    )
+    return jsonify({"sent": sent})
+
+
 @app.route("/api/bookings/<booking_id>/cancel", methods=["PATCH"])
 @require_auth
+@validate_json({
+    "otp": Field(str, required=True, pattern=CODE_RE, strip=False),
+})
 def cancel_booking(booking_id):
     """Called by the Customer app. Only the booking's own customer can
-    cancel it, and only before it's completed. The fee (if any) is credited
-    to the technician — see CANCELLATION_FEE_BY_STATUS."""
+    cancel it, and only before it's completed. Requires the SMS code from
+    request_cancel_otp above — an extra confirmation step, since the fee
+    (if any) is credited to the technician and cancelling can't be undone.
+    See CANCELLATION_FEE_BY_STATUS."""
     conn = get_db()
     row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
     if not row:
@@ -2385,6 +2474,12 @@ def cancel_booking(booking_id):
     if row["status"] not in CANCELLATION_FEE_BY_STATUS:
         conn.close()
         return jsonify({"error": f"Cannot cancel a {row['status'].lower()} booking"}), 400
+
+    data = request.get_json(force=True, silent=True) or {}
+    otp_error = _cancel_otp_verify(booking_id, data["otp"])
+    if otp_error:
+        conn.close()
+        return jsonify({"error": "Invalid code", "message": otp_error}), 400
 
     fee = CANCELLATION_FEE_BY_STATUS[row["status"]]
     ts = now()

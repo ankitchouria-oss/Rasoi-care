@@ -275,24 +275,38 @@ class ApiRepository implements CareRepository {
         _ => BookingStatus.scheduled,
       };
 
-  /// Cancels a booking this customer owns. On success, updates the
-  /// in-memory cache in place so BookingsScreen's Upcoming/Cancelled tabs
-  /// reflect it immediately without a refetch. Returns the real fee (in
-  /// paise, 0 if none) that was applied, or null if the cancellation
-  /// itself failed (network error, already completed, not this
-  /// customer's booking).
-  Future<int?> cancelBooking(String bookingId) async {
+  /// Sends the SMS code [cancelBooking] below now requires. Returns true if
+  /// the backend confirms it actually went out, false if it says it
+  /// couldn't (e.g. no phone on file), or null on a network/auth failure
+  /// talking to our own backend at all.
+  Future<bool?> requestCancelOtp(String bookingId) async {
     final token = await _idToken();
     if (token == null) return null;
-    final json = await _client.cancelBooking(idToken: token, bookingId: bookingId);
-    if (json == null) return null;
-    final updated = _bookingFromJson(json);
+    return _client.requestCancelOtp(idToken: token, bookingId: bookingId);
+  }
+
+  /// Cancels a booking this customer owns, using the SMS code from
+  /// [requestCancelOtp]. On success, updates the in-memory cache in place
+  /// so BookingsScreen's Upcoming/Cancelled tabs reflect it immediately
+  /// without a refetch, and returns the real fee (in paise, 0 if none)
+  /// that was applied. On failure returns the backend's own explanation
+  /// (wrong/expired code, already completed, network error) so the UI can
+  /// show it verbatim instead of a generic message.
+  Future<({int? feePaise, String? error})> cancelBooking(
+    String bookingId, {
+    required String otp,
+  }) async {
+    final token = await _idToken();
+    if (token == null) return (feePaise: null, error: 'Not signed in.');
+    final result = await _client.cancelBooking(idToken: token, bookingId: bookingId, otp: otp);
+    if (result.booking == null) return (feePaise: null, error: result.error);
+    final updated = _bookingFromJson(result.booking!);
     _realBookings = [
       for (final b in _realBookings ?? const <Booking>[])
         if (b.id == bookingId) updated else b,
     ];
     onBookingsChanged?.call();
-    return updated.cancellationFeePaise ?? 0;
+    return (feePaise: updated.cancellationFeePaise ?? 0, error: null);
   }
 
   String _whenLabel(String? createdAt) {
