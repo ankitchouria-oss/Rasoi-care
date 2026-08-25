@@ -13,6 +13,7 @@ import '../../data/firebase/technician_location_service.dart';
 import '../../data/models.dart';
 import '../../state/firestore_providers.dart';
 import '../../state/providers.dart';
+import '../booking/cancellation_policy_sheet.dart';
 
 /// Real backend status order — mirrors kBookingStatusOrder in the Partner
 /// app (app.py enforces the same progression server-side).
@@ -149,6 +150,22 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
                         ],
                       ),
                     ),
+                  ],
+                ),
+              ),
+            ],
+            if (!cancelled && booking != null && stepIndex < _statusOrder.length - 1) ...[
+              const SizedBox(height: 12),
+              CareCard(
+                onTap: () => showCancellationPolicySheet(context, booking: booking),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: context.care.inkFaint, size: 22),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text('Cancellation policy', style: context.type.bodySmall),
+                    ),
+                    Icon(Icons.chevron_right, color: context.care.inkFaint, size: 20),
                   ],
                 ),
               ),

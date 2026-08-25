@@ -96,6 +96,47 @@ RATE_LIMIT_AUTH_IP_FREE_ATTEMPTS = _env_int("RATE_LIMIT_AUTH_IP_FREE_ATTEMPTS", 
 RATE_LIMIT_AUTH_IP_BACKOFF_BASE_SECONDS = _env_int("RATE_LIMIT_AUTH_IP_BACKOFF_BASE_SECONDS", 2)
 RATE_LIMIT_AUTH_IP_BACKOFF_MAX_SECONDS = _env_int("RATE_LIMIT_AUTH_IP_BACKOFF_MAX_SECONDS", 900)
 
+# Booking-cancellation OTP — an extra SMS-verified confirmation step before
+# PATCH /api/bookings/<id>/cancel takes effect (see request_cancel_otp/
+# cancel_booking below), since a real job — and any technician cancellation
+# fee — can't be undone. Codes live only in memory: short-lived by design,
+# and losing them on a restart just means a customer requests a fresh one.
+CANCEL_OTP_TTL_SECONDS = _env_int("CANCEL_OTP_TTL_SECONDS", 300)
+CANCEL_OTP_MAX_ATTEMPTS = _env_int("CANCEL_OTP_MAX_ATTEMPTS", 5)
+_cancel_otp_state = {}
+_cancel_otp_lock = Lock()
+
+
+def _cancel_otp_request(booking_id):
+    code = f"{secrets.randbelow(10000):04d}"
+    with _cancel_otp_lock:
+        _cancel_otp_state[booking_id] = {
+            "code": code,
+            "expires_at": time.time() + CANCEL_OTP_TTL_SECONDS,
+            "attempts": 0,
+        }
+    return code
+
+
+def _cancel_otp_verify(booking_id, submitted_code):
+    """Returns None on a correct, still-valid code (and clears it — one-time
+    use), or an error message otherwise."""
+    with _cancel_otp_lock:
+        entry = _cancel_otp_state.get(booking_id)
+        if not entry:
+            return "Request a cancellation code first."
+        if time.time() > entry["expires_at"]:
+            del _cancel_otp_state[booking_id]
+            return "That code expired — request a new one."
+        if entry["attempts"] >= CANCEL_OTP_MAX_ATTEMPTS:
+            del _cancel_otp_state[booking_id]
+            return "Too many incorrect attempts — request a new code."
+        if submitted_code != entry["code"]:
+            entry["attempts"] += 1
+            return "Incorrect code."
+        del _cancel_otp_state[booking_id]
+        return None
+
 
 _rate_buckets = defaultdict(deque)
 _rate_lock = Lock()
@@ -276,6 +317,9 @@ AADHAAR_RE = re.compile(r"^[0-9]{12}$")
 GSTIN_RE = re.compile(r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z][Z][0-9A-Z]$")
 UPI_ID_RE = re.compile(r"^[\w.\-]{2,256}@[a-zA-Z]{2,64}$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+ISO_DATETIME_RE = re.compile(
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?$"
+)
 CODE_RE = re.compile(r"^[0-9]{4}$")
 PIN_RE = re.compile(r"^[0-9]{4,8}$")
 BASE64_RE = re.compile(r"^[A-Za-z0-9+/]*={0,2}$")
@@ -735,6 +779,10 @@ def booking_row_to_dict(row, *, include_start_code=False):
         "issues": json.loads(row["issues_json"])
         if ("issues_json" in keys and row["issues_json"]) else [],
         "paymentMethod": row["payment_method"] if "payment_method" in keys else None,
+        # The real day+slot the customer picked, as an ISO timestamp — see
+        # create_booking and _cancellation_fee_for. Null for bookings made
+        # before this was captured, or by a client that didn't send one.
+        "scheduledAt": row["scheduled_at"] if "scheduled_at" in keys else None,
         # The customer's own verified phone number (see bootstrap_customer),
         # so the technician's "Call" action can dial a real number instead
         # of a fake "Calling — masked" toast. Null for bookings made before
@@ -1907,6 +1955,7 @@ def send_sms(to_number, content, *, request_id=None):
     "service": Field(str, max_len=200),
     "price": Field(NUMBER, min_val=0, max_val=10_000_000),
     "bachatSlot": Field(str, max_len=100),
+    "scheduledAt": Field(str, max_len=40, pattern=ISO_DATETIME_RE, strip=False),
     "area": Field(str, max_len=200),
     "lat": Field(NUMBER, min_val=-90, max_val=90),
     "lng": Field(NUMBER, min_val=-180, max_val=180),
@@ -1923,6 +1972,11 @@ def create_booking():
     data = request.get_json(force=True, silent=True) or {}
     service_id = data.get("service_id")
     bachat_slot = data.get("bachatSlot")
+    # The customer's chosen day+slot, as a real timestamp — used only for
+    # the time-based cancellation policy (see _cancellation_fee_for).
+    # Optional: bookings from a client that doesn't send it (or predating
+    # this field) just fall back to the older status-based fee tiers.
+    scheduled_at = data.get("scheduledAt")
     area = (data.get("area") or "").strip() or None
     lat = data.get("lat")
     lng = data.get("lng")
@@ -1982,12 +2036,12 @@ def create_booking():
         "INSERT INTO bookings (id, category, service, price, technician_id, customer_name, "
         "status, bachat_slot, service_rating, tech_rating, area, created_at, updated_at, "
         "user_id, service_id, total_amount, lat, lng, directions, notes, issues_json, "
-        "start_code) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "start_code, scheduled_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (booking_id, category, service, price, None, request.user["name"],
          "Requested", bachat_slot, None, None, area, ts, ts,
          request.user["id"], service_id, total_amount, lat, lng, directions,
-         notes, issues_json, start_code),
+         notes, issues_json, start_code, scheduled_at),
     )
     conn.commit()
     row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
@@ -2164,6 +2218,16 @@ def advance_booking(booking_id):
                     "UPDATE users SET coins_balance = coins_balance + ? WHERE id = ?",
                     (coins_earned, row["user_id"]),
                 )
+                # Best-effort — a customer without a phone on file, or with
+                # httpSMS unconfigured, just doesn't get this text; the
+                # coins are already credited either way.
+                if row["customer_phone"]:
+                    send_sms(
+                        f"+91{row['customer_phone']}",
+                        f"Rasoi Care: you earned {coins_earned} Care Coins for your "
+                        f"{row['service']} booking. Redeem them on your next visit!",
+                        request_id=f"coins-{booking_id}",
+                    )
         suction_before = data.get("suctionBefore")
         suction_after = data.get("suctionAfter")
         if suction_before is not None or suction_after is not None:
@@ -2351,29 +2415,99 @@ def set_booking_payment(booking_id):
     return jsonify(booking_row_to_dict(row))
 
 
-# Tiered by how far the job had progressed when cancelled, not by a
-# scheduled appointment time — the booking flow never actually captures a
-# firm appointment timestamp server-side (day/slot are UI-only today), so
-# there's nothing real to measure "hours before service" against. Status
-# progress is real: a technician who's already been assigned, or is on the
-# way, or on site, has genuinely committed time this customer is cancelling
-# on, and the fee (credited to the technician, not the platform) reflects
-# that — same principle as Urban Company's partner-support cancellation
-# policy, adapted to data we actually have.
-CANCELLATION_FEE_BY_STATUS = {
+# A booking can be cancelled at any of these statuses — not once it's
+# Completed or already Cancelled. Independent of the fee itself (see
+# _cancellation_fee_for below).
+CANCELLABLE_STATUSES = {"Requested", "Accepted", "On the way", "In Progress"}
+
+# The cancellation policy proper: tiered by how close the customer's
+# scheduled day+slot is, same shape as Urban Company's partner-support
+# policy — more than 12h out is free, within 12h is up to ₹100, within 3h
+# is up to ₹200 — credited to the technician, not the platform, since
+# their time was genuinely reserved for this job the closer it gets.
+CANCELLATION_FEE_FAR_HOURS = _env_int("CANCELLATION_FEE_FAR_HOURS", 12)
+CANCELLATION_FEE_NEAR_HOURS = _env_int("CANCELLATION_FEE_NEAR_HOURS", 3)
+CANCELLATION_FEE_FAR_RUPEES = _env_int("CANCELLATION_FEE_FAR_RUPEES", 100)
+CANCELLATION_FEE_NEAR_RUPEES = _env_int("CANCELLATION_FEE_NEAR_RUPEES", 200)
+
+# Fallback only — used when a booking has no scheduled_at at all (made
+# before this column existed, or by a client that never sent one), since
+# there's nothing real to measure "hours before service" against for
+# those. Same values this app used exclusively before the time-based
+# policy above existed, tiered instead by how far the job had progressed.
+CANCELLATION_FEE_BY_STATUS_FALLBACK = {
     "Requested": 0,
-    "Accepted": 100,
-    "On the way": 200,
-    "In Progress": 200,
+    "Accepted": CANCELLATION_FEE_FAR_RUPEES,
+    "On the way": CANCELLATION_FEE_NEAR_RUPEES,
+    "In Progress": CANCELLATION_FEE_NEAR_RUPEES,
 }
+
+
+def _cancellation_fee_for(row):
+    """The real fee (in rupees) cancelling `row` right now would apply —
+    see the policy comment above. Never raises: a missing or malformed
+    scheduled_at just falls back to the status-based tiers."""
+    scheduled_at = row["scheduled_at"] if "scheduled_at" in row.keys() else None
+    if not scheduled_at:
+        return CANCELLATION_FEE_BY_STATUS_FALLBACK.get(row["status"], 0)
+    try:
+        scheduled = datetime.fromisoformat(scheduled_at.replace("Z", "+00:00"))
+    except ValueError:
+        return CANCELLATION_FEE_BY_STATUS_FALLBACK.get(row["status"], 0)
+    if scheduled.tzinfo is None:
+        scheduled = scheduled.replace(tzinfo=timezone.utc)
+    hours_left = (scheduled - datetime.now(timezone.utc)).total_seconds() / 3600
+    if hours_left > CANCELLATION_FEE_FAR_HOURS:
+        return 0
+    if hours_left > CANCELLATION_FEE_NEAR_HOURS:
+        return CANCELLATION_FEE_FAR_RUPEES
+    return CANCELLATION_FEE_NEAR_RUPEES
+
+
+@app.route("/api/bookings/<booking_id>/cancel/request-otp", methods=["POST"])
+@require_auth
+def request_cancel_otp(booking_id):
+    """Texts the customer a short-lived 4-digit code that PATCH .../cancel
+    below now requires. Never includes the code itself in this response —
+    only whether the SMS actually went out, so the app can tell "check your
+    phone" apart from "we couldn't send it" (no phone on file, httpSMS
+    unreachable) without ever having to trust the client with the code."""
+    conn = get_db()
+    row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
+    conn.close()
+    if not row:
+        return jsonify({"error": "not found"}), 404
+    if row["user_id"] != request.user["id"]:
+        return jsonify({"error": "Forbidden"}), 403
+    if row["status"] not in CANCELLABLE_STATUSES:
+        return jsonify({"error": f"Cannot cancel a {row['status'].lower()} booking"}), 400
+    if not request.user["phone"]:
+        return jsonify({
+            "error": "No phone on file",
+            "message": "Add a phone number to your account before cancelling.",
+        }), 400
+
+    code = _cancel_otp_request(booking_id)
+    sent = send_sms(
+        f"+91{request.user['phone']}",
+        f"Rasoi Care: your cancellation code is {code}. It expires in "
+        f"{CANCEL_OTP_TTL_SECONDS // 60} minutes.",
+        request_id=f"cancel-{booking_id}",
+    )
+    return jsonify({"sent": sent})
 
 
 @app.route("/api/bookings/<booking_id>/cancel", methods=["PATCH"])
 @require_auth
+@validate_json({
+    "otp": Field(str, required=True, pattern=CODE_RE, strip=False),
+})
 def cancel_booking(booking_id):
     """Called by the Customer app. Only the booking's own customer can
-    cancel it, and only before it's completed. The fee (if any) is credited
-    to the technician — see CANCELLATION_FEE_BY_STATUS."""
+    cancel it, and only before it's completed. Requires the SMS code from
+    request_cancel_otp above — an extra confirmation step, since the fee
+    (if any) is credited to the technician and cancelling can't be undone.
+    See _cancellation_fee_for for how the fee itself is computed."""
     conn = get_db()
     row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
     if not row:
@@ -2382,11 +2516,17 @@ def cancel_booking(booking_id):
     if row["user_id"] != request.user["id"]:
         conn.close()
         return jsonify({"error": "Forbidden"}), 403
-    if row["status"] not in CANCELLATION_FEE_BY_STATUS:
+    if row["status"] not in CANCELLABLE_STATUSES:
         conn.close()
         return jsonify({"error": f"Cannot cancel a {row['status'].lower()} booking"}), 400
 
-    fee = CANCELLATION_FEE_BY_STATUS[row["status"]]
+    data = request.get_json(force=True, silent=True) or {}
+    otp_error = _cancel_otp_verify(booking_id, data["otp"])
+    if otp_error:
+        conn.close()
+        return jsonify({"error": "Invalid code", "message": otp_error}), 400
+
+    fee = _cancellation_fee_for(row)
     ts = now()
     conn.execute(
         "UPDATE bookings SET status = 'Cancelled', updated_at = ?, cancelled_at = ?, "
