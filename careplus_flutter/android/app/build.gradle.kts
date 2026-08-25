@@ -61,27 +61,33 @@ android {
 
     signingConfigs {
         create("release") {
-            // Wired up in §2 of the Android README — reads key.properties if
-            // present, otherwise release builds fall back to the debug key
-            // below so `flutter build apk --release` still succeeds locally.
-            val keystoreProperties = Properties()
-            val keystorePropertiesFile = rootProject.file("key.properties")
-            if (keystorePropertiesFile.exists()) {
-                keystoreProperties.load(FileInputStream(keystorePropertiesFile))
-                keyAlias = keystoreProperties["keyAlias"] as String
-                keyPassword = keystoreProperties["keyPassword"] as String
-                storeFile = keystoreProperties["storeFile"]?.let { file(it) }
-                storePassword = keystoreProperties["storePassword"] as String
+            // Real values come from android/local.properties (gitignored,
+            // same file MAPS_API_KEY lives in — never committed) so the
+            // keystore password isn't sitting in git. The .jks file itself
+            // stays committed on purpose: regenerating it would invalidate
+            // the SHA fingerprints already registered with Firebase,
+            // breaking phone-auth SMS delivery. Falls back to the debug key
+            // below when the password isn't set, so
+            // `flutter build apk --release` still succeeds locally without it.
+            val storePasswordValue = localProperties.getProperty("KEYSTORE_STORE_PASSWORD")
+                ?: System.getenv("RASOI_KEYSTORE_STORE_PASSWORD")
+            val keyPasswordValue = localProperties.getProperty("KEYSTORE_KEY_PASSWORD")
+                ?: System.getenv("RASOI_KEYSTORE_KEY_PASSWORD")
+            if (storePasswordValue != null && keyPasswordValue != null) {
+                keyAlias = "rasoicare"
+                keyPassword = keyPasswordValue
+                storeFile = file("rasoi-care-upload.jks")
+                storePassword = storePasswordValue
             }
         }
     }
 
     buildTypes {
         release {
-            // Falls back to the debug signing config until key.properties exists,
-            // so `flutter build apk --release` works out of the box for testing.
-            val keystorePropertiesFile = rootProject.file("key.properties")
-            signingConfig = if (keystorePropertiesFile.exists()) {
+            // Falls back to the debug signing config until the keystore
+            // password is available (see signingConfigs above), so
+            // `flutter build apk --release` works out of the box for testing.
+            signingConfig = if (signingConfigs.getByName("release").storeFile != null) {
                 signingConfigs.getByName("release")
             } else {
                 signingConfigs.getByName("debug")
