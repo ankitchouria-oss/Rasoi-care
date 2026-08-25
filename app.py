@@ -14,6 +14,9 @@ import re
 import secrets
 import sys
 import time
+import urllib.error
+import urllib.request
+import uuid
 from collections import defaultdict, deque
 from datetime import datetime, timedelta, timezone
 from functools import wraps
@@ -1855,6 +1858,47 @@ def get_booking(booking_id):
     return jsonify(booking_row_to_dict(row, include_start_code=bool(user)))
 
 
+# httpSMS (https://httpsms.com) turns a real Android phone with a SIM into
+# an HTTP-callable SMS gateway — used here to text a customer their
+# booking's start code as a backup to seeing it in-app. Configuring it is
+# entirely optional: HTTPSMS_API_KEY comes from the httpSMS account's
+# settings page, and HTTPSMS_FROM_NUMBER is the E.164 number of the
+# Android phone registered to that account. Same "never block the real
+# feature for an optional integration" spirit as verify_firebase_token's
+# cert fetch above — a missing/failed send never raises and never keeps a
+# booking from being created.
+HTTPSMS_API_KEY = os.environ.get("HTTPSMS_API_KEY")
+HTTPSMS_FROM_NUMBER = os.environ.get("HTTPSMS_FROM_NUMBER")
+HTTPSMS_SEND_URL = "https://api.httpsms.com/v1/messages/send"
+
+
+def send_sms(to_number, content, *, request_id=None):
+    """Sends one text message via httpSMS. No-ops (returns False without
+    making any network call) when the integration isn't configured or
+    there's no recipient number — callers should treat this purely as a
+    best-effort notification, never as something the response depends on."""
+    if not HTTPSMS_API_KEY or not HTTPSMS_FROM_NUMBER or not to_number:
+        return False
+    payload = json.dumps({
+        "content": content,
+        "from": HTTPSMS_FROM_NUMBER,
+        "to": to_number,
+        "request_id": request_id or str(uuid.uuid4()),
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        HTTPSMS_SEND_URL,
+        data=payload,
+        method="POST",
+        headers={"Content-Type": "application/json", "x-api-Key": HTTPSMS_API_KEY},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            return 200 <= resp.status < 300
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError) as exc:
+        print(f"httpSMS send failed: {exc}", file=sys.stderr)
+        return False
+
+
 @app.route("/api/bookings", methods=["POST"])
 @require_auth
 @validate_json({
@@ -1948,6 +1992,15 @@ def create_booking():
     conn.commit()
     row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
     conn.close()
+    # Best-effort — the code is already in the response above regardless of
+    # whether this SMS actually goes out (see send_sms's no-op behavior).
+    if request.user["phone"]:
+        send_sms(
+            f"+91{request.user['phone']}",
+            f"Rasoi Care: your start code for {service} is {start_code}. "
+            "Share it with your technician when they arrive to begin the job.",
+            request_id=booking_id,
+        )
     return jsonify(booking_row_to_dict(row, include_start_code=True)), 201
 
 
