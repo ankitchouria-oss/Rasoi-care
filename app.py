@@ -266,6 +266,128 @@ if not JWT_SECRET:
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_DAYS = 7
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+PHONE_RE = re.compile(r"^[0-9]{10}$")
+PAN_RE = re.compile(r"^[A-Z]{5}[0-9]{4}[A-Z]$")
+IFSC_RE = re.compile(r"^[A-Z]{4}0[A-Z0-9]{6}$")
+AADHAAR_RE = re.compile(r"^[0-9]{12}$")
+GSTIN_RE = re.compile(r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z][Z][0-9A-Z]$")
+UPI_ID_RE = re.compile(r"^[\w.\-]{2,256}@[a-zA-Z]{2,64}$")
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+CODE_RE = re.compile(r"^[0-9]{4}$")
+PIN_RE = re.compile(r"^[0-9]{4,8}$")
+BASE64_RE = re.compile(r"^[A-Za-z0-9+/]*={0,2}$")
+BANK_ACCOUNT_RE = re.compile(r"^[0-9]{5,20}$")
+URL_RE = re.compile(r"^https?://\S{1,2000}$")
+NUMBER = (int, float)
+
+
+# ---------------------------------------------------------------- input validation
+# Every POST/PATCH endpoint below declares a schema (a dict of field name ->
+# Field(...)) and wraps its route with @validate_json(SCHEMA). The decorator
+# rejects the request outright — 400, naming every field that's wrong — if
+# the body doesn't match: wrong type, too long/short, out of range, wrong
+# format. It never coerces a numeric string into a number, truncates an
+# over-long value, or escapes something dangerous-looking into a "safe"
+# string; a mismatch is a rejection, not a repair job. A handler's own
+# `data.get(...)` calls run completely unchanged afterwards — by the time
+# they run, every field named in the schema is already known to be
+# well-formed, so the handler is just reading validated data.
+class Field:
+    """One field's rule set.
+
+    `type_` is a Python type or tuple of types (e.g. NUMBER = (int, float)
+    for a field JSON might deliver either way). `bool` is deliberately
+    never accepted as a match for an `int`/`float`/NUMBER field even though
+    Python's `bool` is technically an `int` subclass — a stray `true`/
+    `false` slipping into a numeric field is exactly the shape mismatch
+    this exists to catch, not something to silently accept as 0/1."""
+
+    def __init__(
+        self, type_, *, required=False, min_len=None, max_len=None,
+        min_val=None, max_val=None, pattern=None, choices=None,
+        item_type=None, strip=True,
+    ):
+        self.type_ = type_
+        self.types = type_ if isinstance(type_, tuple) else (type_,)
+        self.required = required
+        self.min_len = min_len
+        self.max_len = max_len
+        self.min_val = min_val
+        self.max_val = max_val
+        self.pattern = pattern
+        self.choices = choices
+        self.item_type = item_type  # for list fields: required type of each element
+        self.strip = strip
+
+    def _type_name(self):
+        return " or ".join(t.__name__ for t in self.types)
+
+    def validate(self, value):
+        """Returns an error message string, or None if `value` is valid."""
+        if isinstance(value, bool) and bool not in self.types:
+            return f"must be a {self._type_name()}"
+        if not isinstance(value, self.types):
+            return f"must be a {self._type_name()}"
+        if isinstance(value, str):
+            v = value.strip() if self.strip else value
+            if self.min_len is not None and len(v) < self.min_len:
+                return f"must be at least {self.min_len} character(s)"
+            if self.max_len is not None and len(v) > self.max_len:
+                return f"must be at most {self.max_len} characters"
+            if self.pattern is not None and not self.pattern.match(v):
+                return "is not in the expected format"
+            if self.choices is not None and v not in self.choices:
+                return "must be one of: " + ", ".join(str(c) for c in self.choices)
+        elif isinstance(value, (int, float)) and not isinstance(value, bool):
+            if self.min_val is not None and value < self.min_val:
+                return f"must be at least {self.min_val}"
+            if self.max_val is not None and value > self.max_val:
+                return f"must be at most {self.max_val}"
+            if self.choices is not None and value not in self.choices:
+                return "must be one of: " + ", ".join(str(c) for c in self.choices)
+        elif isinstance(value, list):
+            if self.min_len is not None and len(value) < self.min_len:
+                return f"must have at least {self.min_len} item(s)"
+            if self.max_len is not None and len(value) > self.max_len:
+                return f"must have at most {self.max_len} item(s)"
+            if self.item_type is not None:
+                for i, item in enumerate(value):
+                    if isinstance(item, bool) or not isinstance(item, self.item_type):
+                        return f"item {i} must be a {self.item_type.__name__}"
+        return None
+
+
+def validate_json(schema):
+    """Applies `schema` to the request's JSON body. A field present in the
+    body (and not null) is checked against its rule; a field marked
+    required=True must be present and non-null. Fields in the body that
+    aren't named in the schema are left alone — this validates the fields a
+    handler actually reads, not a closed-world "no other keys" contract.
+    Returns every violation at once (not just the first) so a client can
+    fix its request in one round trip instead of one field at a time."""
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            data = request.get_json(force=True, silent=True)
+            if data is None or not isinstance(data, dict):
+                return jsonify({
+                    "error": "Invalid request",
+                    "message": "Request body must be a JSON object",
+                }), 400
+            errors = {}
+            for field_name, field in schema.items():
+                if field_name not in data or data[field_name] is None:
+                    if field.required:
+                        errors[field_name] = "is required"
+                    continue
+                message = field.validate(data[field_name])
+                if message:
+                    errors[field_name] = message
+            if errors:
+                return jsonify({"error": "Invalid request", "fields": errors}), 400
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
 
 
 @app.route("/")
@@ -1047,6 +1169,10 @@ def require_technician_auth(fn):
 
 
 @app.route("/api/staff/login", methods=["POST"])
+@validate_json({
+    "phone": Field(str, required=True, pattern=PHONE_RE),
+    "pin": Field(str, required=True, pattern=PIN_RE, strip=False),
+})
 def staff_login():
     """Phone + PIN login — a PIN is short (a handful of digits), so this is
     exactly the kind of endpoint a brute-force script would target. AUTH
@@ -1077,6 +1203,10 @@ def staff_me():
 
 
 @app.route("/api/staff/bootstrap", methods=["POST"])
+@validate_json({
+    "name": Field(str, max_len=100),
+    "role": Field(str, choices=("owner", "staff")),
+})
 def bootstrap_staff():
     """Called once right after Firebase sign-in/sign-up in the Admin app.
     The very first person to bootstrap becomes 'owner' automatically (a
@@ -1133,6 +1263,12 @@ def list_staff():
 
 @app.route("/api/staff", methods=["POST"])
 @require_owner
+@validate_json({
+    "name": Field(str, required=True, min_len=1, max_len=100),
+    "phone": Field(str, required=True, pattern=PHONE_RE),
+    "pin": Field(str, required=True, pattern=PIN_RE, strip=False),
+    "role": Field(str, choices=("owner", "staff")),
+})
 def invite_staff():
     data = request.get_json(force=True, silent=True) or {}
     name = (data.get("name") or "").strip()
@@ -1162,6 +1298,10 @@ def invite_staff():
 
 @app.route("/api/staff/<staff_id>", methods=["PATCH"])
 @require_owner
+@validate_json({
+    "role": Field(str, choices=("owner", "staff")),
+    "active": Field(bool),
+})
 def update_staff(staff_id):
     data = request.get_json(force=True, silent=True) or {}
     conn = get_db()
@@ -1182,6 +1322,12 @@ def update_staff(staff_id):
 
 
 @app.route("/api/auth/register", methods=["POST"])
+@validate_json({
+    "email": Field(str, required=True, max_len=254, pattern=EMAIL_RE),
+    "password": Field(str, required=True, min_len=6, max_len=128, strip=False),
+    "name": Field(str, required=True, min_len=1, max_len=100),
+    "phone": Field(str, pattern=PHONE_RE),
+})
 def auth_register():
     """AUTH tier — not a credential *check* like login, but repeated
     registration attempts (email enumeration, signup spam) are exactly the
@@ -1230,6 +1376,10 @@ def auth_register():
 
 
 @app.route("/api/auth/login", methods=["POST"])
+@validate_json({
+    "email": Field(str, required=True, max_len=254, pattern=EMAIL_RE),
+    "password": Field(str, required=True, min_len=1, max_len=128, strip=False),
+})
 def auth_login():
     """AUTH tier — see staff_login's doc comment; same per-account/per-IP
     backoff, keyed by the submitted email instead of phone."""
@@ -1259,6 +1409,10 @@ def auth_me():
 
 
 @app.route("/api/me/bootstrap", methods=["POST"])
+@validate_json({
+    "name": Field(str, max_len=100),
+    "phone": Field(str, pattern=PHONE_RE),
+})
 def bootstrap_customer():
     """Called once right after Firebase sign-in/sign-up in the Customer
     app. Finds or creates the matching `users` row (keyed by Firebase
@@ -1316,6 +1470,9 @@ SHOP_PRODUCTS = {
 
 @app.route("/api/shop/orders", methods=["POST"])
 @require_auth
+@validate_json({
+    "items": Field(list, required=True, min_len=1, max_len=50, item_type=dict),
+})
 def create_shop_order():
     """Places a real order for one or more cleaning kits — prices are looked
     up from SHOP_PRODUCTS server-side (never trusted from the client) so a
@@ -1377,6 +1534,9 @@ def list_shop_orders():
 
 @app.route("/api/me/coins/redeem", methods=["POST"])
 @require_auth
+@validate_json({
+    "amount": Field(int, required=True, min_val=1, max_val=1_000_000),
+})
 def redeem_coins():
     """Called by the Customer app's checkout when the customer opts to use
     Care Coins — deducts up to their real balance and returns the updated
@@ -1524,6 +1684,9 @@ def my_amc_subscription():
 
 @app.route("/api/amc/subscribe", methods=["POST"])
 @require_auth
+@validate_json({
+    "plan_id": Field(str, required=True, min_len=1, max_len=50),
+})
 def subscribe_amc():
     data = request.get_json(force=True, silent=True) or {}
     plan_id = data.get("plan_id")
@@ -1580,6 +1743,11 @@ def get_health_score():
 
 @app.route("/api/bookings/<booking_id>/health-update", methods=["POST"])
 @require_technician_auth
+@validate_json({
+    "metric_name": Field(str, required=True, min_len=1, max_len=100),
+    "status_label": Field(str, required=True, min_len=1, max_len=100),
+    "value_pct": Field(int, required=True, min_val=0, max_val=100),
+})
 def update_booking_health(booking_id):
     """Called by the Partner app after completing a job. Requires the same
     Firebase-verified technician session as /advance, and only the
@@ -1589,15 +1757,9 @@ def update_booking_health(booking_id):
     can't send this, so its own health-update button already stopped
     working when /advance picked up the same auth requirement."""
     data = request.get_json(force=True, silent=True) or {}
-    metric_name = (data.get("metric_name") or "").strip()
-    status_label = (data.get("status_label") or "").strip()
-    try:
-        value_pct = int(data.get("value_pct"))
-    except (TypeError, ValueError):
-        return jsonify({"error": "value_pct must be a number"}), 400
-    if not metric_name or not status_label:
-        return jsonify({"error": "metric_name and status_label are required"}), 400
-    value_pct = max(0, min(100, value_pct))
+    metric_name = data["metric_name"].strip()
+    status_label = data["status_label"].strip()
+    value_pct = data["value_pct"]
 
     conn = get_db()
     booking = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
@@ -1695,6 +1857,19 @@ def get_booking(booking_id):
 
 @app.route("/api/bookings", methods=["POST"])
 @require_auth
+@validate_json({
+    "service_id": Field(str, max_len=50),
+    "category": Field(str, max_len=100),
+    "service": Field(str, max_len=200),
+    "price": Field(NUMBER, min_val=0, max_val=10_000_000),
+    "bachatSlot": Field(str, max_len=100),
+    "area": Field(str, max_len=200),
+    "lat": Field(NUMBER, min_val=-90, max_val=90),
+    "lng": Field(NUMBER, min_val=-180, max_val=180),
+    "directions": Field(str, max_len=500),
+    "notes": Field(str, max_len=2000),
+    "issues": Field(list, max_len=30, item_type=str),
+})
 def create_booking():
     """Called by the Customer app when someone books a service. Accepts
     either a catalog `service_id` (price/category looked up server-side,
@@ -1848,6 +2023,11 @@ def claim_booking(booking_id):
 
 @app.route("/api/bookings/<booking_id>/advance", methods=["PATCH"])
 @require_technician_auth
+@validate_json({
+    "startCode": Field(str, pattern=CODE_RE, strip=False),
+    "suctionBefore": Field(NUMBER, min_val=0, max_val=100_000),
+    "suctionAfter": Field(NUMBER, min_val=0, max_val=100_000),
+})
 def advance_booking(booking_id):
     """Called by the Technician app to move a job to its next status.
     Previously had no auth at all, so anyone could drive any booking id to
@@ -1953,6 +2133,10 @@ def advance_booking(booking_id):
 
 @app.route("/api/bookings/<booking_id>/photo", methods=["PATCH"])
 @require_technician_auth
+@validate_json({
+    "kind": Field(str, required=True, choices=("before", "after")),
+    "dataBase64": Field(str, required=True, min_len=1, max_len=12_000_000, pattern=BASE64_RE, strip=False),
+})
 def upload_job_photo(booking_id):
     """Stores a before/after job photo as base64 — directly in this
     booking's row rather than Firebase Storage, so completing a job never
@@ -1986,6 +2170,9 @@ def upload_job_photo(booking_id):
 
 @app.route("/api/bookings/<booking_id>/signature", methods=["PATCH"])
 @require_technician_auth
+@validate_json({
+    "dataBase64": Field(str, required=True, min_len=1, max_len=4_000_000, pattern=BASE64_RE, strip=False),
+})
 def upload_job_signature(booking_id):
     """Stores the customer's captured signature as base64, same reasoning
     as upload_job_photo above."""
@@ -2079,6 +2266,9 @@ def decline_booking(booking_id):
 
 @app.route("/api/bookings/<booking_id>/payment", methods=["PATCH"])
 @require_technician_auth
+@validate_json({
+    "paymentMethod": Field(str, required=True, choices=("upi", "card", "cash", "link")),
+})
 def set_booking_payment(booking_id):
     """Called by the Technician app's close-job screen once the customer's
     actually paid. There's no payment gateway behind this (see
@@ -2158,6 +2348,9 @@ def cancel_booking(booking_id):
 
 @app.route("/api/bookings/<booking_id>/assign", methods=["PATCH"])
 @require_staff_auth
+@validate_json({
+    "technician_id": Field(str, required=True, min_len=1, max_len=50),
+})
 def assign_technician(booking_id):
     """Called by the Admin app to assign or reassign which technician is on
     a booking — e.g. routing a freshly requested job, or swapping in a
@@ -2192,6 +2385,12 @@ def assign_technician(booking_id):
 
 @app.route("/api/bookings/<booking_id>/rating", methods=["POST"])
 @require_auth
+@validate_json({
+    "serviceRating": Field(int, min_val=0, max_val=5),
+    "techRating": Field(int, min_val=0, max_val=5),
+    "raiseComplaint": Field(bool),
+    "complaintText": Field(str, max_len=2000),
+})
 def rate_booking(booking_id):
     """Called by the Customer app after a job completes. Updates the
     booking's ratings, rolls the technician's aggregate rating, and
@@ -2262,6 +2461,10 @@ def list_complaints():
 
 @app.route("/api/complaints/<complaint_id>", methods=["PATCH"])
 @require_staff_auth
+@validate_json({
+    "response": Field(str, max_len=2000),
+    "status": Field(str, max_len=50),
+})
 def update_complaint(complaint_id):
     """Called by the Admin dashboard (respond / resolve / reopen). Staff-
     only — no real app currently lets a technician respond to a complaint
@@ -2306,16 +2509,19 @@ def list_technicians():
 
 @app.route("/api/technicians", methods=["POST"])
 @require_staff_auth
+@validate_json({
+    "name": Field(str, required=True, min_len=1, max_len=100),
+    "category": Field(str, required=True, min_len=1, max_len=100),
+    "area": Field(str, required=True, min_len=1, max_len=200),
+})
 def create_technician():
     """Called by the Admin app to add a new technician. New hires start
     unverified and offline — they're excluded from auto-routing and from
     the technician app's job feed until an admin verifies them."""
     data = request.get_json(force=True, silent=True) or {}
-    name = (data.get("name") or "").strip()
-    category = (data.get("category") or "").strip()
-    area = (data.get("area") or "").strip()
-    if not name or not category or not area:
-        return jsonify({"error": "name, category and area are required"}), 400
+    name = data["name"].strip()
+    category = data["category"].strip()
+    area = data["area"].strip()
 
     conn = get_db()
     tech_id = new_uuid_id("TECH")
@@ -2377,6 +2583,11 @@ def verify_technician(technician_id):
 # (the Partner app's own login/session — everything above this is the
 # admin-managed view that technician.html and the Admin app already use.)
 @app.route("/api/technician/bootstrap", methods=["POST"])
+@validate_json({
+    "name": Field(str, max_len=100),
+    "category": Field(str, max_len=100),
+    "area": Field(str, max_len=200),
+})
 def bootstrap_technician():
     """Called once right after Firebase sign-in/sign-up in the Partner
     app. A self-registered technician starts unverified/offline, same as
@@ -2425,6 +2636,30 @@ def technician_me():
 
 @app.route("/api/technician/me", methods=["PATCH"])
 @require_technician_auth
+@validate_json({
+    "name": Field(str, max_len=100),
+    "area": Field(str, max_len=200),
+    "photoUrl": Field(str, max_len=2000, pattern=URL_RE),
+    "experienceYears": Field(int, min_val=0, max_val=80),
+    "idDocumentUrl": Field(str, max_len=2000, pattern=URL_RE),
+    "bankAccountName": Field(str, max_len=200),
+    "bankAccountNumber": Field(str, pattern=BANK_ACCOUNT_RE, strip=False),
+    "bankIfsc": Field(str, pattern=IFSC_RE, strip=False),
+    "panNumber": Field(str, pattern=PAN_RE, strip=False),
+    "aadharNumber": Field(str, pattern=AADHAAR_RE, strip=False),
+    "dateOfBirth": Field(str, pattern=DATE_RE, strip=False),
+    "gstNumber": Field(str, pattern=GSTIN_RE, strip=False),
+    "emergencyContactName": Field(str, max_len=100),
+    "emergencyContactPhone": Field(str, pattern=PHONE_RE, strip=False),
+    "aadharDocumentUrl": Field(str, max_len=2000, pattern=URL_RE),
+    "aadharDocumentBackUrl": Field(str, max_len=2000, pattern=URL_RE),
+    "panDocumentUrl": Field(str, max_len=2000, pattern=URL_RE),
+    "bankPassbookUrl": Field(str, max_len=2000, pattern=URL_RE),
+    "address": Field(str, max_len=500),
+    "upiId": Field(str, max_len=256, pattern=UPI_ID_RE, strip=False),
+    "categories": Field(list, max_len=20, item_type=str),
+    "submit": Field(bool),
+})
 def update_technician_me():
     """Called by the Partner app's signup flow to fill in (and eventually
     submit) the KYC application — profile, category/area, experience, ID
@@ -2487,9 +2722,12 @@ def update_technician_me():
 
 @app.route("/api/technician/online", methods=["PATCH"])
 @require_technician_auth
+@validate_json({
+    "online": Field(bool, required=True),
+})
 def technician_set_online():
     data = request.get_json(force=True, silent=True) or {}
-    online = bool(data.get("online"))
+    online = data["online"]
     conn = get_db()
     conn.execute("UPDATE technicians SET online = ? WHERE id = ?", (1 if online else 0, request.technician["id"]))
     conn.commit()
@@ -2525,18 +2763,20 @@ def list_inventory():
 
 @app.route("/api/inventory", methods=["POST"])
 @require_staff_auth
+@validate_json({
+    "name": Field(str, required=True, min_len=1, max_len=100),
+    "sku": Field(str, required=True, min_len=1, max_len=50),
+    "category": Field(str, required=True, min_len=1, max_len=100),
+    "quantity": Field(int, min_val=0, max_val=1_000_000),
+    "reorderLevel": Field(int, min_val=0, max_val=1_000_000),
+})
 def create_inventory_item():
     data = request.get_json(force=True, silent=True) or {}
-    name = (data.get("name") or "").strip()
-    sku = (data.get("sku") or "").strip()
-    category = (data.get("category") or "").strip()
-    try:
-        quantity = int(data.get("quantity", 0))
-        reorder_level = int(data.get("reorderLevel", 10))
-    except (TypeError, ValueError):
-        return jsonify({"error": "quantity and reorderLevel must be numbers"}), 400
-    if not name or not sku or not category:
-        return jsonify({"error": "name, sku and category are required"}), 400
+    name = data["name"].strip()
+    sku = data["sku"].strip()
+    category = data["category"].strip()
+    quantity = data.get("quantity", 0)
+    reorder_level = data.get("reorderLevel", 10)
 
     conn = get_db()
     item_id = new_uuid_id("INV")
@@ -2553,6 +2793,10 @@ def create_inventory_item():
 
 @app.route("/api/inventory/<item_id>", methods=["PATCH"])
 @require_staff_auth
+@validate_json({
+    "quantity": Field(int, min_val=0, max_val=1_000_000),
+    "reorderLevel": Field(int, min_val=0, max_val=1_000_000),
+})
 def update_inventory_item(item_id):
     data = request.get_json(force=True, silent=True) or {}
     conn = get_db()
@@ -2560,12 +2804,8 @@ def update_inventory_item(item_id):
     if not row:
         conn.close()
         return jsonify({"error": "not found"}), 404
-    try:
-        quantity = int(data["quantity"]) if "quantity" in data else row["quantity"]
-        reorder_level = int(data["reorderLevel"]) if "reorderLevel" in data else row["reorder_level"]
-    except (TypeError, ValueError):
-        conn.close()
-        return jsonify({"error": "quantity and reorderLevel must be numbers"}), 400
+    quantity = data["quantity"] if "quantity" in data else row["quantity"]
+    reorder_level = data["reorderLevel"] if "reorderLevel" in data else row["reorder_level"]
     conn.execute(
         "UPDATE inventory SET quantity = ?, reorder_level = ?, updated_at = ? WHERE id = ?",
         (quantity, reorder_level, now(), item_id),
@@ -2785,14 +3025,18 @@ def hs_state():
 
 
 @app.route("/api/hs/bookings", methods=["POST"])
+@validate_json({
+    "serviceId": Field(str, required=True, min_len=1, max_len=50),
+    "serviceName": Field(str, required=True, min_len=1, max_len=200),
+    "price": Field(NUMBER, required=True, min_val=0, max_val=10_000_000),
+    "date": Field(str, required=True, min_len=1, max_len=50),
+})
 def hs_create_booking():
     data = request.get_json(force=True, silent=True) or {}
-    service_id = data.get("serviceId")
-    service_name = data.get("serviceName")
-    price = data.get("price")
-    date = data.get("date")
-    if not service_id or not service_name or not isinstance(price, (int, float)) or not date:
-        return jsonify({"error": "serviceId, serviceName, price and date are required"}), 400
+    service_id = data["serviceId"]
+    service_name = data["serviceName"]
+    price = data["price"]
+    date = data["date"]
 
     conn = get_db()
     booking_id = new_uuid_id("HS")
@@ -2860,6 +3104,10 @@ def hs_redeem():
 
 
 @app.route("/api/hs/profile", methods=["PATCH"])
+@validate_json({
+    "name": Field(str, max_len=100),
+    "plan": Field(str, max_len=100),
+})
 def hs_update_profile():
     data = request.get_json(force=True, silent=True) or {}
     conn = get_db()
