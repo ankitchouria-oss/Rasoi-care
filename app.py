@@ -29,17 +29,79 @@ FRONTEND_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 # ---------------------------------------------------------------- rate limiting
-# In-memory sliding-window counters — no extra dependency (Flask-Limiter) or
-# shared store (Redis) needed: this deploys as a single gunicorn worker (see
-# Procfile/render.yaml, no --workers flag), so one process's memory *is* the
-# whole app's state. Won't survive a restart and wouldn't be enough on a
-# multi-worker/multi-instance deploy, but is a real, meaningful brake on a
-# scripted brute-force or spam attempt against the current deployment.
+# Three tiers, each with its own configurable thresholds (env vars below, all
+# with sane defaults so nothing needs to be set to run locally):
+#
+#   AUTH          — login/signup: the routes a brute-force script actually
+#                   targets. Combines a per-account AND a per-IP check so
+#                   neither "guess one account's password from many IPs" nor
+#                   "spray many accounts from one IP" dodges the limit. Uses
+#                   exponential backoff (each wrong attempt doubles the wait
+#                   before the next one is even accepted) rather than a hard
+#                   lockout — a real account owner who mistypes their
+#                   password a couple of times is barely slowed down, but a
+#                   scripted guesser hits a wait that grows towards
+#                   unusable within a handful of attempts. A correct
+#                   attempt resets the count immediately, so it's never a
+#                   lasting lockout tied to a fixed clock window.
+#   PUBLIC        — read-only, unauthenticated informational endpoints
+#                   (legal docs, catalog, health check). Moderate: enough
+#                   headroom that a real client never notices, still a
+#                   real ceiling against scraping/spam.
+#   AUTHENTICATED — everything gated behind an existing require_*_auth
+#                   decorator (a real signed-in customer/technician/staff
+#                   member acting on their own account). Loosest of the
+#                   three, and keyed per-account rather than per-IP — a
+#                   request that already proved who it is shouldn't compete
+#                   for one shared limit with everyone else behind the same
+#                   office Wi-Fi/mobile-carrier NAT.
+#
+# In-memory — no extra dependency (Flask-Limiter) or shared store (Redis)
+# needed: this deploys as a single gunicorn worker (see Procfile/render.yaml,
+# no --workers flag), so one process's memory *is* the whole app's state.
+# Won't survive a restart and wouldn't be enough on a multi-worker/
+# multi-instance deploy, but is a real, meaningful brake on a scripted
+# brute-force or spam attempt against the current deployment.
+
+
+def _env_int(name, default):
+    try:
+        return int(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+RATE_LIMIT_GLOBAL_MAX_CALLS = _env_int("RATE_LIMIT_GLOBAL_MAX_CALLS", 180)
+RATE_LIMIT_GLOBAL_WINDOW_SECONDS = _env_int("RATE_LIMIT_GLOBAL_WINDOW_SECONDS", 60)
+
+RATE_LIMIT_PUBLIC_MAX_CALLS = _env_int("RATE_LIMIT_PUBLIC_MAX_CALLS", 60)
+RATE_LIMIT_PUBLIC_WINDOW_SECONDS = _env_int("RATE_LIMIT_PUBLIC_WINDOW_SECONDS", 60)
+
+RATE_LIMIT_AUTHENTICATED_MAX_CALLS = _env_int("RATE_LIMIT_AUTHENTICATED_MAX_CALLS", 120)
+RATE_LIMIT_AUTHENTICATED_WINDOW_SECONDS = _env_int("RATE_LIMIT_AUTHENTICATED_WINDOW_SECONDS", 60)
+
+# Auth tier: an account (or IP) gets this many attempts before backoff kicks
+# in at all, then each further attempt's wait doubles — base, base*2,
+# base*4, ... — capped at max. Recorded separately per-account and per-IP
+# (see _auth_gate/_auth_gate_record) so either axis alone is enough to slow
+# an attacker down.
+RATE_LIMIT_AUTH_ACCOUNT_FREE_ATTEMPTS = _env_int("RATE_LIMIT_AUTH_ACCOUNT_FREE_ATTEMPTS", 5)
+RATE_LIMIT_AUTH_ACCOUNT_BACKOFF_BASE_SECONDS = _env_int("RATE_LIMIT_AUTH_ACCOUNT_BACKOFF_BASE_SECONDS", 2)
+RATE_LIMIT_AUTH_ACCOUNT_BACKOFF_MAX_SECONDS = _env_int("RATE_LIMIT_AUTH_ACCOUNT_BACKOFF_MAX_SECONDS", 900)
+
+RATE_LIMIT_AUTH_IP_FREE_ATTEMPTS = _env_int("RATE_LIMIT_AUTH_IP_FREE_ATTEMPTS", 15)
+RATE_LIMIT_AUTH_IP_BACKOFF_BASE_SECONDS = _env_int("RATE_LIMIT_AUTH_IP_BACKOFF_BASE_SECONDS", 2)
+RATE_LIMIT_AUTH_IP_BACKOFF_MAX_SECONDS = _env_int("RATE_LIMIT_AUTH_IP_BACKOFF_MAX_SECONDS", 900)
+
+
 _rate_buckets = defaultdict(deque)
 _rate_lock = Lock()
 
 
 def _rate_limited(key, max_calls, window_seconds):
+    """Sliding-window call counter — pure call volume, no notion of
+    success/failure. Used for the PUBLIC/AUTHENTICATED tiers and the global
+    backstop below."""
     now_ts = time.monotonic()
     with _rate_lock:
         bucket = _rate_buckets[key]
@@ -51,6 +113,34 @@ def _rate_limited(key, max_calls, window_seconds):
         return False
 
 
+_backoff_state = defaultdict(lambda: {"failures": 0, "blocked_until": 0.0})
+_backoff_lock = Lock()
+
+
+def _backoff_check(key):
+    """Seconds remaining if `key` is currently backed off, else None.
+    Read-only — does not itself consume or record an attempt."""
+    with _backoff_lock:
+        blocked_until = _backoff_state[key]["blocked_until"]
+    remaining = blocked_until - time.monotonic()
+    return remaining if remaining > 0 else None
+
+
+def _backoff_record_failure(key, free_attempts, base_seconds, max_seconds):
+    with _backoff_lock:
+        state = _backoff_state[key]
+        state["failures"] += 1
+        over = state["failures"] - free_attempts
+        if over > 0:
+            delay = min(base_seconds * (2 ** (over - 1)), max_seconds)
+            state["blocked_until"] = time.monotonic() + delay
+
+
+def _backoff_record_success(key):
+    with _backoff_lock:
+        _backoff_state.pop(key, None)
+
+
 def _client_ip():
     forwarded = request.headers.get("X-Forwarded-For", "")
     if forwarded:
@@ -58,14 +148,74 @@ def _client_ip():
     return request.remote_addr or "unknown"
 
 
+def _auth_gate(account_key):
+    """Call before checking credentials on an AUTH-tier route (login,
+    register, ...). `account_key` identifies the account being attempted
+    (phone/email as submitted — it doesn't need to exist or be correct).
+    Returns a Flask response tuple to return immediately if either that
+    account or this IP is currently backed off, else None."""
+    ip_key = f"authip:{_client_ip()}"
+    acct_key = f"authacct:{account_key}"
+    remaining = _backoff_check(acct_key) or _backoff_check(ip_key)
+    if remaining is not None:
+        return jsonify({
+            "error": "Too many attempts",
+            "message": "Try again shortly",
+            "retry_after": round(remaining, 1),
+        }), 429
+    return None
+
+
+def _auth_gate_record(account_key, success):
+    """Call after checking credentials on an AUTH-tier route, once whether
+    the attempt actually succeeded is known."""
+    ip_key = f"authip:{_client_ip()}"
+    acct_key = f"authacct:{account_key}"
+    if success:
+        _backoff_record_success(acct_key)
+        _backoff_record_success(ip_key)
+    else:
+        _backoff_record_failure(
+            acct_key, RATE_LIMIT_AUTH_ACCOUNT_FREE_ATTEMPTS,
+            RATE_LIMIT_AUTH_ACCOUNT_BACKOFF_BASE_SECONDS, RATE_LIMIT_AUTH_ACCOUNT_BACKOFF_MAX_SECONDS,
+        )
+        _backoff_record_failure(
+            ip_key, RATE_LIMIT_AUTH_IP_FREE_ATTEMPTS,
+            RATE_LIMIT_AUTH_IP_BACKOFF_BASE_SECONDS, RATE_LIMIT_AUTH_IP_BACKOFF_MAX_SECONDS,
+        )
+
+
+def rate_limit_public(fn):
+    """PUBLIC tier — moderate, per-IP call-volume limit. Apply directly to
+    unauthenticated, read-only informational routes."""
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        if _rate_limited(f"public:{_client_ip()}", RATE_LIMIT_PUBLIC_MAX_CALLS, RATE_LIMIT_PUBLIC_WINDOW_SECONDS):
+            return jsonify({"error": "Too Many Requests", "message": "Slow down and try again shortly"}), 429
+        return fn(*args, **kwargs)
+    return wrapper
+
+
+def _rate_limit_authenticated(identity_key):
+    """AUTHENTICATED tier — looser, per-account call-volume limit. Called
+    from inside the require_*_auth decorators once the caller's identity is
+    known (not applied per-route), so every route behind one of those
+    decorators gets it for free. Returns True if this call should be
+    rejected."""
+    return _rate_limited(
+        f"authed:{identity_key}", RATE_LIMIT_AUTHENTICATED_MAX_CALLS, RATE_LIMIT_AUTHENTICATED_WINDOW_SECONDS
+    )
+
+
 @app.before_request
 def _global_rate_limit():
-    """A coarse per-IP cap across the whole API — not meant to police normal
-    usage (well under this for any real app screen), just to stop a bot from
-    hammering the backend with an unbounded loop."""
+    """A coarse per-IP cap across the whole API, on top of the tiers above —
+    not meant to police normal usage (well under this for any real app
+    screen), just an outer backstop against a bot hammering any endpoint,
+    tiered or not, with an unbounded loop."""
     if not request.path.startswith("/api/"):
         return None
-    if _rate_limited(f"ip:{_client_ip()}", max_calls=180, window_seconds=60):
+    if _rate_limited(f"ip:{_client_ip()}", RATE_LIMIT_GLOBAL_MAX_CALLS, RATE_LIMIT_GLOBAL_WINDOW_SECONDS):
         return jsonify({"error": "Too Many Requests", "message": "Slow down and try again shortly"}), 429
     return None
 
@@ -357,11 +507,13 @@ def _legal_doc_html(title, sections):
 
 
 @app.route("/api/legal/terms", methods=["GET"])
+@rate_limit_public
 def api_legal_terms():
     return jsonify(_legal_doc_payload("Terms of Service", TERMS_OF_SERVICE_SECTIONS))
 
 
 @app.route("/api/legal/privacy", methods=["GET"])
+@rate_limit_public
 def api_legal_privacy():
     return jsonify(_legal_doc_payload("Privacy Policy", PRIVACY_POLICY_SECTIONS))
 
@@ -794,6 +946,8 @@ def require_auth(fn):
         row = get_current_user_optional()
         if not row:
             return jsonify({"error": "Unauthorized", "message": "Invalid or expired token"}), 401
+        if _rate_limit_authenticated(f"user:{row['id']}"):
+            return jsonify({"error": "Too Many Requests", "message": "Slow down and try again shortly"}), 429
         request.user = row
         return fn(*args, **kwargs)
     return wrapper
@@ -851,6 +1005,8 @@ def require_staff_auth(fn):
         row = get_current_staff_optional()
         if not row or not row["active"]:
             return jsonify({"error": "Unauthorized", "message": "Staff account not found or inactive"}), 401
+        if _rate_limit_authenticated(f"staff:{row['id']}"):
+            return jsonify({"error": "Too Many Requests", "message": "Slow down and try again shortly"}), 429
         request.staff = row
         return fn(*args, **kwargs)
     return wrapper
@@ -883,6 +1039,8 @@ def require_technician_auth(fn):
         conn.close()
         if not row:
             return jsonify({"error": "Unauthorized", "message": "No technician profile — call /api/technician/bootstrap first"}), 401
+        if _rate_limit_authenticated(f"tech:{row['id']}"):
+            return jsonify({"error": "Too Many Requests", "message": "Slow down and try again shortly"}), 429
         request.technician = row
         return fn(*args, **kwargs)
     return wrapper
@@ -891,20 +1049,23 @@ def require_technician_auth(fn):
 @app.route("/api/staff/login", methods=["POST"])
 def staff_login():
     """Phone + PIN login — a PIN is short (a handful of digits), so this is
-    exactly the kind of endpoint a brute-force script would target. Gated
-    per phone number (so guessing one account's PIN is slow) and per IP (so
-    rotating phone numbers from one source doesn't dodge the first limit)."""
+    exactly the kind of endpoint a brute-force script would target. AUTH
+    tier: gated per phone number (so guessing one account's PIN is slow)
+    AND per IP (so rotating phone numbers from one source doesn't dodge the
+    first limit), with exponential backoff rather than a flat lockout — see
+    _auth_gate/_auth_gate_record."""
     data = request.get_json(force=True, silent=True) or {}
     phone = (data.get("phone") or "").strip()
     pin = data.get("pin") or ""
-    if _rate_limited(f"stafflogin:{phone}", max_calls=8, window_seconds=300) or _rate_limited(
-        f"stafflogin_ip:{_client_ip()}", max_calls=20, window_seconds=300
-    ):
-        return jsonify({"error": "Too many attempts", "message": "Try again in a few minutes"}), 429
+    gated = _auth_gate(phone)
+    if gated:
+        return gated
     conn = get_db()
     row = conn.execute("SELECT * FROM staff WHERE phone = ?", (phone,)).fetchone()
     conn.close()
-    if not row or not row["active"] or not check_password_hash(row["pin_hash"], pin):
+    ok = bool(row and row["active"] and check_password_hash(row["pin_hash"], pin))
+    _auth_gate_record(phone, ok)
+    if not ok:
         return jsonify({"error": "Invalid phone or PIN"}), 401
     return jsonify({"token": generate_staff_token(row["id"]), "staff": staff_row_to_dict(row)})
 
@@ -1022,23 +1183,38 @@ def update_staff(staff_id):
 
 @app.route("/api/auth/register", methods=["POST"])
 def auth_register():
+    """AUTH tier — not a credential *check* like login, but repeated
+    registration attempts (email enumeration, signup spam) are exactly the
+    kind of thing this tier exists for, so it's gated the same way: per
+    submitted email and per IP, with backoff. Every call counts as a
+    "failure" for backoff purposes regardless of outcome — there's no
+    legitimate reason for one email/IP to be hitting this endpoint
+    repeatedly in a short window the way there is for login."""
     data = request.get_json(force=True, silent=True) or {}
     email = (data.get("email") or "").strip().lower()
     password = data.get("password") or ""
     name = (data.get("name") or "").strip()
     phone = data.get("phone")
 
+    gated = _auth_gate(email)
+    if gated:
+        return gated
+
     if not email or not EMAIL_RE.match(email):
+        _auth_gate_record(email, False)
         return jsonify({"error": "A valid email is required"}), 400
     if len(password) < 6:
+        _auth_gate_record(email, False)
         return jsonify({"error": "Password must be at least 6 characters"}), 400
     if not name:
+        _auth_gate_record(email, False)
         return jsonify({"error": "Name is required"}), 400
 
     conn = get_db()
     existing = conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
     if existing:
         conn.close()
+        _auth_gate_record(email, False)
         return jsonify({"error": "Email already registered"}), 409
 
     user_id = new_uuid_id("USR")
@@ -1049,19 +1225,28 @@ def auth_register():
     conn.commit()
     row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     conn.close()
+    _auth_gate_record(email, True)
     return jsonify({"token": generate_token(user_id), "user": user_row_to_dict(row)}), 201
 
 
 @app.route("/api/auth/login", methods=["POST"])
 def auth_login():
+    """AUTH tier — see staff_login's doc comment; same per-account/per-IP
+    backoff, keyed by the submitted email instead of phone."""
     data = request.get_json(force=True, silent=True) or {}
     email = (data.get("email") or "").strip().lower()
     password = data.get("password") or ""
 
+    gated = _auth_gate(email)
+    if gated:
+        return gated
+
     conn = get_db()
     row = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
     conn.close()
-    if not row or not check_password_hash(row["password_hash"], password):
+    ok = bool(row and check_password_hash(row["password_hash"], password))
+    _auth_gate_record(email, ok)
+    if not ok:
         return jsonify({"error": "Invalid email or password"}), 401
 
     return jsonify({"token": generate_token(row["id"]), "user": user_row_to_dict(row)})
@@ -1226,12 +1411,14 @@ def redeem_coins():
 
 # ---------------------------------------------------------------- health
 @app.route("/api/health", methods=["GET"])
+@rate_limit_public
 def health():
     return jsonify({"ok": True, "service": "rasoicare-backend"})
 
 
 # ---------------------------------------------------------------- appliances
 @app.route("/api/appliances", methods=["GET"])
+@rate_limit_public
 def list_appliances():
     category = request.args.get("category")
     conn = get_db()
@@ -1246,6 +1433,7 @@ def list_appliances():
 
 
 @app.route("/api/appliances/<appliance_id>", methods=["GET"])
+@rate_limit_public
 def get_appliance(appliance_id):
     conn = get_db()
     row = conn.execute("SELECT * FROM appliances WHERE id = ?", (appliance_id,)).fetchone()
@@ -1263,6 +1451,7 @@ SERVICE_SELECT = (
 
 
 @app.route("/api/services", methods=["GET"])
+@rate_limit_public
 def list_services():
     category = request.args.get("category")
     quick_fix_param = request.args.get("quick_fix")
@@ -1287,6 +1476,7 @@ def list_services():
 
 
 @app.route("/api/services/<service_id>", methods=["GET"])
+@rate_limit_public
 def get_service(service_id):
     conn = get_db()
     row = conn.execute(SERVICE_SELECT + " WHERE services.id = ?", (service_id,)).fetchone()
@@ -1298,6 +1488,7 @@ def get_service(service_id):
 
 # ---------------------------------------------------------------- amc
 @app.route("/api/amc/plans", methods=["GET"])
+@rate_limit_public
 def list_amc_plans():
     conn = get_db()
     rows = conn.execute("SELECT * FROM amc_plans ORDER BY price").fetchall()
