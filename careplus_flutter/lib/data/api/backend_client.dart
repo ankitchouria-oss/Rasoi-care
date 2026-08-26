@@ -22,19 +22,29 @@ class BackendClient {
       };
 
   /// POST /api/me/bootstrap — called once right after Firebase sign-in so
-  /// the backend has a matching `users` row. Fire-and-forget from the
-  /// caller's side; failures are swallowed here too.
-  Future<void> bootstrap({required String idToken, required String name}) async {
+  /// the backend has a matching `users` row; also reused by AccountScreen
+  /// to set a phone number after the fact (the endpoint's own UPDATE is an
+  /// upsert-if-non-null, see app.py), passing the current name through so
+  /// that call doesn't revert it to the Firebase-claims default. Returns
+  /// whether the backend actually accepted it — the fire-and-forget
+  /// post-sign-in call ignores this, but the phone-number path needs to
+  /// tell the person it worked.
+  Future<bool> bootstrap({required String idToken, required String name, String? phone}) async {
     try {
-      await http
+      final res = await http
           .post(
             Uri.parse('${ApiConfig.baseUrl}/api/me/bootstrap'),
             headers: _headers(idToken),
-            body: jsonEncode({'name': name}),
+            body: jsonEncode({
+              'name': name,
+              if (phone != null && phone.isNotEmpty) 'phone': phone,
+            }),
           )
           .timeout(_timeout);
+      return res.statusCode == 200;
     } catch (_) {
       // Best-effort — see file header.
+      return false;
     }
   }
 

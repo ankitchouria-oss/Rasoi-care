@@ -130,6 +130,29 @@ class UserProfileService {
     }
   }
 
+  /// Sets the phone number shown here — mirrors [updateName]. This is
+  /// purely the display copy; the number the cancellation-OTP SMS and the
+  /// technician's "Call" action actually use lives on the Flask backend
+  /// (see ApiRepository.updatePhone, called alongside this from
+  /// AccountScreen so the two stay in sync). Stored in the same +91E.164
+  /// shape as a real verified phone-sign-in number, so [_formatIndianPhone]
+  /// (account_screens.dart) displays it the same way either way.
+  Future<bool> updatePhone(String phone) async {
+    if (Firebase.apps.isEmpty) return false;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return false;
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
+        {'phone': '+91$phone', 'updatedAt': FieldValue.serverTimestamp()},
+        SetOptions(merge: true),
+      ).timeout(const Duration(seconds: 6));
+      return true;
+    } catch (e) {
+      debugPrint('Profile phone update failed: $e');
+      return false;
+    }
+  }
+
   /// Uploads a photo of a location (not the person) — the "Location
   /// Photos" recommendation on the address-details form, meant to help a
   /// technician recognize the entrance. Same best-effort/never-throw

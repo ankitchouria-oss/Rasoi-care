@@ -272,6 +272,19 @@ class ApiRepository implements CareRepository {
         _ => BookingStatus.scheduled,
       };
 
+  /// Sets this customer's phone number on the backend — the one
+  /// [requestCancelOtp] below and the technician's "Call" action actually
+  /// use, as distinct from AccountScreen's own Firestore-backed display
+  /// (see UserProfileService.updatePhone, which the caller should also
+  /// call so what's shown here stays in sync). [name] is passed through
+  /// so this doesn't revert the backend's name to the Firebase-claims
+  /// default — see BackendClient.bootstrap.
+  Future<bool> updatePhone(String phone, {required String name}) async {
+    final token = await _idToken();
+    if (token == null) return false;
+    return _client.bootstrap(idToken: token, name: name, phone: phone);
+  }
+
   /// Sends the SMS code [cancelBooking] below now requires. Returns true if
   /// the backend confirms it actually went out, false if it says it
   /// couldn't (e.g. no phone on file), or null on a network/auth failure

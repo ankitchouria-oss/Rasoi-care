@@ -331,6 +331,9 @@ class AccountScreen extends ConsumerWidget {
     final phone = (profile?.phone.isNotEmpty ?? false)
         ? _formatIndianPhone(profile!.phone)
         : (isMock ? '+91 98220 41537' : '');
+    // Bare 10 digits, for seeding _editPhone's dialog — profile.phone (and
+    // the mock fallback above) are always the +91E.164 shape.
+    final phoneDigits = RegExp(r'(\d{10})$').firstMatch(profile?.phone ?? '')?.group(1) ?? '';
     final address = profile?.address ?? '';
     ref.watch(bookingsRefreshProvider);
     final visitCount = ref.watch(repositoryProvider).bookings(completed: true).length;
@@ -378,9 +381,27 @@ class AccountScreen extends ConsumerWidget {
                           ),
                         ],
                       ]),
-                      if (phone.isNotEmpty) ...[
+                      if (phone.isNotEmpty || !isMock) ...[
                         const SizedBox(height: 3),
-                        Text(phone, style: context.type.bodySmall),
+                        Row(children: [
+                          Expanded(
+                            child: Text(
+                              phone.isNotEmpty ? phone : 'Add a phone number',
+                              style: phone.isNotEmpty
+                                  ? context.type.bodySmall
+                                  : context.type.bodySmall!
+                                      .copyWith(color: context.care.inkMuted),
+                            ),
+                          ),
+                          if (!isMock) ...[
+                            const SizedBox(width: 6),
+                            GestureDetector(
+                              onTap: () => _editPhone(context, ref, phoneDigits, name),
+                              child: Icon(Icons.edit_outlined,
+                                  size: 14, color: context.care.inkMuted),
+                            ),
+                          ],
+                        ]),
                       ],
                       if (address.isNotEmpty) ...[
                         const SizedBox(height: 3),
@@ -563,6 +584,52 @@ class AccountScreen extends ConsumerWidget {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content:
             Text(ok ? 'Name updated.' : 'Could not save your name — check connection.')));
+  }
+
+  /// Lets someone set or change the phone number that actually matters for
+  /// cancelling a booking (see request_cancel_otp in app.py) and for the
+  /// technician's "Call" action — anyone who signed up with email/Google
+  /// alone has never had a phone on file otherwise. Writes to both the
+  /// backend (the number those two features read) and Firestore (what
+  /// this screen itself displays) so the two can't drift apart.
+  Future<void> _editPhone(
+      BuildContext context, WidgetRef ref, String currentDigits, String name) async {
+    final controller = TextEditingController(text: currentDigits);
+    final newPhone = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Phone number'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.phone,
+          maxLength: 10,
+          decoration:
+              const InputDecoration(hintText: '10-digit mobile number', prefixText: '+91 '),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(controller.text.trim()),
+              child: const Text('Save')),
+        ],
+      ),
+    );
+    if (newPhone == null || !context.mounted) return;
+    if (!RegExp(r'^[0-9]{10}$').hasMatch(newPhone)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Enter a valid 10-digit mobile number.')));
+      return;
+    }
+    final backendOk = await ref.read(apiRepositoryProvider).updatePhone(newPhone, name: name);
+    final displayOk = await ref.read(userProfileServiceProvider).updatePhone(newPhone);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(backendOk && displayOk
+            ? 'Phone number saved.'
+            : 'Could not save your phone number — check connection.')));
   }
 }
 
