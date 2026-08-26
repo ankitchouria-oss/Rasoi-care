@@ -760,6 +760,10 @@ def booking_row_to_dict(row, *, include_start_code=False):
         "service_id": row["service_id"] if "service_id" in keys else None,
         "total_amount": row["total_amount"] if "total_amount" in keys else row["price"],
         "area": row["area"] if "area" in keys else None,
+        # The real street address behind the short `area` label above — see
+        # create_booking and migrate_bookings_columns. Null for bookings
+        # made before this existed, or by a client that didn't send one.
+        "addressLine": row["address_line"] if "address_line" in keys else None,
         "lat": row["lat"] if "lat" in keys else None,
         "lng": row["lng"] if "lng" in keys else None,
         # Real work-log data, filled in as the technician actually advances
@@ -1957,6 +1961,7 @@ def send_sms(to_number, content, *, request_id=None):
     "bachatSlot": Field(str, max_len=100),
     "scheduledAt": Field(str, max_len=40, pattern=ISO_DATETIME_RE, strip=False),
     "area": Field(str, max_len=200),
+    "addressLine": Field(str, max_len=300),
     "lat": Field(NUMBER, min_val=-90, max_val=90),
     "lng": Field(NUMBER, min_val=-180, max_val=180),
     "directions": Field(str, max_len=500),
@@ -1978,6 +1983,10 @@ def create_booking():
     # this field) just fall back to the older status-based fee tiers.
     scheduled_at = data.get("scheduledAt")
     area = (data.get("area") or "").strip() or None
+    # The real street address the map pin (lat/lng, below) actually points
+    # to — `area` above is just a short label ("Home"/"Office") and isn't
+    # enough on its own for a technician to find the door.
+    address_line = (data.get("addressLine") or "").strip() or None
     lat = data.get("lat")
     lng = data.get("lng")
     lat = float(lat) if isinstance(lat, (int, float)) else None
@@ -2036,12 +2045,12 @@ def create_booking():
         "INSERT INTO bookings (id, category, service, price, technician_id, customer_name, "
         "status, bachat_slot, service_rating, tech_rating, area, created_at, updated_at, "
         "user_id, service_id, total_amount, lat, lng, directions, notes, issues_json, "
-        "start_code, scheduled_at) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "start_code, scheduled_at, address_line) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (booking_id, category, service, price, None, request.user["name"],
          "Requested", bachat_slot, None, None, area, ts, ts,
          request.user["id"], service_id, total_amount, lat, lng, directions,
-         notes, issues_json, start_code, scheduled_at),
+         notes, issues_json, start_code, scheduled_at, address_line),
     )
     conn.commit()
     row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
@@ -2494,6 +2503,16 @@ def request_cancel_otp(booking_id):
         f"{CANCEL_OTP_TTL_SECONDS // 60} minutes.",
         request_id=f"cancel-{booking_id}",
     )
+    if not sent:
+        # A real phone is on file — the SMS itself just didn't go out (the
+        # httpSMS gateway phone offline/misconfigured, or its API key
+        # invalid). Distinct from the no-phone-on-file 400 above: that one
+        # is fixed in Account settings, this one is a Rasoi Care problem
+        # the customer can only wait out and retry.
+        return jsonify({
+            "sent": False,
+            "message": "We couldn't text you a code just now — try again in a moment.",
+        })
     return jsonify({"sent": sent})
 
 

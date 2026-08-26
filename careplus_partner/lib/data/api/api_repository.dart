@@ -584,7 +584,11 @@ class ApiRepository implements PartnerRepository {
       jobId: base.jobId,
       customerName: b.customerName,
       customerInitials: _initials(b.customerName),
-      addressLine: (b.area?.trim().isNotEmpty ?? false) ? b.area! : base.addressLine,
+      // The real street address, when the customer's app sent one —
+      // `area` alone is just a short label ("Home"/"Office") and isn't
+      // enough to find the door, so it's only the fallback here.
+      addressLine: b.addressLine ??
+          ((b.area?.trim().isNotEmpty ?? false) ? b.area! : base.addressLine),
       // The customer's own real "directions for the technician" text —
       // previously this always showed the mock job's fabricated "Gate code
       // 4402, lift on the left" for every real booking too, regardless of

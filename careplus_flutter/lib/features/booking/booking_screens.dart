@@ -554,6 +554,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             service: draft.services[i],
             totalPaise: allocations[i],
             areaLabel: selected?.label,
+            addressLine: selected?.line,
             lat: selected?.lat,
             lng: selected?.lng,
             directions: directions.isEmpty ? null : directions,

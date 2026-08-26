@@ -11,6 +11,7 @@ class BookingDto {
     required this.customerName,
     required this.totalAmountPaise,
     required this.area,
+    this.addressLine,
     required this.createdAt,
     this.updatedAt,
     this.lat,
@@ -33,6 +34,12 @@ class BookingDto {
   final String customerName;
   final int totalAmountPaise;
   final String? area;
+  /// The real street address behind [area] (which is just a short label
+  /// like "Home"/"Office") — previously nothing but that label ever
+  /// reached this app, so the job screen showed "Home" as the entire
+  /// address while its own mini-map (lat/lng, below) pointed at the real
+  /// location. Null for bookings made before the backend captured this.
+  final String? addressLine;
   final DateTime? createdAt;
   /// Free text the customer actually typed on the address step of their
   /// booking — null when they left it blank, never a fabricated fallback.
@@ -96,6 +103,9 @@ class BookingDto {
           : 'Customer',
       totalAmountPaise: (rupees * 100).round(),
       area: json['area'] as String?,
+      addressLine: (json['addressLine'] as String?)?.trim().isNotEmpty == true
+          ? json['addressLine'] as String
+          : null,
       createdAt: DateTime.tryParse('${json['createdAt'] ?? ''}'),
       updatedAt: DateTime.tryParse('${json['updatedAt'] ?? ''}'),
       lat: (json['lat'] as num?)?.toDouble(),
@@ -136,6 +146,7 @@ class BookingDto {
         customerName: customerName,
         totalAmountPaise: totalAmountPaise,
         area: area,
+        addressLine: addressLine,
         createdAt: createdAt,
         updatedAt: updatedAt,
         lat: lat,

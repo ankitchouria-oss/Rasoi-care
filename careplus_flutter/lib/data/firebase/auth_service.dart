@@ -24,6 +24,13 @@ abstract interface class AuthService {
   String? get currentDisplayName;
   String? get currentEmail;
 
+  /// The verified phone number on the signed-in account (E.164, e.g.
+  /// `+917767090113`) — set only for phone-OTP sign-in, null for
+  /// email/password or Google (neither carries a phone number). The
+  /// registration screen uses this to decide whether to show phone as an
+  /// already-verified read-only field or ask the person to type one.
+  String? get currentPhoneNumber;
+
   /// Sends the OTP. Throws an [AuthException] on failure.
   Future<OtpSent> sendOtp(String e164Phone);
 
