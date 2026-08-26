@@ -768,6 +768,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   late final _emailCtrl = TextEditingController(
       text: ref.read(authServiceProvider).currentEmail ??
           (ref.read(authFlowProvider.notifier).isMock ? 'rohan.d@gmail.com' : ''));
+  // Non-null only when this account signed in via phone OTP — that number
+  // is already Firebase-verified, so it's shown read-only instead of asking
+  // for it again. Email/Google sign-ups have no phone on the account at
+  // all (the gap this field exists to close), so they get an editable one.
+  late final String? _verifiedPhone =
+      RegExp(r'(\d{10})$').firstMatch(ref.read(authServiceProvider).currentPhoneNumber ?? '')?.group(1);
+  late final _phoneCtrl = TextEditingController(text: _verifiedPhone ?? '');
   // Picked via the real map (or the plain-text fallback when no Maps key is
   // configured — see AddressPickerScreen), so this carries accurate
   // lat/lng, not just a typed line.
@@ -780,6 +787,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   void dispose() {
     _nameCtrl.dispose();
     _emailCtrl.dispose();
+    _phoneCtrl.dispose();
     super.dispose();
   }
 
@@ -792,6 +800,16 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     if (_pickedAddress == null) {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('Add your address to continue.')));
+      return;
+    }
+    // Already-verified phone-OTP sign-ins skip this — the number's real.
+    // Everyone else (email/Google) must supply one here, since it's the
+    // only number the technician's "Call" action and the cancellation-OTP
+    // SMS have to reach them on.
+    final phoneDigits = _phoneCtrl.text.replaceAll(RegExp(r'\D'), '');
+    if (_verifiedPhone == null && !RegExp(r'^[0-9]{10}$').hasMatch(phoneDigits)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Enter a valid 10-digit mobile number.')));
       return;
     }
     if (!_confirmedAdult) {
@@ -809,7 +827,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           lat: _pickedAddress!.lat,
           lng: _pickedAddress!.lng,
           ownedAppliances: _owned,
+          phone: _verifiedPhone == null ? phoneDigits : null,
         ));
+    // The backend's `users.phone` column only ever gets a phone-OTP number
+    // for free (bootstrap reads it straight off the verified Firebase
+    // token) — an email/Google sign-up has to hand it over explicitly, the
+    // same call AccountScreen's phone editor makes after the fact.
+    if (_verifiedPhone == null) {
+      unawaited(ref.read(apiRepositoryProvider).updatePhone(phoneDigits, name: _nameCtrl.text.trim()));
+    }
     if (!mounted) return;
     // Offer biometric login right after sign-up, but only on a device that
     // can actually satisfy it — no dead-end "no fingerprint enrolled" screen.
@@ -843,6 +869,34 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     const SizedBox(height: 13),
                     CareField('Email',
                         controller: _emailCtrl, keyboardType: TextInputType.emailAddress),
+                    const SizedBox(height: 13),
+                    if (_verifiedPhone != null)
+                      CareCard(
+                        child: Row(children: [
+                          Icon(Icons.verified_outlined, color: context.scheme.primary, size: 20),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text('+91 $_verifiedPhone',
+                                style: context.type.bodyMedium!.copyWith(fontWeight: FontWeight.w600)),
+                          ),
+                          Mono('Verified', color: context.care.inkMuted),
+                        ]),
+                      )
+                    else
+                      Row(
+                        children: [
+                          CareCard(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+                            child: const Text('🇮🇳 +91',
+                                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: CareField('Mobile number',
+                                controller: _phoneCtrl, keyboardType: TextInputType.phone),
+                          ),
+                        ],
+                      ),
                     const SizedBox(height: 13),
                     Eyebrow('Your address'),
                     const SizedBox(height: 8),

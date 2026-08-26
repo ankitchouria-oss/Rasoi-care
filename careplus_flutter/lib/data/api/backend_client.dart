@@ -62,6 +62,7 @@ class BackendClient {
     required String service,
     required int price,
     String? area,
+    String? addressLine,
     double? lat,
     double? lng,
     String? directions,
@@ -79,6 +80,11 @@ class BackendClient {
               'service': service,
               'price': price,
               if (area != null && area.isNotEmpty) 'area': area,
+              // The real street address behind that short label — a
+              // technician's job screen otherwise has nothing but "Home" to
+              // go on even though the map pin (lat/lng, below) points at
+              // the right spot.
+              if (addressLine != null && addressLine.isNotEmpty) 'addressLine': addressLine,
               if (lat != null) 'lat': lat,
               if (lng != null) 'lng': lng,
               if (directions != null && directions.isNotEmpty) 'directions': directions,
@@ -147,11 +153,15 @@ class BackendClient {
 
   /// POST /api/bookings/{id}/cancel/request-otp — texts the customer a
   /// short-lived code that [cancelBooking] below now requires before it
-  /// takes effect. Returns true if the backend says the SMS actually went
-  /// out, false if it says it didn't (no phone on file, httpSMS
-  /// unreachable) — distinguishing that from a hard failure talking to our
-  /// own backend at all (null), so the UI can show the right message.
-  Future<bool?> requestCancelOtp({
+  /// takes effect. `sent` is true once the backend confirms the SMS
+  /// actually went out. `error`, when set, is the backend's own real
+  /// reason it didn't — no phone on file (a 400, fixable in Account
+  /// settings) vs. the httpSMS gateway itself failing (a 200 with
+  /// `sent: false`, not fixable by the customer at all) are genuinely
+  /// different situations and get genuinely different messages; this
+  /// used to collapse both into a guess based only on the HTTP status,
+  /// which told a customer with a real phone on file to go add one.
+  Future<({bool? sent, String? error})> requestCancelOtp({
     required String idToken,
     required String bookingId,
   }) async {
@@ -162,14 +172,25 @@ class BackendClient {
             headers: {'Authorization': 'Bearer $idToken'},
           )
           .timeout(_timeout);
-      if (res.statusCode == 200) {
-        final decoded = jsonDecode(res.body);
-        if (decoded is Map<String, dynamic>) return decoded['sent'] == true;
+      final decoded = jsonDecode(res.body);
+      if (decoded is Map<String, dynamic>) {
+        if (res.statusCode == 200) {
+          final ok = decoded['sent'] == true;
+          return (
+            sent: ok,
+            error: ok ? null : decoded['message'] as String?,
+          );
+        }
+        final message = (decoded['message'] ?? decoded['error']) as String?;
+        return (sent: null, error: message ?? 'Could not send a cancellation code — try again.');
       }
     } catch (_) {
       // Best-effort — see file header.
     }
-    return null;
+    return (
+      sent: null,
+      error: 'Could not send a cancellation code — check your connection and try again.',
+    );
   }
 
   /// PATCH /api/bookings/{id}/cancel — the backend computes and applies the

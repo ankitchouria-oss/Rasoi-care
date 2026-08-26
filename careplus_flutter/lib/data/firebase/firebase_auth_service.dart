@@ -22,6 +22,9 @@ class FirebaseAuthService implements AuthService {
   String? get currentEmail => _auth.currentUser?.email;
 
   @override
+  String? get currentPhoneNumber => _auth.currentUser?.phoneNumber;
+
+  @override
   Future<OtpSent> sendOtp(String e164Phone) {
     final completer = Completer<OtpSent>();
     _auth.verifyPhoneNumber(

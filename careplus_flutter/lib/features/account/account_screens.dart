@@ -181,13 +181,12 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
     final repo = ref.read(repositoryProvider);
     if (repo is! ApiRepository) return;
 
-    final sent = await repo.requestCancelOtp(booking.id);
+    final otpRequest = await repo.requestCancelOtp(booking.id);
     if (!mounted) return;
-    if (sent != true) {
+    if (otpRequest.sent != true) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(sent == null
-              ? 'Could not send a cancellation code — check your connection and try again.'
-              : 'Could not send a cancellation code — add a phone number in Account settings first.')));
+          content: Text(otpRequest.error ??
+              'Could not send a cancellation code — try again.')));
       return;
     }
 

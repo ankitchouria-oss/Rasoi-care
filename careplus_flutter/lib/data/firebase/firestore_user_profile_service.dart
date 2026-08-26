@@ -227,6 +227,11 @@ class UserProfileService {
     double? lat,
     double? lng,
     required Set<String> ownedAppliances,
+    // Only passed for email/Google sign-ups — phone-OTP sign-in already has
+    // a verified number on the Firebase user itself (user.phoneNumber),
+    // which this falls back to when null. Ten bare digits, formatted below
+    // the same +91E.164 way as a real phone sign-in.
+    String? phone,
   }) async {
     if (Firebase.apps.isEmpty) return; // mock mode — nothing to write to
     final user = FirebaseAuth.instance.currentUser;
@@ -238,7 +243,7 @@ class UserProfileService {
         'address': address,
         'addressLat': lat,
         'addressLng': lng,
-        'phone': user.phoneNumber,
+        'phone': phone != null ? '+91$phone' : user.phoneNumber,
         'ownedAppliances': ownedAppliances.toList(),
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true)).timeout(const Duration(seconds: 6));

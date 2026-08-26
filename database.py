@@ -496,6 +496,15 @@ def migrate_bookings_columns(conn):
         # booked before this column existed, or if the client ever omits
         # it; callers fall back to the older status-based tiers for those.
         conn.execute("ALTER TABLE bookings ADD COLUMN scheduled_at TEXT")
+    if "address_line" not in cols:
+        # The customer's real street address (building/floor, street, the
+        # reverse-geocoded area) — previously only `area` (a short label
+        # like "Home"/"Office") ever reached the backend, so a technician's
+        # job screen showed that label as the entire address while the map
+        # pin (lat/lng, sent separately) pointed at the real location: the
+        # address text and the map disagreed. Null for bookings made
+        # before this existed, or by a client that didn't send one.
+        conn.execute("ALTER TABLE bookings ADD COLUMN address_line TEXT")
     conn.commit()
 
 

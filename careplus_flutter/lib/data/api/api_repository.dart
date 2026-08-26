@@ -148,6 +148,7 @@ class ApiRepository implements CareRepository {
     required ServiceItem service,
     required int totalPaise,
     String? areaLabel,
+    String? addressLine,
     double? lat,
     double? lng,
     String? directions,
@@ -164,6 +165,7 @@ class ApiRepository implements CareRepository {
       service: service.title,
       price: totalPaise ~/ 100, // backend stores whole rupees
       area: areaLabel,
+      addressLine: addressLine,
       lat: lat,
       lng: lng,
       directions: directions,
@@ -285,13 +287,14 @@ class ApiRepository implements CareRepository {
     return _client.bootstrap(idToken: token, name: name, phone: phone);
   }
 
-  /// Sends the SMS code [cancelBooking] below now requires. Returns true if
-  /// the backend confirms it actually went out, false if it says it
-  /// couldn't (e.g. no phone on file), or null on a network/auth failure
-  /// talking to our own backend at all.
-  Future<bool?> requestCancelOtp(String bookingId) async {
+  /// Sends the SMS code [cancelBooking] below now requires. `error` carries
+  /// the backend's own real reason when `sent` isn't true (see
+  /// BackendClient.requestCancelOtp) — no phone on file, the SMS gateway
+  /// itself failing, or a network/auth problem reaching our own backend at
+  /// all are genuinely different situations, each with its own message.
+  Future<({bool? sent, String? error})> requestCancelOtp(String bookingId) async {
     final token = await _idToken();
-    if (token == null) return null;
+    if (token == null) return (sent: null, error: 'You need to be signed in to cancel.');
     return _client.requestCancelOtp(idToken: token, bookingId: bookingId);
   }
 

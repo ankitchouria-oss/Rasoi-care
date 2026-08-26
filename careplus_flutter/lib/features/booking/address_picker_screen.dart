@@ -55,6 +55,19 @@ Future<String> resolveAreaLine(double lat, double lng) async {
             if (formatted != null) return formatted;
           }
         }
+        // Google's Geocoding API always answers 200 even on a rejected key
+        // or a billing/quota problem — the real outcome is this `status`
+        // field (REQUEST_DENIED, OVER_QUERY_LIMIT, ...), which an empty
+        // `results` list alone can't tell apart from a genuine "no address
+        // here". Logged, not shown to the customer — they just see the
+        // bare lat/lng fallback below either way — but this is the one
+        // place that would otherwise make a misconfigured/restricted API
+        // key look identical to "this spot has no address on file".
+        final status = decoded['status'] as String?;
+        if (status != null && status != 'OK') {
+          debugPrint('resolveAreaLine: Geocoding API returned $status '
+              '(${decoded['error_message']})');
+        }
       }
     }
   } catch (_) {
@@ -372,6 +385,13 @@ class _MapPickerBodyState extends State<_MapPickerBody> {
   bool _locating = false;
   List<_PlaceSuggestion> _suggestions = [];
   Timer? _debounce;
+  // Set only on a real API-level failure (a rejected/misconfigured key,
+  // quota exceeded) — never for a plain "nothing matched" search, which
+  // Google reports as a 200 with an empty predictions list, not an error.
+  // Without this, the two looked identical: the dropdown just never
+  // appeared and the pin could never be moved by typing, with nothing to
+  // tell the person (or whoever's debugging it) why.
+  String? _searchError;
 
   @override
   void initState() {
@@ -398,7 +418,10 @@ class _MapPickerBodyState extends State<_MapPickerBody> {
   Future<void> _search(String query) async {
     _debounce?.cancel();
     if (query.trim().length < 3) {
-      setState(() => _suggestions = []);
+      setState(() {
+        _suggestions = [];
+        _searchError = null;
+      });
       return;
     }
     _debounce = Timer(const Duration(milliseconds: 350), () async {
@@ -412,13 +435,35 @@ class _MapPickerBodyState extends State<_MapPickerBody> {
           final decoded = jsonDecode(res.body);
           if (decoded is Map<String, dynamic>) {
             final predictions = decoded['predictions'];
+            // Google's Autocomplete API always answers 200 — even when the
+            // key is rejected or over quota — so `status` (not the HTTP
+            // code) is the only way to tell a real failure apart from a
+            // genuine "nothing matches yet". Surfaced here rather than
+            // just falling through to an empty, unexplained dropdown.
+            final status = decoded['status'] as String?;
+            if (status != null && status != 'OK' && status != 'ZERO_RESULTS') {
+              debugPrint('AddressPickerScreen._search: Places API returned '
+                  '$status (${decoded['error_message']})');
+              if (mounted) {
+                setState(() {
+                  _suggestions = [];
+                  _searchError = "Address search isn't working right now.";
+                });
+              }
+              return;
+            }
             if (predictions is List) {
               final parsed = predictions
                   .whereType<Map<String, dynamic>>()
                   .map(_PlaceSuggestion.fromJson)
                   .whereType<_PlaceSuggestion>()
                   .toList();
-              if (mounted) setState(() => _suggestions = parsed);
+              if (mounted) {
+                setState(() {
+                  _suggestions = parsed;
+                  _searchError = null;
+                });
+              }
               return;
             }
           }
@@ -461,6 +506,11 @@ class _MapPickerBodyState extends State<_MapPickerBody> {
                 return;
               }
             }
+          }
+          final status = decoded['status'] as String?;
+          if (status != null && status != 'OK') {
+            debugPrint('AddressPickerScreen._selectSuggestion: Geocoding API '
+                'returned $status (${decoded['error_message']})');
           }
         }
       }
@@ -554,7 +604,13 @@ class _MapPickerBodyState extends State<_MapPickerBody> {
                       ),
                 onChanged: _search),
           ),
-          if (_suggestions.isNotEmpty)
+          if (_searchError != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text(_searchError!,
+                  style: context.type.bodySmall?.copyWith(color: context.scheme.error)),
+            )
+          else if (_suggestions.isNotEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: CareCard(
