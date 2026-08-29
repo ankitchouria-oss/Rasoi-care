@@ -35,6 +35,7 @@ class ServiceItem {
     this.strikePaise,
     this.included = const [],
     this.notIncluded = '',
+    this.requirements = const [],
   });
 
   final String id;
@@ -51,6 +52,12 @@ class ServiceItem {
   /// deep clean genuinely include different things.
   final List<String> included;
   final String notIncluded;
+
+  /// What the customer needs to have ready before the technician arrives
+  /// (a nearby power point, water, a ladder for a high-mounted unit) — shown
+  /// alongside "What's included" so there's no on-the-spot scramble at the
+  /// door. Empty for a service with nothing unusual to ask for.
+  final List<String> requirements;
 }
 
 /// One symptom a customer can flag before the visit.
