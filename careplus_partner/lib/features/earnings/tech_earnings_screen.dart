@@ -1,8 +1,13 @@
 // Real earnings/work-history report, modelled on the delivery-partner
 // pattern (Zomato's rider app has the same shape: a period toggle, a total,
 // a jobs-completed count, and a chronological list of paid jobs) — built
-// entirely from bookings this technician has actually completed
-// (ApiRepository.completedBookings()), never invented figures.
+// entirely from GET /api/technician/earnings (ApiRepository.fetchEarnings()),
+// never invented figures. The total shown here is the technician's real
+// commission (10% of the GST-exclusive base for a payroll technician, 50%
+// of that base after the visit charge for an outsourced one — see
+// compute_commission_paise in app.py), plus their real bonus/incentive and
+// fine ledger — never the customer's full invoice amount, which is what
+// this screen showed before employment-type-based commissions existed.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,6 +18,7 @@ import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
 import '../../data/api/api_repository.dart';
 import '../../data/api/booking_dto.dart';
+import '../../data/api/earnings_dto.dart';
 import '../../data/models.dart';
 import '../../l10n/app_localizations.dart';
 import '../../l10n/l10n_extensions.dart';
@@ -29,11 +35,31 @@ class TechEarningsScreen extends ConsumerStatefulWidget {
 class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
   _Period _period = _Period.week;
   bool _refreshing = false;
+  TechEarningsSummary? _summary;
+  bool _loadedOnce = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final repo = ref.read(repositoryProvider);
+    if (repo is! ApiRepository) return;
+    final summary = await repo.fetchEarnings();
+    if (!mounted) return;
+    setState(() {
+      _summary = summary ?? _summary;
+      _loadedOnce = true;
+    });
+  }
 
   Future<void> _refresh() async {
     setState(() => _refreshing = true);
     final repo = ref.read(repositoryProvider);
     if (repo is ApiRepository) await repo.refreshBookings();
+    await _load();
     if (mounted) ref.read(jobsFeedTickProvider.notifier).bump();
     if (mounted) setState(() => _refreshing = false);
   }
@@ -55,36 +81,30 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
   Widget build(BuildContext context) {
     ref.watch(jobsFeedTickProvider);
     final repo = ref.watch(repositoryProvider);
-    final completed = repo is ApiRepository
-        ? repo.completedBookings()
-        : const <BookingDto>[];
-    final fetched = repo is ApiRepository ? repo.bookingsFetched : false;
-    final inPeriod = completed
-        .where((b) => _inPeriod(b.updatedAt ?? b.createdAt))
-        .toList();
-    final totalPaise = inPeriod.fold<int>(
-      0,
-      (sum, b) => sum + b.totalAmountPaise,
-    );
-    final avgPaise = inPeriod.isEmpty ? 0 : totalPaise ~/ inPeriod.length;
+    final summary = _summary;
+    final jobs = summary?.jobs ?? const <EarningsJob>[];
+    final inPeriod = jobs.where((j) => _inPeriod(j.completedAt)).toList();
+    final commissionPaise =
+        inPeriod.fold<int>(0, (sum, j) => sum + j.commissionPaise);
+    final avgPaise = inPeriod.isEmpty ? 0 : commissionPaise ~/ inPeriod.length;
     final cancellationFees = repo is ApiRepository ? repo.cancellationFeeBookings() : const <BookingDto>[];
     final cancellationFeesTotalPaise =
         cancellationFees.fold<int>(0, (sum, b) => sum + (b.cancellationFeePaise ?? 0));
 
-    // Real per-month totals for the last 6 months, from the same completed
-    // bookings — never invented, just a different slice of the same data.
+    // Real per-month commission totals for the last 6 months, from the same
+    // earnings jobs — never invented, just a different slice of the same data.
     final now = DateTime.now();
     final monthTotals = <int>[];
     final monthLabels = <String>[];
     for (var i = 5; i >= 0; i--) {
       final m = DateTime(now.year, now.month - i, 1);
       monthLabels.add(DateFormat('MMM').format(m));
-      final total = completed
-          .where((b) {
-            final d = (b.updatedAt ?? b.createdAt)?.toLocal();
+      final total = jobs
+          .where((j) {
+            final d = j.completedAt?.toLocal();
             return d != null && d.year == m.year && d.month == m.month;
           })
-          .fold<int>(0, (sum, b) => sum + b.totalAmountPaise);
+          .fold<int>(0, (sum, j) => sum + j.commissionPaise);
       monthTotals.add(total);
     }
     final maxMonthTotal = monthTotals.fold<int>(0, (a, b) => a > b ? a : b);
@@ -147,10 +167,29 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Eyebrow(t.earningsTotalEarned, color: CareColors.brass),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Eyebrow(t.earningsTotalEarned, color: CareColors.brass),
+                            if (summary != null)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: CareColors.porcelain.withValues(alpha: 0.12),
+                                  borderRadius: Radii.pill,
+                                ),
+                                child: Text(
+                                  summary.isPayroll
+                                      ? t.earningsPayrollBadge(_pct(summary.commissionRate))
+                                      : t.earningsOutsourcedBadge(_pct(summary.commissionRate)),
+                                  style: CareType.mono(CareColors.porcelain, size: 10.5),
+                                ),
+                              ),
+                          ],
+                        ),
                         const SizedBox(height: 6),
                         Text(
-                          Money.rupees(totalPaise),
+                          Money.rupees(commissionPaise),
                           style: CareType.mono(
                             CareColors.porcelain,
                             size: 30,
@@ -245,6 +284,30 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
                       ],
                     ),
                   ),
+                  if (summary != null && summary.incentives.isNotEmpty) ...[
+                    SectionHeader(t.earningsIncentives,
+                        trailing: Text(Money.rupees(summary.incentiveTotalPaise),
+                            style: context.type.bodySmall!
+                                .copyWith(color: context.care.success))),
+                    Text(t.earningsIncentivesExplain, style: context.type.bodySmall),
+                    const SizedBox(height: 8),
+                    for (final e in summary.incentives) ...[
+                      _LedgerRow(entry: e, tone: ChipTone.success),
+                      const SizedBox(height: 8),
+                    ],
+                  ],
+                  if (summary != null && summary.fines.isNotEmpty) ...[
+                    SectionHeader(t.earningsFines,
+                        trailing: Text(Money.rupees(summary.fineTotalPaise),
+                            style: context.type.bodySmall!
+                                .copyWith(color: context.scheme.error))),
+                    Text(t.earningsFinesExplain, style: context.type.bodySmall),
+                    const SizedBox(height: 8),
+                    for (final e in summary.fines) ...[
+                      _LedgerRow(entry: e, tone: ChipTone.danger),
+                      const SizedBox(height: 8),
+                    ],
+                  ],
                   if (cancellationFees.isNotEmpty) ...[
                     SectionHeader(t.earningsCancellationFees,
                         trailing: Text(Money.rupees(cancellationFeesTotalPaise),
@@ -300,7 +363,7 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
                     ),
                   ),
                   SectionHeader(t.earningsJobHistory),
-                  if (!fetched)
+                  if (!_loadedOnce)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 20),
                       child: Center(
@@ -318,7 +381,7 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
                       ),
                     )
                   else
-                    for (final b in inPeriod) ...[
+                    for (final j in inPeriod) ...[
                       CareCard(
                         child: Row(
                           children: [
@@ -327,7 +390,7 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    b.service,
+                                    j.service,
                                     style: const TextStyle(
                                       fontSize: 13.5,
                                       fontWeight: FontWeight.w700,
@@ -335,19 +398,28 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
                                   ),
                                   const SizedBox(height: 3),
                                   Text(
-                                    '${b.customerName} · ${_formatDate(b.updatedAt ?? b.createdAt)}',
+                                    '${j.bookingId} · ${_formatDate(j.completedAt)}',
                                     style: context.type.bodySmall,
                                   ),
                                 ],
                               ),
                             ),
-                            Text(
-                              Money.rupees(b.totalAmountPaise),
-                              style: CareType.mono(
-                                context.scheme.onSurface,
-                                size: 13.5,
-                                w: FontWeight.w600,
-                              ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  Money.rupees(j.commissionPaise),
+                                  style: CareType.mono(
+                                    context.scheme.onSurface,
+                                    size: 13.5,
+                                    w: FontWeight.w600,
+                                  ),
+                                ),
+                                Text(
+                                  t.earningsInvoiceTotal(Money.rupees(j.totalAmountPaise)),
+                                  style: context.type.bodySmall!.copyWith(fontSize: 10.5),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -362,6 +434,8 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
       ),
     );
   }
+
+  String _pct(double rate) => '${(rate * 100).round()}%';
 
   String _label(AppLocalizations t, _Period p) => switch (p) {
     _Period.today => t.earningsPeriodToday,
@@ -417,6 +491,47 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
         ],
       ),
     );
+  }
+}
+
+/// One row in the Bonus & Incentives or Fines table.
+class _LedgerRow extends StatelessWidget {
+  const _LedgerRow({required this.entry, required this.tone});
+  final LedgerEntry entry;
+  final ChipTone tone;
+
+  @override
+  Widget build(BuildContext context) => CareCard(
+        child: Row(children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(entry.reason,
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 3),
+                Text(_formatDate(entry.createdAt), style: context.type.bodySmall),
+              ],
+            ),
+          ),
+          Text(
+            '${entry.amountPaise >= 0 ? '+' : ''}${Money.rupees(entry.amountPaise)}',
+            style: CareType.mono(
+              tone == ChipTone.success ? context.care.success : context.scheme.error,
+              size: 13.5,
+              w: FontWeight.w600,
+            ),
+          ),
+        ]),
+      );
+
+  String _formatDate(DateTime? dt) {
+    if (dt == null) return '—';
+    try {
+      return DateFormat('d MMM, h:mm a').format(dt.toLocal());
+    } catch (_) {
+      return '—';
+    }
   }
 }
 

@@ -27,6 +27,7 @@ import '../models.dart';
 import '../repository.dart';
 import 'api_config.dart';
 import 'booking_dto.dart';
+import 'earnings_dto.dart';
 
 const _timeout = Duration(seconds: 8);
 
@@ -518,6 +519,29 @@ class ApiRepository implements PartnerRepository {
 
   bool get bookingsFetched => _bookingsFetched;
 
+  /// Real, itemized earnings for the signed-in technician — see
+  /// app.py's /api/technician/earnings. Null on any failure (network,
+  /// unauthenticated); the caller shows a loading/error state rather than
+  /// falling back to a fabricated total.
+  Future<TechEarningsSummary?> fetchEarnings() async {
+    try {
+      final token = await _idToken();
+      if (token == null) return null;
+      final res = await http
+          .get(
+            Uri.parse('${ApiConfig.baseUrl}/api/technician/earnings'),
+            headers: {'Authorization': 'Bearer $token'},
+          )
+          .timeout(_timeout);
+      if (res.statusCode != 200) return null;
+      final data = jsonDecode(res.body);
+      if (data is! Map<String, dynamic>) return null;
+      return TechEarningsSummary.fromJson(data);
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   JobRequest? incomingRequest() {
     if (!_availableFetched) return _mock.incomingRequest();
@@ -597,31 +621,45 @@ class ApiRepository implements PartnerRepository {
       // was actually reported (or nothing at all).
       reportedTags: b.issues,
       reportedQuote: b.notes ?? '',
-      // No real parts/quote backend exists yet — an empty list here (never
-      // the mock's fabricated pre-approved "Baffle filter — Elica 90cm")
-      // is what TechJobScreen renders as a genuine "coming soon" state.
-      parts: const [],
+      // Real parts/extra-work quotes this technician has actually raised —
+      // see addPart/removePart below. Never the mock's fabricated
+      // pre-approved "Baffle filter — Elica 90cm".
+      parts: b.parts
+          .map((p) => PartLine(
+                id: p.id,
+                name: p.name,
+                sku: p.sku,
+                qty: p.qty,
+                pricePaise: p.pricePaise,
+                status: partStatusFrom(p.status),
+                decidedAt: p.decidedAt,
+              ))
+          .toList(growable: false),
       lat: b.lat,
       lng: b.lng,
       customerPhone: b.customerPhone,
+      brand: b.brand,
+      modelNumber: b.modelNumber,
     );
   }
 
-  /// Real jobs get a single honest line — the service and its actual
-  /// booked total_amount, straight from the last `/technician/bookings`
-  /// fetch. There's no real payment gateway or itemized-parts backend
-  /// behind this app yet, so a fabricated visit-fee/coupon/GST/parts
-  /// breakdown would just be numbers nobody actually charged — this was
-  /// the exact bug reported: every job showed the same hardcoded ₹899 +
-  /// parts + coupon + GST invoice regardless of what was really booked.
-  /// Falls back to the mock invoice only for a job this technician doesn't
-  /// have in their real, fetched bookings (a mock/demo job).
+  /// Real jobs get the service's actual booked total_amount, straight from
+  /// the last `/technician/bookings` fetch, plus one line per part the
+  /// customer has actually approved — there's still no real payment gateway
+  /// or coupon/GST backend behind this app, so nothing invented is added on
+  /// top. Falls back to the mock invoice only for a job this technician
+  /// doesn't have in their real, fetched bookings (a mock/demo job).
   @override
   List<InvoiceLine> closeInvoice(String jobId) {
     final match = _bookings.where((b) => b.id == jobId);
     if (match.isEmpty) return _mock.closeInvoice(jobId);
     final booking = match.first;
-    return [InvoiceLine(booking.service, booking.totalAmountPaise)];
+    return [
+      InvoiceLine(booking.service, booking.totalAmountPaise),
+      for (final p in booking.parts)
+        if (p.status == 'approved')
+          InvoiceLine(p.name, p.pricePaise * p.qty, tone: LineTone.success),
+    ];
   }
 
   /// The live status string for [jobId] if it's a known real booking from
@@ -639,6 +677,113 @@ class ApiRepository implements PartnerRepository {
   String? categoryOf(String jobId) {
     final match = _bookings.where((b) => b.id == jobId);
     return match.isEmpty ? null : match.first.category;
+  }
+
+  /// Sets the appliance's real brand/model once the technician is actually
+  /// on-site looking at it — see app.py's PATCH .../appliance. Either
+  /// argument can be omitted to leave that field untouched; passing an
+  /// empty string clears it. Returns whether the call succeeded.
+  Future<bool> updateApplianceInfo(String jobId, {String? brand, String? modelNumber}) async {
+    try {
+      final token = await _idToken();
+      if (token == null) return false;
+      final res = await http
+          .patch(
+            Uri.parse('${ApiConfig.baseUrl}/api/technician/bookings/$jobId/appliance'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({
+              if (brand != null) 'brand': brand,
+              if (modelNumber != null) 'modelNumber': modelNumber,
+            }),
+          )
+          .timeout(_timeout);
+      if (res.statusCode != 200) return false;
+      final i = _bookings.indexWhere((b) => b.id == jobId);
+      if (i != -1) {
+        _bookings = [
+          ..._bookings.sublist(0, i),
+          _bookings[i].copyWith(brand: brand, modelNumber: modelNumber),
+          ..._bookings.sublist(i + 1),
+        ];
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Raises a real part/extra-work quote for the customer to approve or
+  /// reject — see app.py's POST .../parts. On success the newly created
+  /// part (with its real backend id) is appended to the cached booking so
+  /// the Parts & quotes section reflects it immediately, no refetch needed.
+  Future<bool> addPart(String jobId,
+      {required String name, String? sku, required int qty, required int pricePaise}) async {
+    try {
+      final token = await _idToken();
+      if (token == null) return false;
+      final res = await http
+          .post(
+            Uri.parse('${ApiConfig.baseUrl}/api/technician/bookings/$jobId/parts'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({
+              'name': name,
+              if (sku != null && sku.trim().isNotEmpty) 'sku': sku,
+              'qty': qty,
+              'pricePaise': pricePaise,
+            }),
+          )
+          .timeout(_timeout);
+      if (res.statusCode != 201) return false;
+      final data = jsonDecode(res.body);
+      if (data is Map<String, dynamic>) {
+        final part = PartQuoteDto.fromJson(data);
+        final i = _bookings.indexWhere((b) => b.id == jobId);
+        if (i != -1) {
+          _bookings = [
+            ..._bookings.sublist(0, i),
+            _bookings[i].copyWith(parts: [..._bookings[i].parts, part]),
+            ..._bookings.sublist(i + 1),
+          ];
+        }
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Retracts a part quote this technician raised by mistake — the backend
+  /// only allows this while the customer hasn't decided on it yet.
+  Future<bool> removePart(String jobId, String partId) async {
+    try {
+      final token = await _idToken();
+      if (token == null) return false;
+      final res = await http
+          .delete(
+            Uri.parse('${ApiConfig.baseUrl}/api/technician/bookings/$jobId/parts/$partId'),
+            headers: {'Authorization': 'Bearer $token'},
+          )
+          .timeout(_timeout);
+      if (res.statusCode != 200) return false;
+      final i = _bookings.indexWhere((b) => b.id == jobId);
+      if (i != -1) {
+        _bookings = [
+          ..._bookings.sublist(0, i),
+          _bookings[i].copyWith(
+              parts: _bookings[i].parts.where((p) => p.id != partId).toList(growable: false)),
+          ..._bookings.sublist(i + 1),
+        ];
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// True if any of this technician's real bookings from the last

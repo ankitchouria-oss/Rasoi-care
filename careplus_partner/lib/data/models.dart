@@ -88,22 +88,39 @@ class RouteStop {
   final StopStatus status;
 }
 
-/// A part fitted during the visit, pending or already customer-approved.
+/// Whether the customer has decided on a part/extra-work quote yet — see
+/// app.py's booking_parts table. A part starts [pending] the moment a
+/// technician raises it and stays that way until the customer actually
+/// approves or rejects it; neither decision can be taken back.
+enum PartStatus { pending, approved, rejected }
+
+PartStatus partStatusFrom(String? raw) => switch (raw) {
+      'approved' => PartStatus.approved,
+      'rejected' => PartStatus.rejected,
+      _ => PartStatus.pending,
+    };
+
+/// A real part or extra-work quote a technician has raised for this job —
+/// see ApiRepository.addPart. Not a fabricated invoice line: nothing here
+/// exists until a technician actually adds it, and it isn't charged until
+/// the customer approves it in their own app.
 class PartLine {
   const PartLine({
+    required this.id,
     required this.name,
-    required this.sku,
+    this.sku,
     required this.qty,
     required this.pricePaise,
-    required this.approved,
-    this.approvedAt,
+    this.status = PartStatus.pending,
+    this.decidedAt,
   });
+  final String id;
   final String name;
-  final String sku;
+  final String? sku;
   final int qty;
   final int pricePaise;
-  final bool approved;
-  final String? approvedAt;
+  final PartStatus status;
+  final String? decidedAt;
 }
 
 /// Full detail for a job the technician is actively working.
@@ -120,6 +137,8 @@ class JobDetail {
     this.lat,
     this.lng,
     this.customerPhone,
+    this.brand,
+    this.modelNumber,
   });
   final String jobId;
   final String customerName;
@@ -129,6 +148,12 @@ class JobDetail {
   final List<String> reportedTags;
   final String reportedQuote;
   final List<PartLine> parts;
+
+  /// The appliance's real brand/model, set by the technician once they're
+  /// actually looking at it on-site (see ApiRepository.updateApplianceInfo)
+  /// — the customer never types this at booking time. Null until set.
+  final String? brand;
+  final String? modelNumber;
 
   /// The service address's real coordinates, when the booking was made
   /// through the Customer app's map picker — see BookingDto.lat/lng. Null

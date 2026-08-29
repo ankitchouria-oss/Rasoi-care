@@ -215,6 +215,23 @@ class ApiRepository implements CareRepository {
     return _client.rateBooking(idToken: token, bookingId: bookingId, rating: rating);
   }
 
+  /// Approves or rejects a part/extra-work quote a technician raised for
+  /// [bookingId] — see BackendClient.decidePart. Re-fetches bookings on
+  /// success so the invoice reflects the decision immediately; there's no
+  /// undo once decided, same as the backend enforces.
+  Future<bool> decidePart({
+    required String bookingId,
+    required String partId,
+    required bool approve,
+  }) async {
+    final token = await _idToken();
+    if (token == null) return false;
+    final ok = await _client.decidePart(
+        idToken: token, bookingId: bookingId, partId: partId, approve: approve);
+    if (ok) await refreshBookings();
+    return ok;
+  }
+
   Booking _bookingFromJson(Map<String, dynamic> json) {
     final categoryStr = json['category'] as String?;
     final appliance = backendCategoryToAppliance[categoryStr] ?? Appliance.chimney;
@@ -254,6 +271,17 @@ class ApiRepository implements CareRepository {
           ? json['startCode'] as String
           : null,
       scheduledAt: DateTime.tryParse((json['scheduledAt'] as String?) ?? ''),
+      brand: (json['brand'] as String?)?.trim().isNotEmpty == true
+          ? json['brand'] as String
+          : null,
+      modelNumber: (json['modelNumber'] as String?)?.trim().isNotEmpty == true
+          ? json['modelNumber'] as String
+          : null,
+      parts: (json['parts'] as List?)
+              ?.whereType<Map<String, dynamic>>()
+              .map(PartQuote.fromJson)
+              .toList(growable: false) ??
+          const [],
     );
   }
 

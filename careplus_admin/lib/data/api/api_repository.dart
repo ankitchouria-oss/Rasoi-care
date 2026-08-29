@@ -374,7 +374,49 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
       panDocumentUrl: t['panDocumentUrl'] as String?,
       bankPassbookUrl: t['bankPassbookUrl'] as String?,
       partnerCode: t['partnerCode'] as String?,
+      employmentType: t['employmentType'] as String?,
     );
+  }
+
+  /// Real, itemized earnings for one technician — see
+  /// GET /api/technicians/<id>/earnings. Null on any failure; the caller
+  /// shows a loading/error state rather than a fabricated total.
+  Future<TechnicianEarnings?> fetchTechnicianEarnings(String technicianId) async {
+    try {
+      final token = await _idToken();
+      if (token == null) return null;
+      final res = await _client
+          .get(
+            Uri.parse('${ApiConfig.baseUrl}/api/technicians/$technicianId/earnings'),
+            headers: _headers(token),
+          )
+          .timeout(_timeout);
+      if (res.statusCode != 200) return null;
+      final data = jsonDecode(res.body);
+      if (data is! Map<String, dynamic>) return null;
+      final ledgerRaw = (data['ledger'] as List?) ?? const [];
+      return TechnicianEarnings(
+        employmentType: (data['employmentType'] as String?) ?? 'outsourced',
+        commissionRate: (data['commissionRate'] as num?)?.toDouble() ?? 0,
+        commissionTotalPaise: _asInt(data['commissionTotalPaise']),
+        ledger: [
+          for (final e in ledgerRaw.whereType<Map<String, dynamic>>())
+            TechnicianLedgerEntry(
+              id: '${e['id']}',
+              kind: (e['kind'] as String?) ?? 'incentive',
+              amountPaise: _asInt(e['amountPaise']),
+              reason: (e['reason'] as String?) ?? '',
+              bookingId: e['bookingId'] as String?,
+              createdAt: DateTime.tryParse('${e['createdAt'] ?? ''}'),
+            ),
+        ],
+        incentiveTotalPaise: _asInt(data['incentiveTotalPaise']),
+        fineTotalPaise: _asInt(data['fineTotalPaise']),
+        netTotalPaise: _asInt(data['netTotalPaise']),
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> _fetchTechnicians() async {

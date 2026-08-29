@@ -185,6 +185,28 @@ class _TechnicianDetailSheet extends ConsumerStatefulWidget {
 
 class _TechnicianDetailSheetState extends ConsumerState<_TechnicianDetailSheet> {
   bool _verifying = false;
+  TechnicianEarnings? _earnings;
+  bool _loadingEarnings = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadEarnings();
+  }
+
+  Future<void> _loadEarnings() async {
+    final id = widget.member.id;
+    if (id == null) {
+      setState(() => _loadingEarnings = false);
+      return;
+    }
+    final earnings = await ref.read(repositoryProvider).fetchTechnicianEarnings(id);
+    if (!mounted) return;
+    setState(() {
+      _earnings = earnings;
+      _loadingEarnings = false;
+    });
+  }
 
   Future<void> _verify() async {
     final id = widget.member.id;
@@ -247,6 +269,48 @@ class _TechnicianDetailSheetState extends ConsumerState<_TechnicianDetailSheet> 
                 t.experienceYears != null ? '${t.experienceYears} years' : '—'),
             _row(context, 'Rating', '★ ${t.rating}'),
             _row(context, 'Jobs completed', t.statsLabel),
+            _row(
+              context,
+              'Employment type',
+              switch (t.employmentType) {
+                'payroll' => 'Payroll',
+                'outsourced' => 'Outsourced / independent',
+                _ => '—',
+              },
+            ),
+            const SizedBox(height: 10),
+            Eyebrow('Earnings'),
+            const SizedBox(height: 8),
+            if (_loadingEarnings)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Center(
+                  child: SizedBox(
+                      width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                ),
+              )
+            else if (_earnings == null)
+              Text('Could not load earnings — check connection.', style: context.type.bodySmall)
+            else ...[
+              _row(context, 'Commission rate', '${(_earnings!.commissionRate * 100).round()}%'),
+              _row(context, 'Total commission', Money.rupees(_earnings!.commissionTotalPaise)),
+              _row(context, 'Net payout', Money.rupees(_earnings!.netTotalPaise)),
+              if (_earnings!.incentives.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text('Bonus & incentives',
+                    style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 4),
+                for (final e in _earnings!.incentives)
+                  _ledgerRow(context, e, color: context.care.success),
+              ],
+              if (_earnings!.fines.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text('Fines', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 4),
+                for (final e in _earnings!.fines)
+                  _ledgerRow(context, e, color: context.scheme.error),
+              ],
+            ],
             const SizedBox(height: 10),
             Eyebrow('Aadhaar card'),
             const SizedBox(height: 8),
@@ -333,6 +397,23 @@ class _TechnicianDetailSheetState extends ConsumerState<_TechnicianDetailSheet> 
       child: Image.network(url, height: 140, width: double.infinity, fit: BoxFit.cover),
     );
   }
+
+  Widget _ledgerRow(BuildContext context, TechnicianLedgerEntry entry, {required Color color}) =>
+      Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(entry.reason, style: context.type.bodySmall),
+            ),
+            Text(
+              '${entry.amountPaise >= 0 ? '+' : ''}${Money.rupees(entry.amountPaise)}',
+              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: color),
+            ),
+          ],
+        ),
+      );
 
   Widget _row(BuildContext context, String label, String value) => Padding(
         padding: const EdgeInsets.only(bottom: 10),

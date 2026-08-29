@@ -2,6 +2,42 @@
 // (GET /api/technician/bookings, PATCH /api/bookings/<id>/advance — see
 // app.py's `booking_row_to_dict`). Only the fields this app actually uses
 // are parsed; everything else in the JSON is ignored.
+
+/// A real part/extra-work quote a technician has raised for a booking —
+/// see app.py's booking_parts table and part_row_to_dict. `status` is one
+/// of 'pending'/'approved'/'rejected', kept as the raw backend string here
+/// (models.dart's PartLine parses it into PartStatus) since this file is
+/// pure wire-shape parsing.
+class PartQuoteDto {
+  const PartQuoteDto({
+    required this.id,
+    required this.name,
+    this.sku,
+    required this.qty,
+    required this.pricePaise,
+    required this.status,
+    this.decidedAt,
+  });
+
+  final String id;
+  final String name;
+  final String? sku;
+  final int qty;
+  final int pricePaise;
+  final String status;
+  final String? decidedAt;
+
+  factory PartQuoteDto.fromJson(Map<String, dynamic> json) => PartQuoteDto(
+        id: '${json['id']}',
+        name: (json['name'] as String?) ?? '',
+        sku: (json['sku'] as String?)?.trim().isNotEmpty == true ? json['sku'] as String : null,
+        qty: (json['qty'] as num?)?.toInt() ?? 1,
+        pricePaise: (json['pricePaise'] as num?)?.round() ?? 0,
+        status: (json['status'] as String?) ?? 'pending',
+        decidedAt: json['decidedAt'] as String?,
+      );
+}
+
 class BookingDto {
   const BookingDto({
     required this.id,
@@ -25,6 +61,9 @@ class BookingDto {
     this.beforePhotoReady = false,
     this.afterPhotoReady = false,
     this.signatureReady = false,
+    this.brand,
+    this.modelNumber,
+    this.parts = const [],
   });
 
   final String id;
@@ -86,6 +125,15 @@ class BookingDto {
   final bool afterPhotoReady;
   final bool signatureReady;
 
+  /// The appliance's real brand/model, set by the technician once they're
+  /// actually looking at it on-site — see app.py's PATCH .../appliance.
+  /// Null until a technician sets it.
+  final String? brand;
+  final String? modelNumber;
+
+  /// Real part/extra-work quotes raised for this job — see PartQuoteDto.
+  final List<PartQuoteDto> parts;
+
   factory BookingDto.fromJson(Map<String, dynamic> json) {
     // total_amount arrives in rupees (see app.py) — this app stores money in
     // paise everywhere, so convert at the edge.
@@ -128,6 +176,17 @@ class BookingDto {
       beforePhotoReady: json['beforePhotoReady'] == true,
       afterPhotoReady: json['afterPhotoReady'] == true,
       signatureReady: json['signatureReady'] == true,
+      brand: (json['brand'] as String?)?.trim().isNotEmpty == true
+          ? json['brand'] as String
+          : null,
+      modelNumber: (json['modelNumber'] as String?)?.trim().isNotEmpty == true
+          ? json['modelNumber'] as String
+          : null,
+      parts: (json['parts'] as List?)
+              ?.whereType<Map<String, dynamic>>()
+              .map(PartQuoteDto.fromJson)
+              .toList(growable: false) ??
+          const [],
     );
   }
 
@@ -137,6 +196,9 @@ class BookingDto {
     bool? beforePhotoReady,
     bool? afterPhotoReady,
     bool? signatureReady,
+    String? brand,
+    String? modelNumber,
+    List<PartQuoteDto>? parts,
   }) =>
       BookingDto(
         id: id,
@@ -160,6 +222,9 @@ class BookingDto {
         beforePhotoReady: beforePhotoReady ?? this.beforePhotoReady,
         afterPhotoReady: afterPhotoReady ?? this.afterPhotoReady,
         signatureReady: signatureReady ?? this.signatureReady,
+        brand: brand ?? this.brand,
+        modelNumber: modelNumber ?? this.modelNumber,
+        parts: parts ?? this.parts,
       );
 }
 
