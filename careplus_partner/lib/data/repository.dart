@@ -76,14 +76,6 @@ class MockPartnerRepository implements PartnerRepository {
         reportedTags: const ['Weak suction', 'Rattling noise', 'Oil dripping'],
         reportedQuote:
             'Smoke lingers even on turbo, and there\'s a rattle when it starts.',
-        checklist: const [
-          ChecklistItem('Start code verified', checked: true),
-          ChecklistItem('Floor sheeting laid', checked: true),
-          ChecklistItem('Suction reading before — 480 m³/hr', checked: true),
-          ChecklistItem('Filters and blower degreased', checked: true),
-          ChecklistItem('Suction reading after'),
-          ChecklistItem('Site cleaned, customer walkthrough'),
-        ],
         parts: const [
           PartLine(
             name: 'Baffle filter — Elica 90cm',

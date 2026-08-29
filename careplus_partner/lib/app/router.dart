@@ -94,11 +94,13 @@ final router = GoRouter(
       path: '/tech/job/:id/airflow',
       parentNavigatorKey: _rootKey,
       builder: (_, s) {
-        final extra = s.extra as (String, String)?;
+        final extra = s.extra as (AirflowStage, String, String, AirflowReading)?;
         return AirflowCheckScreen(
           jobId: s.pathParameters['id']!,
-          customerName: extra?.$1 ?? 'Customer',
-          customerArea: extra?.$2 ?? '',
+          stage: extra?.$1 ?? AirflowStage.before,
+          customerName: extra?.$2 ?? 'Customer',
+          customerArea: extra?.$3 ?? '',
+          initialReading: extra?.$4 ?? const AirflowReading(),
         );
       },
     ),
