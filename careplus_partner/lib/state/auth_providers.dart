@@ -139,19 +139,42 @@ Future<Map<String, dynamic>> submitTechnicianApplication(
   }
   if (res.statusCode != 200) {
     final decoded = jsonDecode(res.body);
-    final serverMessage =
-        decoded is Map<String, dynamic> ? decoded['message'] as String? : null;
+    final decodedMap = decoded is Map<String, dynamic> ? decoded : null;
+    final serverMessage = decodedMap?['message'] as String?;
     if (res.statusCode == 401) {
       throw TechnicianProfileMissingException(
           serverMessage ?? 'Your technician profile isn\'t set up yet.');
     }
-    throw AuthException(serverMessage ?? 'Could not submit (error ${res.statusCode}). Try again.');
+    // validate_json's error shape is {"error": ..., "fields": {name: reason}}
+    // — there's no top-level "message" for this case, so serverMessage was
+    // always null here and every field-format rejection (e.g. a lowercase
+    // IFSC code, extra spaces in an Aadhaar number) surfaced as a bare
+    // "Could not submit (error 400)" with no way to tell which field, or
+    // why, from the app alone.
+    final fieldErrors = decodedMap?['fields'];
+    final fieldMessage = fieldErrors is Map
+        ? fieldErrors.entries.map((e) => '${_fieldLabel('${e.key}')} ${e.value}').join('; ')
+        : null;
+    throw AuthException(serverMessage ??
+        (fieldMessage != null && fieldMessage.isNotEmpty
+            ? fieldMessage
+            : 'Could not submit (error ${res.statusCode}). Try again.'));
   }
   final decoded = jsonDecode(res.body);
   if (decoded is! Map<String, dynamic>) {
     throw const AuthException('Unexpected response — try again.');
   }
   return decoded;
+}
+
+/// Turns a wire field name like "bankIfsc" into "Bank ifsc", so a per-field
+/// validation error at least names the field in plain words instead of a
+/// raw JSON key — not a full label lookup (that lives in each screen's own
+/// l10n), just enough for a person to recognize which field is meant.
+String _fieldLabel(String camelCase) {
+  final spaced = camelCase.replaceAllMapped(
+      RegExp(r'([a-z0-9])([A-Z])'), (m) => '${m[1]} ${m[2]!.toLowerCase()}');
+  return spaced.isEmpty ? spaced : spaced[0].toUpperCase() + spaced.substring(1);
 }
 
 /// See [submitTechnicianApplication]'s doc comment.

@@ -402,12 +402,22 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
         if (panDocumentUrl != null) 'panDocumentUrl': panDocumentUrl,
         if (passbookUrl != null) 'bankPassbookUrl': passbookUrl,
         'bankAccountName': _bankNameCtrl.text.trim(),
-        'bankAccountNumber': _bankAccountCtrl.text.trim(),
-        'bankIfsc': _bankIfscCtrl.text.trim(),
+        // Strip stray internal whitespace too — a bank passbook or a
+        // pasted Aadhaar number often has it formatted in groups (e.g.
+        // "1234 5678 9012"), which .trim() alone leaves in place and the
+        // backend's plain-digits pattern then rejects outright.
+        'bankAccountNumber': _bankAccountCtrl.text.replaceAll(RegExp(r'\s'), ''),
+        // IFSC codes are always uppercase (HDFC0001234) — the bank/branch
+        // lookup above already uppercases before checking, so someone who
+        // typed it lowercase sees a normal-looking preview and has no
+        // reason to think anything's wrong, but this was still sending
+        // their literal lowercase input, which the backend's case-
+        // sensitive pattern then rejected with a bare "error 400".
+        'bankIfsc': _bankIfscCtrl.text.trim().toUpperCase(),
         'upiId': _upiCtrl.text.trim(),
         'panNumber': _panCtrl.text.trim().toUpperCase(),
         'gstNumber': _gstCtrl.text.trim().toUpperCase(),
-        'aadharNumber': _aadharCtrl.text.trim(),
+        'aadharNumber': _aadharCtrl.text.replaceAll(RegExp(r'\s'), ''),
         'dateOfBirth': _dobCtrl.text.trim(),
         'emergencyContactName': _emergencyNameCtrl.text.trim(),
         'emergencyContactPhone': _emergencyPhoneCtrl.text.trim(),
