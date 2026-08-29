@@ -111,9 +111,19 @@ class InvoiceScreen extends ConsumerWidget {
                             _line(context, 'Time on site',
                                 _formatMinutes(booking!.timeOnSiteMin!)),
                         ],
+                        if ((booking?.brand?.trim().isNotEmpty ?? false) ||
+                            (booking?.modelNumber?.trim().isNotEmpty ?? false)) ...[
+                          const Divider(height: 22),
+                          if (booking?.brand?.trim().isNotEmpty ?? false)
+                            _line(context, 'Brand', booking!.brand!),
+                          if (booking?.modelNumber?.trim().isNotEmpty ?? false)
+                            _line(context, 'Model', booking!.modelNumber!),
+                        ],
                       ],
                     ),
                   ),
+                  if (booking != null && booking.parts.isNotEmpty)
+                    _PartsQuoteCard(bookingId: bookingId, parts: booking.parts),
                 ],
               ),
             ),
@@ -158,6 +168,126 @@ String _formatMinutes(int minutes) {
   final mins = minutes % 60;
   if (hrs == 0) return '$mins min';
   return '$hrs hr${mins == 0 ? '' : ' $mins min'}';
+}
+
+/// Real part/extra-work quotes the technician has raised for this booking —
+/// see app.py's booking_parts table. A pending quote gets real Approve/
+/// Reject actions; once decided, that decision is shown and can't be
+/// retaken (the backend enforces the same rule).
+class _PartsQuoteCard extends ConsumerStatefulWidget {
+  const _PartsQuoteCard({required this.bookingId, required this.parts});
+  final String bookingId;
+  final List<PartQuote> parts;
+
+  @override
+  ConsumerState<_PartsQuoteCard> createState() => _PartsQuoteCardState();
+}
+
+class _PartsQuoteCardState extends ConsumerState<_PartsQuoteCard> {
+  String? _decidingPartId;
+
+  Future<void> _decide(PartQuote part, bool approve) async {
+    setState(() => _decidingPartId = part.id);
+    final ok = await ref
+        .read(apiRepositoryProvider)
+        .decidePart(bookingId: widget.bookingId, partId: part.id, approve: approve);
+    if (!mounted) return;
+    setState(() => _decidingPartId = null);
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content:
+              Text("Couldn't submit your decision — check your connection and try again.")));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: CareCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Eyebrow('Parts & extra work'),
+            const SizedBox(height: 12),
+            for (var i = 0; i < widget.parts.length; i++) ...[
+              _PartQuoteRow(
+                part: widget.parts[i],
+                deciding: _decidingPartId == widget.parts[i].id,
+                onDecide: (approve) => _decide(widget.parts[i], approve),
+              ),
+              if (i != widget.parts.length - 1) const Divider(height: 26),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PartQuoteRow extends StatelessWidget {
+  const _PartQuoteRow({required this.part, required this.deciding, required this.onDecide});
+  final PartQuote part;
+  final bool deciding;
+  final ValueChanged<bool> onDecide;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(part.name,
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 3),
+                  Text('Qty ${part.qty}${part.sku != null ? ' · ${part.sku}' : ''}',
+                      style: context.type.bodySmall),
+                ],
+              ),
+            ),
+            Text(Money.rupees(part.pricePaise * part.qty),
+                style: CareType.mono(context.scheme.onSurface, size: 13)),
+          ],
+        ),
+        const SizedBox(height: 10),
+        if (part.isPending)
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: deciding ? null : () => onDecide(false),
+                  child: const Text('Reject'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: FilledButton(
+                  onPressed: deciding ? null : () => onDecide(true),
+                  child: deciding
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Text('Approve'),
+                ),
+              ),
+            ],
+          )
+        else
+          StatusChip(
+            part.isApproved ? 'Approved' : 'Rejected',
+            tone: part.isApproved ? ChipTone.success : ChipTone.danger,
+            height: 26,
+          ),
+      ],
+    );
+  }
 }
 
 /// The real before/after airflow (CFM) reading a technician took on a

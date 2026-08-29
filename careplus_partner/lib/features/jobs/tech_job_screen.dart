@@ -18,6 +18,18 @@ import '../../l10n/l10n_extensions.dart';
 import '../../state/providers.dart';
 import 'airflow_check_screen.dart';
 
+/// Curated for the Indian kitchen-appliance market this app actually
+/// services (chimneys, hobs, microwaves, dishwashers, fridges, water
+/// purifiers) — not an exhaustive global brand registry. [kApplianceBrandOther]
+/// falls through to a free-text prompt for anything not on the list.
+const kApplianceBrandOther = 'Other';
+const kApplianceBrands = <String>[
+  'LG', 'Samsung', 'Whirlpool', 'IFB', 'Bosch', 'Siemens', 'Godrej', 'Haier',
+  'Panasonic', 'Voltas', 'Faber', 'Elica', 'Kaff', 'Hindware', 'Kutchina',
+  'Sunflame', 'Prestige', 'Butterfly', 'Glen', 'Kenstar', 'Onida', 'Videocon',
+  'Electrolux', 'Kelvinator', 'Miele', 'Philips', 'Bajaj', kApplianceBrandOther,
+];
+
 class TechJobScreen extends ConsumerStatefulWidget {
   const TechJobScreen({super.key, required this.jobId});
   final String jobId;
@@ -36,9 +48,16 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
   LatLng? _myLocation;
   Timer? _locationTimer;
 
+  // Model number is free text the technician edits in place — the
+  // controller holds it between saves rather than rebuilding on every
+  // provider tick, which would otherwise fight the technician's typing.
+  late final TextEditingController _modelCtrl;
+
   @override
   void initState() {
     super.initState();
+    _modelCtrl = TextEditingController(
+        text: ref.read(repositoryProvider).jobDetail(widget.jobId).modelNumber ?? '');
     _t = Timer.periodic(const Duration(seconds: 1), (_) {
       setState(() => _elapsedSecs++);
     });
@@ -53,6 +72,7 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
   void dispose() {
     _t?.cancel();
     _locationTimer?.cancel();
+    _modelCtrl.dispose();
     super.dispose();
   }
 
@@ -316,6 +336,181 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
     }
   }
 
+  // ---------------------------------------------------------- appliance info
+
+  Future<void> _saveApplianceInfo({String? brand, String? modelNumber}) async {
+    final repo = ref.read(repositoryProvider);
+    if (repo is! ApiRepository) return;
+    final ok =
+        await repo.updateApplianceInfo(widget.jobId, brand: brand, modelNumber: modelNumber);
+    if (!mounted) return;
+    if (ok) {
+      ref.read(jobsFeedTickProvider.notifier).bump();
+    } else {
+      _toast(context, context.l10n.jobDetailApplianceSaveError);
+    }
+  }
+
+  Future<void> _pickBrand(String? current) async {
+    final t = context.l10n;
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 4),
+              child: Align(alignment: Alignment.centerLeft, child: Eyebrow(t.jobDetailBrand)),
+            ),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                padding: const EdgeInsets.fromLTRB(8, 4, 8, 16),
+                children: [
+                  for (final brand in kApplianceBrands)
+                    ListTile(
+                      title: Text(brand),
+                      trailing: current == brand
+                          ? Icon(Icons.check, color: Theme.of(sheetContext).colorScheme.primary)
+                          : null,
+                      onTap: () => Navigator.of(sheetContext).pop(brand),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (selected == null || !mounted) return;
+    if (selected == kApplianceBrandOther) {
+      final custom = await _askCustomBrand();
+      if (custom != null && custom.trim().isNotEmpty) _saveApplianceInfo(brand: custom.trim());
+      return;
+    }
+    _saveApplianceInfo(brand: selected);
+  }
+
+  Future<String?> _askCustomBrand() async {
+    final t = context.l10n;
+    final ctrl = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(t.jobDetailBrand),
+        content: TextField(controller: ctrl, autofocus: true),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(null),
+            child: Text(t.jobDetailCancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(ctrl.text),
+            child: Text(t.jobDetailSave),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ------------------------------------------------------------- parts/quotes
+
+  Future<void> _showAddPart() async {
+    final t = context.l10n;
+    final nameCtrl = TextEditingController();
+    final skuCtrl = TextEditingController();
+    final qtyCtrl = TextEditingController(text: '1');
+    final priceCtrl = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(t.jobDetailAddPart),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameCtrl,
+                autofocus: true,
+                decoration: InputDecoration(labelText: t.jobDetailPartName),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: skuCtrl,
+                decoration: InputDecoration(labelText: t.jobDetailPartSkuOptional),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: qtyCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(labelText: t.jobDetailQty),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextField(
+                      controller: priceCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(labelText: t.jobDetailPricePerUnit),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(t.jobDetailCancel),
+          ),
+          FilledButton(
+            onPressed: () {
+              final validQty = int.tryParse(qtyCtrl.text) != null && int.parse(qtyCtrl.text) > 0;
+              final validPrice = double.tryParse(priceCtrl.text) != null;
+              if (nameCtrl.text.trim().isEmpty || !validQty || !validPrice) return;
+              Navigator.of(dialogContext).pop(true);
+            },
+            child: Text(t.jobDetailSave),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final repo = ref.read(repositoryProvider);
+    if (repo is! ApiRepository) return;
+    final ok = await repo.addPart(
+      widget.jobId,
+      name: nameCtrl.text.trim(),
+      sku: skuCtrl.text.trim().isEmpty ? null : skuCtrl.text.trim(),
+      qty: int.parse(qtyCtrl.text),
+      pricePaise: (double.parse(priceCtrl.text) * 100).round(),
+    );
+    if (!mounted) return;
+    if (ok) {
+      ref.read(jobsFeedTickProvider.notifier).bump();
+    } else {
+      _toast(context, context.l10n.jobDetailPartSaveError);
+    }
+  }
+
+  Future<void> _removePart(String partId) async {
+    final repo = ref.read(repositoryProvider);
+    if (repo is! ApiRepository) return;
+    final ok = await repo.removePart(widget.jobId, partId);
+    if (!mounted) return;
+    if (ok) {
+      ref.read(jobsFeedTickProvider.notifier).bump();
+    } else {
+      _toast(context, context.l10n.jobDetailPartRemoveError);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.watch(jobsFeedTickProvider); // rebuild once a real fetch/action lands
@@ -453,6 +648,64 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
                       ],
                     ),
                   ),
+                  SectionHeader(t.jobDetailApplianceDetails),
+                  CareCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(t.jobDetailBrand,
+                            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 6),
+                        Pressable(
+                          onTap: () => _pickBrand(job.brand),
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                            decoration: BoxDecoration(
+                              borderRadius: Radii.rMd,
+                              border: Border.all(color: context.care.hairline),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  (job.brand?.trim().isNotEmpty ?? false)
+                                      ? job.brand!
+                                      : t.jobDetailBrandPlaceholder,
+                                  style: TextStyle(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: (job.brand?.trim().isNotEmpty ?? false)
+                                        ? context.scheme.onSurface
+                                        : context.care.inkFaint,
+                                  ),
+                                ),
+                                Icon(Icons.expand_more, size: 18, color: context.care.inkFaint),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Text(t.jobDetailModelNumber,
+                            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 6),
+                        TextField(
+                          controller: _modelCtrl,
+                          decoration: InputDecoration(
+                            isDense: true,
+                            hintText: t.jobDetailModelNumberHint,
+                            suffixIcon: IconButton(
+                              icon: const Icon(Icons.check, size: 18),
+                              onPressed: () =>
+                                  _saveApplianceInfo(modelNumber: _modelCtrl.text.trim()),
+                            ),
+                          ),
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (v) => _saveApplianceInfo(modelNumber: v.trim()),
+                        ),
+                      ],
+                    ),
+                  ),
                   SectionHeader(t.jobDetailPhotos),
                   Text(t.jobDetailPhotosRequired, style: context.type.bodySmall),
                   const SizedBox(height: 10),
@@ -476,9 +729,13 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
                             onTap: i == afterPhotos.length ? () => _capturePhoto(false) : null),
                     ],
                   ),
-                  SectionHeader(t.jobDetailPartsUsed),
+                  SectionHeader(t.jobDetailPartsUsed,
+                      trailing: TextButton(
+                        onPressed: _showAddPart,
+                        child: Text(t.jobDetailAddPart),
+                      )),
                   if (job.parts.isEmpty)
-                    Text(t.jobDetailPartsComingSoon, style: context.type.bodySmall),
+                    Text(t.jobDetailPartsEmpty, style: context.type.bodySmall),
                   for (final part in job.parts) ...[
                     CareCard(
                       child: Column(
@@ -495,20 +752,42 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
                                         style: const TextStyle(
                                             fontSize: 13, fontWeight: FontWeight.w700)),
                                     const SizedBox(height: 3),
-                                    Text(t.jobDetailSkuQty(part.sku, '${part.qty}'),
+                                    Text(
+                                        part.sku != null
+                                            ? t.jobDetailSkuQty(part.sku!, '${part.qty}')
+                                            : t.jobDetailQtyOnly('${part.qty}'),
                                         style: context.type.bodySmall),
                                   ],
                                 ),
                               ),
-                              Text(Money.rupees(part.pricePaise),
+                              Text(Money.rupees(part.pricePaise * part.qty),
                                   style: CareType.mono(context.scheme.onSurface, size: 13)),
                             ],
                           ),
-                          if (part.approved) ...[
-                            const Divider(height: 22),
-                            StatusChip(t.jobDetailApprovedAt(part.approvedAt ?? ''),
-                                tone: ChipTone.success, height: 26),
-                          ],
+                          const Divider(height: 22),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              StatusChip(
+                                switch (part.status) {
+                                  PartStatus.approved => t.jobDetailPartApproved,
+                                  PartStatus.rejected => t.jobDetailPartRejected,
+                                  PartStatus.pending => t.jobDetailPartPending,
+                                },
+                                tone: switch (part.status) {
+                                  PartStatus.approved => ChipTone.success,
+                                  PartStatus.rejected => ChipTone.danger,
+                                  PartStatus.pending => ChipTone.warning,
+                                },
+                                height: 26,
+                              ),
+                              if (part.status == PartStatus.pending)
+                                TextButton(
+                                  onPressed: () => _removePart(part.id),
+                                  child: Text(t.jobDetailRemove),
+                                ),
+                            ],
+                          ),
                         ],
                       ),
                     ),

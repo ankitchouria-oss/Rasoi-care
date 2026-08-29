@@ -199,6 +199,42 @@ class Technician {
   final String vehicle;
 }
 
+/// A real part/extra-work quote a technician has raised for a booking —
+/// see app.py's booking_parts table. `status` is 'pending' until the
+/// customer decides; there's no undo once they approve or reject it.
+class PartQuote {
+  const PartQuote({
+    required this.id,
+    required this.name,
+    this.sku,
+    required this.qty,
+    required this.pricePaise,
+    required this.status,
+  });
+
+  final String id;
+  final String name;
+  final String? sku;
+  final int qty;
+
+  /// Per-unit price, in paise — the invoice's own display multiplies this
+  /// by [qty] for the line total.
+  final int pricePaise;
+  final String status;
+
+  bool get isPending => status == 'pending';
+  bool get isApproved => status == 'approved';
+
+  factory PartQuote.fromJson(Map<String, dynamic> json) => PartQuote(
+        id: '${json['id']}',
+        name: (json['name'] as String?) ?? '',
+        sku: (json['sku'] as String?)?.trim().isNotEmpty == true ? json['sku'] as String : null,
+        qty: (json['qty'] as num?)?.toInt() ?? 1,
+        pricePaise: (json['pricePaise'] as num?)?.round() ?? 0,
+        status: (json['status'] as String?) ?? 'pending',
+      );
+}
+
 class Booking {
   const Booking({
     required this.id,
@@ -221,6 +257,9 @@ class Booking {
     this.rawStatus = '',
     this.startCode,
     this.scheduledAt,
+    this.brand,
+    this.modelNumber,
+    this.parts = const [],
   });
 
   final String id;
@@ -292,6 +331,16 @@ class Booking {
   /// _cancellation_fee_for, which this drives. Null for a booking made
   /// before this existed, or with no picked slot.
   final DateTime? scheduledAt;
+
+  /// The appliance's real brand/model, set by the technician once they're
+  /// actually looking at it on-site — never typed by the customer. Null
+  /// until a technician sets it.
+  final String? brand;
+  final String? modelNumber;
+
+  /// Real part/extra-work quotes the technician has raised for this
+  /// booking — see PartQuote. Empty when none exist.
+  final List<PartQuote> parts;
 }
 
 /// The cancellation-fee policy shown to the customer — mirrors (for

@@ -251,6 +251,30 @@ class BackendClient {
     }
   }
 
+  /// PATCH /api/bookings/{id}/parts/{partId} — the customer approving or
+  /// rejecting a part/extra-work quote a technician raised. Returns whether
+  /// the backend actually recorded it — the backend refuses a second
+  /// decision on an already-decided part, same as any other real failure.
+  Future<bool> decidePart({
+    required String idToken,
+    required String bookingId,
+    required String partId,
+    required bool approve,
+  }) async {
+    try {
+      final res = await http
+          .patch(
+            Uri.parse('${ApiConfig.baseUrl}/api/bookings/$bookingId/parts/$partId'),
+            headers: _headers(idToken),
+            body: jsonEncode({'status': approve ? 'approved' : 'rejected'}),
+          )
+          .timeout(_timeout);
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// GET /api/auth/me — the real signed-in customer's backend profile,
   /// including their real Care Coins balance (`coinsBalance`). Returns
   /// null on any failure; the caller treats that as "balance unknown yet"

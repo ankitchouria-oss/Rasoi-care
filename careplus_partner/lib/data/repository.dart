@@ -78,14 +78,17 @@ class MockPartnerRepository implements PartnerRepository {
             'Smoke lingers even on turbo, and there\'s a rattle when it starts.',
         parts: const [
           PartLine(
+            id: 'mock-part-1',
             name: 'Baffle filter — Elica 90cm',
             sku: 'ELF-90B',
             qty: 2,
             pricePaise: 64000,
-            approved: true,
-            approvedAt: '11:02',
+            status: PartStatus.approved,
+            decidedAt: '11:02',
           ),
         ],
+        brand: 'Elica',
+        modelNumber: 'WD HAC TOUCH BF 90',
       );
 
   @override

@@ -746,7 +746,44 @@ BOOKING_SELECT = (
 )
 
 
-def booking_row_to_dict(row, *, include_start_code=False):
+def part_row_to_dict(row):
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "sku": row["sku"],
+        "qty": row["qty"],
+        "pricePaise": row["price_paise"],
+        "status": row["status"],
+        "createdAt": row["created_at"],
+        "decidedAt": row["decided_at"],
+    }
+
+
+def fetch_booking_parts(conn, booking_id):
+    rows = conn.execute(
+        "SELECT * FROM booking_parts WHERE booking_id = ? ORDER BY created_at", (booking_id,)
+    ).fetchall()
+    return [part_row_to_dict(r) for r in rows]
+
+
+def fetch_booking_parts_bulk(conn, booking_ids):
+    """One query for every booking id in a list response, keyed by
+    booking_id — avoids an N+1 query per row for list_bookings/
+    technician_my_bookings."""
+    if not booking_ids:
+        return {}
+    placeholders = ",".join("?" * len(booking_ids))
+    rows = conn.execute(
+        f"SELECT * FROM booking_parts WHERE booking_id IN ({placeholders}) ORDER BY created_at",
+        tuple(booking_ids),
+    ).fetchall()
+    by_booking = {}
+    for r in rows:
+        by_booking.setdefault(r["booking_id"], []).append(part_row_to_dict(r))
+    return by_booking
+
+
+def booking_row_to_dict(row, *, include_start_code=False, parts=None):
     keys = row.keys()
     return {
         "id": row["id"],
@@ -794,6 +831,17 @@ def booking_row_to_dict(row, *, include_start_code=False):
         "issues": json.loads(row["issues_json"])
         if ("issues_json" in keys and row["issues_json"]) else [],
         "paymentMethod": row["payment_method"] if "payment_method" in keys else None,
+        # Set by the technician on-site once they've actually looked at the
+        # appliance — see PATCH .../appliance. Null until then, never a
+        # guessed value.
+        "brand": row["brand"] if "brand" in keys else None,
+        "modelNumber": row["model_number"] if "model_number" in keys else None,
+        # Real parts/extra-work quotes the technician has actually raised
+        # for this job — [] when none exist, or when the caller didn't pass
+        # `parts=` (most single-booking-mutation endpoints don't bother;
+        # the Partner/Customer apps re-fetch the full list/detail endpoints,
+        # which always do, to see current parts state).
+        "parts": parts if parts is not None else [],
         # The real day+slot the customer picked, as an ISO timestamp — see
         # create_booking and _cancellation_fee_for. Null for bookings made
         # before this was captured, or by a client that didn't send one.
@@ -1898,8 +1946,12 @@ def list_bookings():
         ).fetchall()
     else:
         rows = conn.execute(BOOKING_SELECT + " ORDER BY created_at DESC").fetchall()
+    parts_by_booking = fetch_booking_parts_bulk(conn, [r["id"] for r in rows])
     conn.close()
-    return jsonify([booking_row_to_dict(r, include_start_code=bool(user)) for r in rows])
+    return jsonify([
+        booking_row_to_dict(r, include_start_code=bool(user), parts=parts_by_booking.get(r["id"]))
+        for r in rows
+    ])
 
 
 @app.route("/api/bookings/<booking_id>", methods=["GET"])
@@ -1913,12 +1965,15 @@ def get_booking(booking_id):
         return jsonify({"error": "Unauthorized", "message": "Missing or invalid bearer token"}), 401
     conn = get_db()
     row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
-    conn.close()
     if not row:
+        conn.close()
         return jsonify({"error": "not found"}), 404
     if user and row["user_id"] and row["user_id"] != user["id"]:
+        conn.close()
         return jsonify({"error": "not found"}), 404
-    return jsonify(booking_row_to_dict(row, include_start_code=bool(user)))
+    parts = fetch_booking_parts(conn, booking_id)
+    conn.close()
+    return jsonify(booking_row_to_dict(row, include_start_code=bool(user), parts=parts))
 
 
 # httpSMS (https://httpsms.com) turns a real Android phone with a SIM into
@@ -2970,8 +3025,150 @@ def technician_my_bookings():
         BOOKING_SELECT + " WHERE technician_id = ? ORDER BY created_at DESC",
         (request.technician["id"],),
     ).fetchall()
+    parts_by_booking = fetch_booking_parts_bulk(conn, [r["id"] for r in rows])
     conn.close()
-    return jsonify([booking_row_to_dict(r) for r in rows])
+    return jsonify([
+        booking_row_to_dict(r, parts=parts_by_booking.get(r["id"])) for r in rows
+    ])
+
+
+@app.route("/api/technician/bookings/<booking_id>/appliance", methods=["PATCH"])
+@require_technician_auth
+@validate_json({
+    "brand": Field(str, max_len=100),
+    "modelNumber": Field(str, max_len=100),
+})
+def update_booking_appliance(booking_id):
+    """The technician records the real brand/model off the appliance itself
+    once they're actually on-site looking at it — the customer never types
+    this at booking time, so it stays null until a technician sets it.
+    Either field can be sent alone; an explicit empty string clears it
+    (Field.validate() already treats a blank optional string as valid)."""
+    data = request.get_json(force=True, silent=True) or {}
+    conn = get_db()
+    row = conn.execute("SELECT technician_id FROM bookings WHERE id = ?", (booking_id,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": "not found"}), 404
+    if row["technician_id"] != request.technician["id"]:
+        conn.close()
+        return jsonify({"error": "Forbidden", "message": "Not your job"}), 403
+    if "brand" in data:
+        conn.execute("UPDATE bookings SET brand = ? WHERE id = ?", (data["brand"].strip(), booking_id))
+    if "modelNumber" in data:
+        conn.execute(
+            "UPDATE bookings SET model_number = ? WHERE id = ?",
+            (data["modelNumber"].strip(), booking_id),
+        )
+    conn.commit()
+    row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
+    parts = fetch_booking_parts(conn, booking_id)
+    conn.close()
+    return jsonify(booking_row_to_dict(row, parts=parts))
+
+
+@app.route("/api/technician/bookings/<booking_id>/parts", methods=["POST"])
+@require_technician_auth
+@validate_json({
+    "name": Field(str, required=True, min_len=1, max_len=200),
+    "sku": Field(str, max_len=100),
+    "qty": Field(int, required=True, min_val=1, max_val=99),
+    "pricePaise": Field(NUMBER, required=True, min_val=0, max_val=10_000_000),
+})
+def add_booking_part(booking_id):
+    """A real part/extra-work quote the technician is raising mid-job — e.g.
+    "the baffle filter also needs replacing, ₹640" — separate from the
+    booking's own fixed service price. Starts 'pending': the customer sees
+    it on their invoice and approves or rejects it via PATCH .../parts/<id>
+    below; nothing is charged just by adding it here."""
+    data = request.get_json(force=True, silent=True) or {}
+    conn = get_db()
+    row = conn.execute("SELECT technician_id FROM bookings WHERE id = ?", (booking_id,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": "not found"}), 404
+    if row["technician_id"] != request.technician["id"]:
+        conn.close()
+        return jsonify({"error": "Forbidden", "message": "Not your job"}), 403
+    part_id = new_uuid_id("PART")
+    conn.execute(
+        "INSERT INTO booking_parts (id, booking_id, name, sku, qty, price_paise, status, created_at) "
+        "VALUES (?,?,?,?,?,?,'pending',?)",
+        (part_id, booking_id, data["name"].strip(), (data.get("sku") or "").strip() or None,
+         data["qty"], data["pricePaise"], now()),
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM booking_parts WHERE id = ?", (part_id,)).fetchone()
+    conn.close()
+    return jsonify(part_row_to_dict(row)), 201
+
+
+@app.route("/api/technician/bookings/<booking_id>/parts/<part_id>", methods=["DELETE"])
+@require_technician_auth
+def delete_booking_part(booking_id, part_id):
+    """Lets a technician retract a quote they raised by mistake — only
+    while it's still 'pending'. Once the customer has actually approved or
+    rejected it, that's a real decision on record and stays, same spirit as
+    advance_booking never letting a completed step un-happen."""
+    conn = get_db()
+    booking = conn.execute("SELECT technician_id FROM bookings WHERE id = ?", (booking_id,)).fetchone()
+    if not booking:
+        conn.close()
+        return jsonify({"error": "not found"}), 404
+    if booking["technician_id"] != request.technician["id"]:
+        conn.close()
+        return jsonify({"error": "Forbidden", "message": "Not your job"}), 403
+    part = conn.execute(
+        "SELECT * FROM booking_parts WHERE id = ? AND booking_id = ?", (part_id, booking_id)
+    ).fetchone()
+    if not part:
+        conn.close()
+        return jsonify({"error": "not found"}), 404
+    if part["status"] != "pending":
+        conn.close()
+        return jsonify({
+            "error": "Already decided",
+            "message": "The customer has already approved or rejected this — it can't be removed.",
+        }), 400
+    conn.execute("DELETE FROM booking_parts WHERE id = ?", (part_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/bookings/<booking_id>/parts/<part_id>", methods=["PATCH"])
+@require_auth
+@validate_json({
+    "status": Field(str, required=True, choices=("approved", "rejected")),
+})
+def decide_booking_part(booking_id, part_id):
+    """The customer's side of the quote: approve or reject a part the
+    technician raised. Only the booking's own customer can decide — checked
+    the same way get_booking scopes a fetch, 404 rather than 403 so a
+    guessed id doesn't confirm anything exists."""
+    data = request.get_json(force=True, silent=True) or {}
+    conn = get_db()
+    booking = conn.execute("SELECT user_id FROM bookings WHERE id = ?", (booking_id,)).fetchone()
+    if not booking or booking["user_id"] != request.user["id"]:
+        conn.close()
+        return jsonify({"error": "not found"}), 404
+    part = conn.execute(
+        "SELECT * FROM booking_parts WHERE id = ? AND booking_id = ?", (part_id, booking_id)
+    ).fetchone()
+    if not part:
+        conn.close()
+        return jsonify({"error": "not found"}), 404
+    if part["status"] != "pending":
+        conn.close()
+        return jsonify({"error": "Already decided", "message": "This quote was already decided."}), 400
+    conn.execute(
+        "UPDATE booking_parts SET status = ?, decided_at = ? WHERE id = ?",
+        (data["status"], now(), part_id),
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM booking_parts WHERE id = ?", (part_id,)).fetchone()
+    conn.close()
+    return jsonify(part_row_to_dict(row))
 
 
 # ---------------------------------------------------------------- inventory

@@ -66,6 +66,18 @@ CREATE TABLE IF NOT EXISTS bookings (
     updated_at      TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS booking_parts (
+    id              TEXT PRIMARY KEY,
+    booking_id      TEXT NOT NULL REFERENCES bookings(id),
+    name            TEXT NOT NULL,
+    sku             TEXT,
+    qty             INTEGER NOT NULL DEFAULT 1,
+    price_paise     INTEGER NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'pending',
+    created_at      TEXT NOT NULL,
+    decided_at      TEXT
+);
+
 CREATE TABLE IF NOT EXISTS complaints (
     id              TEXT PRIMARY KEY,
     booking_id      TEXT NOT NULL REFERENCES bookings(id),
@@ -505,6 +517,12 @@ def migrate_bookings_columns(conn):
         # address text and the map disagreed. Null for bookings made
         # before this existed, or by a client that didn't send one.
         conn.execute("ALTER TABLE bookings ADD COLUMN address_line TEXT")
+    if "brand" not in cols:
+        # Set by the technician on-site (see PATCH .../appliance) — the
+        # customer never types this, so it starts null rather than guessed.
+        conn.execute("ALTER TABLE bookings ADD COLUMN brand TEXT")
+    if "model_number" not in cols:
+        conn.execute("ALTER TABLE bookings ADD COLUMN model_number TEXT")
     conn.commit()
 
 
@@ -545,12 +563,19 @@ def migrate_bookings_technician_nullable(conn):
             parts.append(f"DEFAULT {r['dflt_value']}")
         col_defs.append(" ".join(parts))
     col_list = ", ".join(col_names)
+    # complaints/booking_parts both hold a FOREIGN KEY REFERENCES bookings(id)
+    # — with foreign_keys enforcement on (see get_db), SQLite refuses to DROP
+    # a table another one still references, even mid-rebuild of that same
+    # table. Off for just this script, same as SQLite's own documented
+    # pattern for rebuilding a referenced table.
+    conn.execute("PRAGMA foreign_keys = OFF")
     conn.executescript(
         "CREATE TABLE bookings_new (" + ", ".join(col_defs) + ");\n"
         f"INSERT INTO bookings_new ({col_list}) SELECT {col_list} FROM bookings;\n"
         "DROP TABLE bookings;\n"
         "ALTER TABLE bookings_new RENAME TO bookings;"
     )
+    conn.execute("PRAGMA foreign_keys = ON")
     conn.commit()
 
 
