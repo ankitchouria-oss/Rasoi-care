@@ -12,6 +12,7 @@ import '../../core/config/maps_config.dart';
 import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
 import '../../data/api/api_repository.dart';
+import '../../data/api/booking_dto.dart';
 import '../../data/models.dart';
 import '../../l10n/app_localizations.dart';
 import '../../l10n/l10n_extensions.dart';
@@ -415,6 +416,84 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
     );
   }
 
+  // ----------------------------------------------------------------- service
+
+  /// Lets the technician swap this job's service for a different one in the
+  /// same category — e.g. the customer asks mid-visit to upgrade a filter
+  /// clean into a full deep clean. Options come straight from the real
+  /// backend catalog (see ApiRepository.fetchServiceOptions); the price
+  /// change is server-computed, never typed in by the technician, so it
+  /// can't drift from what the customer's invoice actually shows.
+  Future<void> _showChangeService() async {
+    final repo = ref.read(repositoryProvider);
+    if (repo is! ApiRepository) return;
+    final t = context.l10n;
+    final job = repo.jobDetail(widget.jobId);
+    final options = await repo.fetchServiceOptions(job.category);
+    if (!mounted) return;
+    if (options.isEmpty) {
+      _toast(context, t.jobDetailServiceOptionsError);
+      return;
+    }
+    final selected = await showModalBottomSheet<ServiceOptionDto>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 4),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Eyebrow(t.jobDetailChangeService),
+              ),
+            ),
+            for (final opt in options)
+              ListTile(
+                title: Text(opt.displayName),
+                trailing: Text(Money.rupees(opt.pricePaise)),
+                selected: opt.displayName == job.service,
+                onTap: () => Navigator.of(sheetContext).pop(opt),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (selected == null || !mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(t.jobDetailChangeService),
+        content: Text(t.jobDetailServiceChangeConfirm(
+          job.service,
+          Money.rupees(job.totalAmountPaise),
+          selected.displayName,
+          Money.rupees(selected.pricePaise),
+        )),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(t.jobDetailCancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(t.jobDetailSave),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final ok = await repo.changeService(widget.jobId, selected.id);
+    if (!mounted) return;
+    if (ok) {
+      ref.read(jobsFeedTickProvider.notifier).bump();
+    } else {
+      _toast(context, t.jobDetailServiceChangeError);
+    }
+  }
+
   // ------------------------------------------------------------- parts/quotes
 
   Future<void> _showAddPart() async {
@@ -648,6 +727,39 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
                       ],
                     ),
                   ),
+                  SectionHeader(t.jobDetailServiceHeader,
+                      trailing: TextButton(
+                        onPressed: job.category.trim().isEmpty ? null : _showChangeService,
+                        child: Text(t.jobDetailChangeService),
+                      )),
+                  CareCard(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(job.service,
+                              style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+                        ),
+                        Text(Money.rupees(job.totalAmountPaise),
+                            style: CareType.mono(context.scheme.onSurface,
+                                size: 13.5, w: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+                  for (final change in job.serviceChanges) ...[
+                    const SizedBox(height: 8),
+                    CareCard(
+                      child: Text(
+                        t.jobDetailServiceChanged(
+                          change.oldService,
+                          Money.rupees(change.oldPricePaise),
+                          change.newService,
+                          Money.rupees(change.newPricePaise),
+                        ),
+                        style: context.type.bodySmall,
+                      ),
+                    ),
+                  ],
                   SectionHeader(t.jobDetailApplianceDetails),
                   CareCard(
                     child: Column(

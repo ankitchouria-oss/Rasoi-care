@@ -73,6 +73,26 @@ class InvoiceScreen extends ConsumerWidget {
                       ],
                     ),
                   ),
+                  if (booking != null && booking.serviceChanges.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    CareCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Eyebrow('Service updated'),
+                          const SizedBox(height: 10),
+                          for (final change in booking.serviceChanges) ...[
+                            Text(
+                              '${change.oldService} (${Money.rupees(change.oldPricePaise)}) '
+                              '→ ${change.newService} (${Money.rupees(change.newPricePaise)})',
+                              style: context.type.bodySmall!.copyWith(height: 1.5),
+                            ),
+                            if (change != booking.serviceChanges.last) const SizedBox(height: 8),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   CareCard(
                     child: Column(

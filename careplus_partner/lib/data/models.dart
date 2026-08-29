@@ -104,6 +104,25 @@ PartStatus partStatusFrom(String? raw) => switch (raw) {
 /// see ApiRepository.addPart. Not a fabricated invoice line: nothing here
 /// exists until a technician actually adds it, and it isn't charged until
 /// the customer approves it in their own app.
+/// One real record of the technician swapping a job's service for a
+/// different one in the same category — see ApiRepository.changeService.
+class ServiceChangeLine {
+  const ServiceChangeLine({
+    required this.id,
+    required this.oldService,
+    required this.newService,
+    required this.oldPricePaise,
+    required this.newPricePaise,
+    this.createdAt,
+  });
+  final String id;
+  final String oldService;
+  final String newService;
+  final int oldPricePaise;
+  final int newPricePaise;
+  final String? createdAt;
+}
+
 class PartLine {
   const PartLine({
     required this.id,
@@ -139,6 +158,10 @@ class JobDetail {
     this.customerPhone,
     this.brand,
     this.modelNumber,
+    this.category = '',
+    this.service = '',
+    this.totalAmountPaise = 0,
+    this.serviceChanges = const [],
   });
   final String jobId;
   final String customerName;
@@ -148,6 +171,21 @@ class JobDetail {
   final List<String> reportedTags;
   final String reportedQuote;
   final List<PartLine> parts;
+
+  /// The catalog category this booking's service belongs to (e.g.
+  /// "RasoiAir") — used to fetch same-category upgrade options. Empty for
+  /// a mock/demo job, which has no real category to look up.
+  final String category;
+
+  /// The service currently booked, and its real total — the same fields
+  /// BookingDto exposes, so a service change (see ApiRepository.
+  /// changeService) shows up here without any extra plumbing.
+  final String service;
+  final int totalAmountPaise;
+
+  /// Real history of the technician swapping this job's service — [] when
+  /// it's never happened.
+  final List<ServiceChangeLine> serviceChanges;
 
   /// The appliance's real brand/model, set by the technician once they're
   /// actually looking at it on-site (see ApiRepository.updateApplianceInfo)

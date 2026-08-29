@@ -168,26 +168,7 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Eyebrow(t.earningsTotalEarned, color: CareColors.brass),
-                            if (summary != null)
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: CareColors.porcelain.withValues(alpha: 0.12),
-                                  borderRadius: Radii.pill,
-                                ),
-                                child: Text(
-                                  summary.isPayroll
-                                      ? t.earningsPayrollBadge(_pct(summary.commissionRate))
-                                      : t.earningsOutsourcedBadge(_pct(summary.commissionRate)),
-                                  style: CareType.mono(CareColors.porcelain, size: 10.5),
-                                ),
-                              ),
-                          ],
-                        ),
+                        Eyebrow(t.earningsTotalEarned, color: CareColors.brass),
                         const SizedBox(height: 6),
                         Text(
                           Money.rupees(commissionPaise),
@@ -479,8 +460,6 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
       ),
     );
   }
-
-  String _pct(double rate) => '${(rate * 100).round()}%';
 
   String _label(AppLocalizations t, _Period p) => switch (p) {
     _Period.today => t.earningsPeriodToday,

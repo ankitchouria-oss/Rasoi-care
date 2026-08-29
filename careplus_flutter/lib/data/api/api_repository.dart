@@ -282,6 +282,11 @@ class ApiRepository implements CareRepository {
               .map(PartQuote.fromJson)
               .toList(growable: false) ??
           const [],
+      serviceChanges: (json['serviceChanges'] as List?)
+              ?.whereType<Map<String, dynamic>>()
+              .map(ServiceChange.fromJson)
+              .toList(growable: false) ??
+          const [],
     );
   }
 
