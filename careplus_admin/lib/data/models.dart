@@ -133,6 +133,7 @@ class AdminTeamMember {
     this.panDocumentUrl,
     this.bankPassbookUrl,
     this.partnerCode,
+    this.employmentType,
   });
   final String name;
   final String initials;
@@ -156,6 +157,64 @@ class AdminTeamMember {
   final String? panDocumentUrl;
   final String? bankPassbookUrl;
   final String? partnerCode;
+
+  /// 'payroll' or 'outsourced' — self-declared once by the technician at
+  /// KYC/onboarding and never editable afterward, not even here. Drives
+  /// which commission formula their earnings are computed with; see
+  /// TechnicianEarnings.
+  final String? employmentType;
+}
+
+/// One real, auto-computed addition to a technician's pay — a milestone
+/// incentive (positive amount) or a late-arrival fine (negative), see
+/// app.py's advance_booking. Never a manual admin entry.
+class TechnicianLedgerEntry {
+  const TechnicianLedgerEntry({
+    required this.id,
+    required this.kind,
+    required this.amountPaise,
+    required this.reason,
+    this.bookingId,
+    this.createdAt,
+  });
+  final String id;
+
+  /// 'incentive' or 'fine'.
+  final String kind;
+  final int amountPaise;
+  final String reason;
+  final String? bookingId;
+  final DateTime? createdAt;
+
+  bool get isIncentive => kind == 'incentive';
+}
+
+/// A technician's real, commission-based earnings — see
+/// GET /api/technicians/<id>/earnings and compute_commission_paise in
+/// app.py. Shown read-only in the Team detail sheet so an admin can review
+/// a payout before running it; nothing here is editable.
+class TechnicianEarnings {
+  const TechnicianEarnings({
+    required this.employmentType,
+    required this.commissionRate,
+    required this.commissionTotalPaise,
+    required this.ledger,
+    required this.incentiveTotalPaise,
+    required this.fineTotalPaise,
+    required this.netTotalPaise,
+  });
+  final String employmentType;
+  final double commissionRate;
+  final int commissionTotalPaise;
+  final List<TechnicianLedgerEntry> ledger;
+  final int incentiveTotalPaise;
+  final int fineTotalPaise;
+  final int netTotalPaise;
+
+  List<TechnicianLedgerEntry> get incentives =>
+      ledger.where((e) => e.isIncentive).toList(growable: false);
+  List<TechnicianLedgerEntry> get fines =>
+      ledger.where((e) => !e.isIncentive).toList(growable: false);
 }
 
 /// The backend only tracks active/suspended — there's no "invited" state

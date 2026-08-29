@@ -66,6 +66,16 @@ CREATE TABLE IF NOT EXISTS bookings (
     updated_at      TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS technician_ledger (
+    id              TEXT PRIMARY KEY,
+    technician_id   TEXT NOT NULL REFERENCES technicians(id),
+    booking_id      TEXT REFERENCES bookings(id),
+    kind            TEXT NOT NULL,
+    amount_paise    INTEGER NOT NULL,
+    reason          TEXT NOT NULL,
+    created_at      TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS booking_parts (
     id              TEXT PRIMARY KEY,
     booking_id      TEXT NOT NULL REFERENCES bookings(id),
@@ -676,6 +686,16 @@ def migrate_technicians_columns(conn):
         conn.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_technicians_partner_code "
             "ON technicians(partner_code) WHERE partner_code IS NOT NULL"
+        )
+    # Self-declared once during KYC/onboarding (see update_technician_me in
+    # app.py), never editable by an admin afterward — drives which
+    # commission formula compute_commission_paise applies. Existing
+    # technicians (from before this column existed) default to
+    # 'outsourced', the more common case for a marketplace of independent
+    # technicians.
+    if "employment_type" not in cols:
+        conn.execute(
+            "ALTER TABLE technicians ADD COLUMN employment_type TEXT NOT NULL DEFAULT 'outsourced'"
         )
     conn.commit()
 

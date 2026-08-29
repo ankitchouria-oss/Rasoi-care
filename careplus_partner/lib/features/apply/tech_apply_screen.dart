@@ -99,6 +99,13 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
       TextEditingController(text: widget.existing?['address'] as String? ?? '');
   late final _upiCtrl = TextEditingController(text: widget.existing?['upiId'] as String? ?? '');
   late final Set<String> _categories = _initialCategories(widget.existing);
+  late String? _employmentType = widget.existing?['employmentType'] as String?;
+
+  /// The backend only ever writes employmentType while an application is
+  /// still unsubmitted (see app.py's update_technician_me) — once true,
+  /// the choice is permanent, so the form shows it read-only instead of a
+  /// picker that would silently do nothing.
+  bool get _employmentTypeLocked => widget.existing?['applicationSubmitted'] == true;
   late String? _city = _cities.contains(widget.existing?['area'])
       ? widget.existing!['area'] as String
       : null;
@@ -315,6 +322,11 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
           .showSnackBar(SnackBar(content: Text(t.applyPickCity)));
       return;
     }
+    if (!_employmentTypeLocked && _employmentType == null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(t.applyEmploymentRequired)));
+      return;
+    }
     // The date picker itself only lets you pick a date 18+ years ago (see
     // _pickDob's `lastDate`), so a non-empty value here is already an
     // enforced adult date of birth — this just makes sure one was actually
@@ -394,6 +406,11 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
         'name': _nameCtrl.text.trim(),
         'categories': _categories.toList(),
         'area': _city,
+        // Only sent while still settable — after submission the backend
+        // ignores this field anyway, but omitting it here avoids implying
+        // a change that never actually happens.
+        if (!_employmentTypeLocked && _employmentType != null)
+          'employmentType': _employmentType,
         'address': _addressCtrl.text.trim(),
         'experienceYears': int.tryParse(_experienceCtrl.text.trim()),
         if (photoUrl != null) 'photoUrl': photoUrl,
@@ -543,6 +560,41 @@ class _TechApplyScreenState extends ConsumerState<TechApplyScreen> {
                           ),
                       ],
                     ),
+                    const SizedBox(height: 18),
+                    Eyebrow(t.applyEmploymentQuestion),
+                    const SizedBox(height: 4),
+                    Text(t.applyEmploymentHint, style: context.type.bodySmall),
+                    const SizedBox(height: 8),
+                    if (_employmentTypeLocked)
+                      CareCard(
+                        child: Row(
+                          children: [
+                            Icon(Icons.lock_outline, size: 16, color: context.care.inkFaint),
+                            const SizedBox(width: 10),
+                            Text(
+                              _employmentType == 'payroll'
+                                  ? t.applyEmploymentPayroll
+                                  : t.applyEmploymentOutsourced,
+                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
+                            ),
+                          ],
+                        ),
+                      )
+                    else ...[
+                      _EmploymentOption(
+                        title: t.applyEmploymentPayroll,
+                        subtitle: t.applyEmploymentPayrollDetail,
+                        selected: _employmentType == 'payroll',
+                        onTap: () => setState(() => _employmentType = 'payroll'),
+                      ),
+                      const SizedBox(height: 8),
+                      _EmploymentOption(
+                        title: t.applyEmploymentOutsourced,
+                        subtitle: t.applyEmploymentOutsourcedDetail,
+                        selected: _employmentType == 'outsourced',
+                        onTap: () => setState(() => _employmentType = 'outsourced'),
+                      ),
+                    ],
                     const SizedBox(height: 18),
                     Eyebrow(t.applyLiveQuestion),
                     const SizedBox(height: 8),
@@ -782,6 +834,49 @@ class _SectionCard extends StatelessWidget {
             ),
             const SizedBox(height: 14),
             child,
+          ],
+        ),
+      );
+}
+
+/// One tappable employment-type choice on the apply form — plain
+/// Container/InkWell, not a dropdown or radio group, matching the rest of
+/// this screen's card-based pattern.
+class _EmploymentOption extends StatelessWidget {
+  const _EmploymentOption({
+    required this.title,
+    required this.subtitle,
+    required this.selected,
+    required this.onTap,
+  });
+  final String title;
+  final String subtitle;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => CareCard(
+        onTap: onTap,
+        borderColor: selected ? context.scheme.primary : null,
+        child: Row(
+          children: [
+            Icon(
+              selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+              size: 18,
+              color: selected ? context.scheme.primary : context.care.inkFaint,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 2),
+                  Text(subtitle, style: context.type.bodySmall),
+                ],
+              ),
+            ),
           ],
         ),
       );

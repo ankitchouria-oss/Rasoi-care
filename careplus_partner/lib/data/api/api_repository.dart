@@ -27,6 +27,7 @@ import '../models.dart';
 import '../repository.dart';
 import 'api_config.dart';
 import 'booking_dto.dart';
+import 'earnings_dto.dart';
 
 const _timeout = Duration(seconds: 8);
 
@@ -517,6 +518,29 @@ class ApiRepository implements PartnerRepository {
   }
 
   bool get bookingsFetched => _bookingsFetched;
+
+  /// Real, itemized earnings for the signed-in technician — see
+  /// app.py's /api/technician/earnings. Null on any failure (network,
+  /// unauthenticated); the caller shows a loading/error state rather than
+  /// falling back to a fabricated total.
+  Future<TechEarningsSummary?> fetchEarnings() async {
+    try {
+      final token = await _idToken();
+      if (token == null) return null;
+      final res = await http
+          .get(
+            Uri.parse('${ApiConfig.baseUrl}/api/technician/earnings'),
+            headers: {'Authorization': 'Bearer $token'},
+          )
+          .timeout(_timeout);
+      if (res.statusCode != 200) return null;
+      final data = jsonDecode(res.body);
+      if (data is! Map<String, dynamic>) return null;
+      return TechEarningsSummary.fromJson(data);
+    } catch (_) {
+      return null;
+    }
+  }
 
   @override
   JobRequest? incomingRequest() {

@@ -74,6 +74,13 @@ def _env_int(name, default):
         return default
 
 
+def _env_float(name, default):
+    try:
+        return float(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
 RATE_LIMIT_GLOBAL_MAX_CALLS = _env_int("RATE_LIMIT_GLOBAL_MAX_CALLS", 180)
 RATE_LIMIT_GLOBAL_WINDOW_SECONDS = _env_int("RATE_LIMIT_GLOBAL_WINDOW_SECONDS", 60)
 
@@ -941,6 +948,11 @@ def technician_row_to_dict(row):
         if "application_submitted" in keys
         else True,
         "partnerCode": row["partner_code"] if "partner_code" in keys else None,
+        # Self-declared once at KYC/onboarding (see update_technician_me) —
+        # never editable by an admin afterward. Drives which commission
+        # formula compute_commission_paise applies to this technician's
+        # completed jobs.
+        "employmentType": row["employment_type"] if "employment_type" in keys else "outsourced",
     }
 
 
@@ -2276,11 +2288,47 @@ def advance_booking(booking_id):
         # Real start-of-work marker — used below to compute a genuine
         # time-on-site instead of a made-up figure.
         conn.execute("UPDATE bookings SET in_progress_at = ? WHERE id = ?", (ts, booking_id))
+        # Auto-fine for a late arrival — the customer's app shows their
+        # slot as scheduled_at through scheduled_at+1h (see _timeWindow in
+        # the Partner/Customer apps), so starting work later than that
+        # grace window is a real lateness, not a guess. Skipped entirely
+        # for a booking with no real scheduled slot on record (made before
+        # that column existed, or by a client that never sent one) — there's
+        # nothing genuine to measure lateness against for those.
+        if row["scheduled_at"]:
+            try:
+                scheduled = datetime.fromisoformat(row["scheduled_at"].replace("Z", "+00:00"))
+                started = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                if started > scheduled + timedelta(minutes=LATE_ARRIVAL_GRACE_MINUTES):
+                    conn.execute(
+                        "INSERT INTO technician_ledger "
+                        "(id, technician_id, booking_id, kind, amount_paise, reason, created_at) "
+                        "VALUES (?,?,?,?,?,?,?)",
+                        (new_uuid_id("LEDG"), row["technician_id"], booking_id, "fine",
+                         -LATE_ARRIVAL_FINE_PAISE,
+                         f"Late arrival on {booking_id} (started more than "
+                         f"{LATE_ARRIVAL_GRACE_MINUTES} min after the scheduled slot)", ts),
+                    )
+            except ValueError:
+                pass  # malformed scheduled_at on an old row — never block the real status change for this
     if new_status == "Completed":
+        new_jobs_completed = (request.technician["jobs_completed"] or 0) + 1
         conn.execute(
             "UPDATE technicians SET jobs_completed = jobs_completed + 1 WHERE id = ?",
             (row["technician_id"],),
         )
+        # Auto-incentive — a real, deterministic milestone bonus (never a
+        # manual admin entry) that fires exactly once per multiple of
+        # JOBS_PER_INCENTIVE, computed from the technician's own real
+        # completed-job count rather than anything guessable client-side.
+        if new_jobs_completed % JOBS_PER_INCENTIVE == 0:
+            conn.execute(
+                "INSERT INTO technician_ledger "
+                "(id, technician_id, booking_id, kind, amount_paise, reason, created_at) "
+                "VALUES (?,?,?,?,?,?,?)",
+                (new_uuid_id("LEDG"), row["technician_id"], booking_id, "incentive",
+                 INCENTIVE_PAISE, f"{JOBS_PER_INCENTIVE} jobs completed milestone", ts),
+            )
         # Care Coins — 2% of the real total, credited only once the job is
         # actually done (not at booking time, so a cancelled or never-
         # completed booking earns nothing). The idx guard above already
@@ -2516,6 +2564,98 @@ CANCELLATION_FEE_BY_STATUS_FALLBACK = {
     "On the way": CANCELLATION_FEE_NEAR_RUPEES,
     "In Progress": CANCELLATION_FEE_NEAR_RUPEES,
 }
+
+
+# Technician commission — two-tier by how a technician is engaged (see
+# `employment_type` on the technicians table, self-declared once at KYC).
+# Both formulas exclude GST: the backend never stores tax as its own
+# column (see booking_row_to_dict), so it's backed out of the stored
+# GST-inclusive total the same way the Customer app's invoice does,
+# total / (1 + GST_RATE). An outsourced technician's larger cut is also
+# net of a flat visit charge — they aren't reimbursed for the visit
+# itself, only a share of the actual work.
+GST_RATE = _env_float("GST_RATE", 0.18)
+PAYROLL_COMMISSION_RATE = _env_float("PAYROLL_COMMISSION_RATE", 0.10)
+OUTSOURCED_COMMISSION_RATE = _env_float("OUTSOURCED_COMMISSION_RATE", 0.50)
+VISIT_CHARGE_PAISE = _env_int("VISIT_CHARGE_PAISE", 9900)  # ₹99
+
+# Auto-computed, rule-based additions to a technician's ledger — see
+# advance_booking. Not a manual admin entry: these fire deterministically
+# off real activity (a job actually completed, a job actually started
+# late), so the same milestone or the same late arrival is never counted
+# twice.
+JOBS_PER_INCENTIVE = _env_int("JOBS_PER_INCENTIVE", 20)
+INCENTIVE_PAISE = _env_int("INCENTIVE_PAISE", 50_000)  # ₹500
+LATE_ARRIVAL_GRACE_MINUTES = _env_int("LATE_ARRIVAL_GRACE_MINUTES", 60)
+LATE_ARRIVAL_FINE_PAISE = _env_int("LATE_ARRIVAL_FINE_PAISE", 5_000)  # ₹50
+
+
+def compute_commission_paise(total_amount_rupees, employment_type):
+    """A technician's real commission on one completed booking, in paise.
+    `total_amount_rupees` is the booking's stored total (GST-inclusive,
+    whole rupees — see bookings.total_amount); 0 for a falsy/zero total
+    rather than raising, since a mock/legacy row might have none."""
+    if not total_amount_rupees:
+        return 0
+    basic_paise = round((total_amount_rupees * 100) / (1 + GST_RATE))
+    if employment_type == "payroll":
+        return round(basic_paise * PAYROLL_COMMISSION_RATE)
+    billable_paise = max(0, basic_paise - VISIT_CHARGE_PAISE)
+    return round(billable_paise * OUTSOURCED_COMMISSION_RATE)
+
+
+def technician_earnings_payload(conn, tech_row):
+    """Real, itemized earnings for `tech_row` — one commission figure per
+    completed job (computed fresh here from that booking's own total and
+    the technician's employment_type, never stored, so nothing can go
+    stale) plus every auto-computed ledger entry (incentive/fine, see
+    advance_booking). Shared by the technician's own /me endpoint and the
+    staff-facing per-technician one so both always agree."""
+    employment_type = tech_row["employment_type"] if "employment_type" in tech_row.keys() else "outsourced"
+    bookings = conn.execute(
+        "SELECT id, service, total_amount, updated_at FROM bookings "
+        "WHERE technician_id = ? AND status = 'Completed' ORDER BY updated_at DESC",
+        (tech_row["id"],),
+    ).fetchall()
+    jobs = []
+    commission_total_paise = 0
+    for b in bookings:
+        commission_paise = compute_commission_paise(b["total_amount"], employment_type)
+        commission_total_paise += commission_paise
+        jobs.append({
+            "bookingId": b["id"],
+            "service": b["service"],
+            "totalAmountPaise": (b["total_amount"] or 0) * 100,
+            "commissionPaise": commission_paise,
+            "completedAt": b["updated_at"],
+        })
+    ledger_rows = conn.execute(
+        "SELECT * FROM technician_ledger WHERE technician_id = ? ORDER BY created_at DESC",
+        (tech_row["id"],),
+    ).fetchall()
+    ledger = [
+        {
+            "id": r["id"],
+            "bookingId": r["booking_id"],
+            "kind": r["kind"],
+            "amountPaise": r["amount_paise"],
+            "reason": r["reason"],
+            "createdAt": r["created_at"],
+        }
+        for r in ledger_rows
+    ]
+    ledger_total_paise = sum(r["amount_paise"] for r in ledger_rows)
+    return {
+        "employmentType": employment_type,
+        "commissionRate": PAYROLL_COMMISSION_RATE if employment_type == "payroll" else OUTSOURCED_COMMISSION_RATE,
+        "visitChargePaise": 0 if employment_type == "payroll" else VISIT_CHARGE_PAISE,
+        "jobs": jobs,
+        "commissionTotalPaise": commission_total_paise,
+        "ledger": ledger,
+        "incentiveTotalPaise": sum(r["amount_paise"] for r in ledger_rows if r["kind"] == "incentive"),
+        "fineTotalPaise": sum(r["amount_paise"] for r in ledger_rows if r["kind"] == "fine"),
+        "netTotalPaise": commission_total_paise + ledger_total_paise,
+    }
 
 
 def _cancellation_fee_for(row):
@@ -2857,6 +2997,22 @@ def verify_technician(technician_id):
     return jsonify(technician_row_to_dict(row))
 
 
+@app.route("/api/technicians/<technician_id>/earnings", methods=["GET"])
+@require_staff_auth
+def technician_earnings_admin(technician_id):
+    """Same real commission + ledger computation as the technician's own
+    /api/technician/earnings, exposed to staff for reviewing a payout
+    before it's actually run. See technician_earnings_payload."""
+    conn = get_db()
+    row = conn.execute("SELECT * FROM technicians WHERE id = ?", (technician_id,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": "not found"}), 404
+    payload = technician_earnings_payload(conn, row)
+    conn.close()
+    return jsonify(payload)
+
+
 # ------------------------------------------------ technician self-service
 # (the Partner app's own login/session — everything above this is the
 # admin-managed view that technician.html and the Admin app already use.)
@@ -2912,6 +3068,20 @@ def technician_me():
     return jsonify(technician_row_to_dict(request.technician))
 
 
+@app.route("/api/technician/earnings", methods=["GET"])
+@require_technician_auth
+def technician_earnings():
+    """Real, itemized earnings for the signed-in technician — replaces
+    treating 100% of a completed job's invoice total as "earned" with the
+    actual commission this technician's employment_type entitles them to,
+    plus their real bonus/incentive and fine history. See
+    technician_earnings_payload for the shape."""
+    conn = get_db()
+    payload = technician_earnings_payload(conn, request.technician)
+    conn.close()
+    return jsonify(payload)
+
+
 @app.route("/api/technician/me", methods=["PATCH"])
 @require_technician_auth
 @validate_json({
@@ -2936,6 +3106,7 @@ def technician_me():
     "address": Field(str, max_len=500),
     "upiId": Field(str, max_len=256, pattern=UPI_ID_RE, strip=False),
     "categories": Field(list, max_len=20, item_type=str),
+    "employmentType": Field(str, choices=("payroll", "outsourced")),
     "submit": Field(bool),
 })
 def update_technician_me():
@@ -2947,7 +3118,13 @@ def update_technician_me():
     application waiting for review. Updating fields after verification is
     still allowed (e.g. changing a bank account) but doesn't reset
     verified — an admin would need to notice and re-check if that matters
-    for a real deployment."""
+    for a real deployment.
+
+    `employmentType` is the one field that's genuinely one-way: it's only
+    ever written here while `application_submitted` is still false, so it
+    can be set once during onboarding and never edited again afterward —
+    not by the technician, and there's deliberately no admin endpoint that
+    touches it either."""
     data = request.get_json(force=True, silent=True) or {}
     tech = request.technician
     fields = {
@@ -2987,6 +3164,12 @@ def update_technician_me():
         conn.execute(
             "UPDATE technicians SET categories_json = ?, category = ? WHERE id = ?",
             (json.dumps(categories), categories[0], tech["id"]),
+        )
+    employment_type = data.get("employmentType")
+    if employment_type and not tech["application_submitted"]:
+        conn.execute(
+            "UPDATE technicians SET employment_type = ? WHERE id = ?",
+            (employment_type, tech["id"]),
         )
     if data.get("submit"):
         conn.execute(
