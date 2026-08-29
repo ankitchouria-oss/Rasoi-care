@@ -55,23 +55,32 @@ class SignaturePadState extends State<SignaturePad> {
     return bytes?.buffer.asUint8List();
   }
 
+  void _addPoint(Offset globalPosition) {
+    final box = context.findRenderObject() as RenderBox;
+    setState(() => _points.add(box.globalToLocal(globalPosition)));
+    widget.onChanged?.call(true);
+  }
+
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
-      child: GestureDetector(
-        // Without this, GestureDetector defers hit-testing to its child —
-        // and an empty CustomPaint canvas (or the hint Text shown before
-        // anything is drawn) never reports a hit, so drags never started
-        // registering at all. `opaque` makes the whole box catch pan
-        // gestures regardless of what's actually painted underneath.
+      // A GestureDetector's onPanUpdate goes through the gesture arena,
+      // where this pad's PanGestureRecognizer competes against the
+      // ancestor ListView's own drag recognizer (see TechCloseScreen) —
+      // and reliably loses it, since a ListView claims the vertical
+      // component of any drag as a scroll attempt. The result: the
+      // technician can drag across this box all day and nothing is ever
+      // drawn, because onPanUpdate simply never fires. Listener
+      // sidesteps the arena entirely — it gets every raw pointer event
+      // unconditionally, so it can't be out-negotiated by a scrollable
+      // ancestor the way a GestureDetector can.
+      child: Listener(
         behavior: HitTestBehavior.opaque,
-        onPanUpdate: (d) {
-          final box = context.findRenderObject() as RenderBox;
-          setState(() => _points.add(box.globalToLocal(d.globalPosition)));
-          widget.onChanged?.call(true);
-        },
-        onPanEnd: (_) => setState(() => _points.add(null)),
+        onPointerDown: (d) => _addPoint(d.position),
+        onPointerMove: (d) => _addPoint(d.position),
+        onPointerUp: (_) => setState(() => _points.add(null)),
+        onPointerCancel: (_) => setState(() => _points.add(null)),
         child: SizedBox(
           height: 150,
           width: double.infinity,
