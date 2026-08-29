@@ -414,6 +414,29 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
     }
   }
 
+  @override
+  Future<bool> assignTechnician(String bookingId, String technicianId) async {
+    try {
+      final token = await _idToken();
+      if (token == null) return false;
+      final res = await _client
+          .patch(
+            Uri.parse('${ApiConfig.baseUrl}/api/bookings/$bookingId/assign'),
+            headers: {'Content-Type': 'application/json', ..._headers(token)},
+            body: jsonEncode({'technician_id': technicianId}),
+          )
+          .timeout(_timeout);
+      if (res.statusCode != 200) return false;
+      // Refresh so both the Bookings queue and Overview's "Needs attention"
+      // list (derived from the same cached bookings) drop this job
+      // immediately, without waiting for the next natural refetch.
+      await _fetchBookings();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   // =============================================================== STOCK
   @override
   List<AdminStockItem>? stock() {
