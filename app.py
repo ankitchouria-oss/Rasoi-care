@@ -377,6 +377,17 @@ class Field:
             return f"must be a {self._type_name()}"
         if isinstance(value, str):
             v = value.strip() if self.strip else value
+            # An optional field left blank (client sends "", not the key
+            # omitted or null) shouldn't be measured against a pattern/
+            # min_len/choices meant for a real value — e.g. the Partner
+            # app's apply form always sends `gstNumber`/`upiId` even when
+            # those "(optional)" fields are empty, which used to fail their
+            # GSTIN/UPI regex and reject the whole submission with a bare
+            # 400 the app could only show as "Could not submit (error
+            # 400)." A required field still gets the real emptiness caught
+            # below, same as before.
+            if not v and not self.required:
+                return None
             if self.min_len is not None and len(v) < self.min_len:
                 return f"must be at least {self.min_len} character(s)"
             if self.max_len is not None and len(v) > self.max_len:
