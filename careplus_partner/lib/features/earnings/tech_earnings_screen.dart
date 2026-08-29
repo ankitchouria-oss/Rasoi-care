@@ -285,29 +285,72 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
                       ],
                     ),
                   ),
-                  if (summary != null && summary.incentives.isNotEmpty) ...[
+                  if (summary != null) ...[
                     SectionHeader(t.earningsIncentives,
                         trailing: Text(Money.rupees(summary.incentiveTotalPaise),
                             style: context.type.bodySmall!
                                 .copyWith(color: context.care.success))),
                     Text(t.earningsIncentivesExplain, style: context.type.bodySmall),
+                    const SizedBox(height: 10),
+                    _MilestoneCard(
+                      label: t.earningsMilestoneLifetimeLabel(summary.jobsPerIncentive),
+                      progress: (summary.jobsPerIncentive -
+                              summary.jobsUntilNextLifetimeMilestone) /
+                          summary.jobsPerIncentive,
+                      message: t.earningsMilestoneLifetime(
+                        summary.jobsUntilNextLifetimeMilestone,
+                        Money.rupees(summary.incentivePaise),
+                      ),
+                    ),
                     const SizedBox(height: 8),
-                    for (final e in summary.incentives) ...[
-                      _LedgerRow(entry: e, tone: ChipTone.success),
+                    _MilestoneCard(
+                      label: t.earningsMilestoneWeeklyLabel(summary.weeklyJobsForBonus),
+                      progress: summary.jobsCompletedThisWeek / summary.weeklyJobsForBonus,
+                      message: summary.weeklyBonusEarnedThisWeek
+                          ? t.earningsMilestoneWeeklyDone(Money.rupees(summary.weeklyBonusPaise))
+                          : t.earningsMilestoneWeekly(
+                              summary.jobsUntilWeeklyBonus,
+                              Money.rupees(summary.weeklyBonusPaise),
+                            ),
+                      done: summary.weeklyBonusEarnedThisWeek,
+                    ),
+                    if (summary.incentives.isNotEmpty) ...[
                       const SizedBox(height: 8),
+                      for (final e in summary.incentives) ...[
+                        _LedgerRow(entry: e, tone: ChipTone.success),
+                        const SizedBox(height: 8),
+                      ],
                     ],
                   ],
-                  if (summary != null && summary.fines.isNotEmpty) ...[
+                  if (summary != null) ...[
                     SectionHeader(t.earningsFines,
                         trailing: Text(Money.rupees(summary.fineTotalPaise),
                             style: context.type.bodySmall!
                                 .copyWith(color: context.scheme.error))),
                     Text(t.earningsFinesExplain, style: context.type.bodySmall),
                     const SizedBox(height: 8),
-                    for (final e in summary.fines) ...[
-                      _LedgerRow(entry: e, tone: ChipTone.danger),
-                      const SizedBox(height: 8),
-                    ],
+                    CareCard(
+                      child: Text(
+                        t.earningsFinesRule(
+                          Money.rupees(summary.lateArrivalFinePaise),
+                          summary.lateArrivalGraceMinutes,
+                        ),
+                        style: context.type.bodySmall,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (summary.fines.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Text(t.earningsNoFinesYet,
+                            style: context.type.bodySmall!
+                                .copyWith(color: context.care.success)),
+                      )
+                    else
+                      for (final e in summary.fines) ...[
+                        _LedgerRow(entry: e, tone: ChipTone.danger),
+                        const SizedBox(height: 8),
+                      ],
                   ],
                   if (cancellationFees.isNotEmpty) ...[
                     SectionHeader(t.earningsCancellationFees,
@@ -493,6 +536,51 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
       ),
     );
   }
+}
+
+/// Live progress toward one achievable milestone bonus — a label ("Every
+/// 20 jobs"), a progress bar, and how many more jobs are needed (or that
+/// it's already been earned this cycle). Always visible, even at zero
+/// progress, and updates automatically since it's built straight from the
+/// latest TechEarningsSummary on every refresh.
+class _MilestoneCard extends StatelessWidget {
+  const _MilestoneCard({
+    required this.label,
+    required this.progress,
+    required this.message,
+    this.done = false,
+  });
+  final String label;
+  final double progress;
+  final String message;
+  final bool done;
+
+  @override
+  Widget build(BuildContext context) => CareCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Eyebrow(label),
+                if (done)
+                  Icon(Icons.check_circle, size: 16, color: context.care.success),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ProgressBar(progress.clamp(0.0, 1.0)),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              style: context.type.bodySmall!.copyWith(
+                color: done ? context.care.success : null,
+                fontWeight: done ? FontWeight.w600 : null,
+              ),
+            ),
+          ],
+        ),
+      );
 }
 
 /// One row in the Bonus & Incentives or Fines table.

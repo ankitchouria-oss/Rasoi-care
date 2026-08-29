@@ -82,6 +82,14 @@ class TechEarningsSummary {
     required this.incentiveTotalPaise,
     required this.fineTotalPaise,
     required this.netTotalPaise,
+    required this.jobsCompletedTotal,
+    required this.jobsCompletedThisWeek,
+    required this.jobsPerIncentive,
+    required this.incentivePaise,
+    required this.weeklyJobsForBonus,
+    required this.weeklyBonusPaise,
+    required this.lateArrivalGraceMinutes,
+    required this.lateArrivalFinePaise,
   });
 
   /// 'payroll' or 'outsourced' — see the technician's own apply-screen
@@ -103,9 +111,40 @@ class TechEarningsSummary {
   /// technician has actually earned.
   final int netTotalPaise;
 
+  /// The technician's real lifetime completed-job count (technicians.jobs_completed)
+  /// and this calendar week's (Mon–Sun) completed count — both computed
+  /// backend-side, live, on every fetch, so progress toward the next
+  /// milestone below is never a client-side guess.
+  final int jobsCompletedTotal;
+  final int jobsCompletedThisWeek;
+
+  /// The real, currently-configured milestone thresholds and payouts (see
+  /// JOBS_PER_INCENTIVE etc. in app.py) — exposed rather than hardcoded
+  /// here so the client can never drift from what the backend actually pays.
+  final int jobsPerIncentive;
+  final int incentivePaise;
+  final int weeklyJobsForBonus;
+  final int weeklyBonusPaise;
+  final int lateArrivalGraceMinutes;
+  final int lateArrivalFinePaise;
+
   bool get isPayroll => employmentType == 'payroll';
   List<LedgerEntry> get incentives => ledger.where((e) => e.isIncentive).toList(growable: false);
   List<LedgerEntry> get fines => ledger.where((e) => !e.isIncentive).toList(growable: false);
+
+  /// How many more jobs (lifetime) until the next JOBS_PER_INCENTIVE
+  /// milestone — 0 the moment a multiple is reached (the ledger entry for
+  /// it already exists by then).
+  int get jobsUntilNextLifetimeMilestone {
+    final remainder = jobsCompletedTotal % jobsPerIncentive;
+    return remainder == 0 ? jobsPerIncentive : jobsPerIncentive - remainder;
+  }
+
+  /// How many more jobs this calendar week until the weekly bonus fires.
+  int get jobsUntilWeeklyBonus =>
+      (weeklyJobsForBonus - jobsCompletedThisWeek).clamp(0, weeklyJobsForBonus);
+
+  bool get weeklyBonusEarnedThisWeek => jobsCompletedThisWeek >= weeklyJobsForBonus;
 
   factory TechEarningsSummary.fromJson(Map<String, dynamic> json) => TechEarningsSummary(
         employmentType: (json['employmentType'] as String?) ?? 'outsourced',
@@ -125,5 +164,13 @@ class TechEarningsSummary {
         incentiveTotalPaise: (json['incentiveTotalPaise'] as num?)?.round() ?? 0,
         fineTotalPaise: (json['fineTotalPaise'] as num?)?.round() ?? 0,
         netTotalPaise: (json['netTotalPaise'] as num?)?.round() ?? 0,
+        jobsCompletedTotal: (json['jobsCompletedTotal'] as num?)?.round() ?? 0,
+        jobsCompletedThisWeek: (json['jobsCompletedThisWeek'] as num?)?.round() ?? 0,
+        jobsPerIncentive: (json['jobsPerIncentive'] as num?)?.round() ?? 20,
+        incentivePaise: (json['incentivePaise'] as num?)?.round() ?? 50000,
+        weeklyJobsForBonus: (json['weeklyJobsForBonus'] as num?)?.round() ?? 15,
+        weeklyBonusPaise: (json['weeklyBonusPaise'] as num?)?.round() ?? 20000,
+        lateArrivalGraceMinutes: (json['lateArrivalGraceMinutes'] as num?)?.round() ?? 60,
+        lateArrivalFinePaise: (json['lateArrivalFinePaise'] as num?)?.round() ?? 5000,
       );
 }

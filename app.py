@@ -2336,9 +2336,7 @@ def advance_booking(booking_id):
         # above already moved this booking to Completed on this same
         # connection, so it's already counted in the query below.
         completed_at = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-        week_start = (completed_at - timedelta(days=completed_at.weekday())).replace(
-            hour=0, minute=0, second=0, microsecond=0)
-        week_start_iso = week_start.strftime("%Y-%m-%dT%H:%M:%SZ")
+        week_start_iso = _week_start_iso(completed_at)
         completed_this_week = conn.execute(
             "SELECT COUNT(*) AS n FROM bookings "
             "WHERE technician_id = ? AND status = 'Completed' AND updated_at >= ?",
@@ -2629,6 +2627,17 @@ LATE_ARRIVAL_GRACE_MINUTES = _env_int("LATE_ARRIVAL_GRACE_MINUTES", 60)
 LATE_ARRIVAL_FINE_PAISE = _env_int("LATE_ARRIVAL_FINE_PAISE", 5_000)  # ₹50
 
 
+def _week_start_iso(dt):
+    """The ISO start (Monday 00:00:00) of dt's calendar week, as the same
+    'Z'-suffixed string format used throughout for created_at/updated_at —
+    shared by advance_booking's weekly-bonus check and
+    technician_earnings_payload's weekly progress count so both agree on
+    exactly the same week boundary."""
+    week_start = (dt - timedelta(days=dt.weekday())).replace(
+        hour=0, minute=0, second=0, microsecond=0)
+    return week_start.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def compute_commission_paise(total_amount_rupees, employment_type):
     """A technician's real commission on one completed booking, in paise.
     `total_amount_rupees` is the booking's stored total (GST-inclusive,
@@ -2683,6 +2692,18 @@ def technician_earnings_payload(conn, tech_row):
         for r in ledger_rows
     ]
     ledger_total_paise = sum(r["amount_paise"] for r in ledger_rows)
+    jobs_completed_total = tech_row["jobs_completed"] if "jobs_completed" in tech_row.keys() else 0
+    jobs_completed_total = jobs_completed_total or 0
+    # Live progress toward each milestone, computed the same way the
+    # auto-incentive checks in advance_booking decide whether to fire, so
+    # the number shown here is always "how many more until the next real
+    # payout" rather than a static/stale snapshot.
+    week_start_iso = _week_start_iso(datetime.now(timezone.utc))
+    jobs_completed_this_week = conn.execute(
+        "SELECT COUNT(*) AS n FROM bookings "
+        "WHERE technician_id = ? AND status = 'Completed' AND updated_at >= ?",
+        (tech_row["id"], week_start_iso),
+    ).fetchone()["n"]
     return {
         "employmentType": employment_type,
         "commissionRate": PAYROLL_COMMISSION_RATE if employment_type == "payroll" else OUTSOURCED_COMMISSION_RATE,
@@ -2693,6 +2714,14 @@ def technician_earnings_payload(conn, tech_row):
         "incentiveTotalPaise": sum(r["amount_paise"] for r in ledger_rows if r["kind"] == "incentive"),
         "fineTotalPaise": sum(r["amount_paise"] for r in ledger_rows if r["kind"] == "fine"),
         "netTotalPaise": commission_total_paise + ledger_total_paise,
+        "jobsCompletedTotal": jobs_completed_total,
+        "jobsCompletedThisWeek": jobs_completed_this_week,
+        "jobsPerIncentive": JOBS_PER_INCENTIVE,
+        "incentivePaise": INCENTIVE_PAISE,
+        "weeklyJobsForBonus": WEEKLY_JOBS_FOR_BONUS,
+        "weeklyBonusPaise": WEEKLY_BONUS_PAISE,
+        "lateArrivalGraceMinutes": LATE_ARRIVAL_GRACE_MINUTES,
+        "lateArrivalFinePaise": LATE_ARRIVAL_FINE_PAISE,
     }
 
 
