@@ -112,3 +112,11 @@ android {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // Installs src/main/baseline-prof.txt onto the device at first run so it
+    // actually speeds up startup on a sideloaded/test build — without this,
+    // a baseline profile only takes effect via Play Store's cloud
+    // compilation, which a build like this one never gets.
+    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
+}
