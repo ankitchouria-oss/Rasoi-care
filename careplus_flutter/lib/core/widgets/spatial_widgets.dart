@@ -8,20 +8,25 @@ import 'package:flutter/material.dart';
 import '../theme/care_plus_theme.dart';
 
 /// Palette for the spatial backdrop — built from the same brand hues as
-/// CareColors' dark scheme (mint primary, brass accent) rather than a
-/// generic blue, so this still reads as Rasoi Care rather than a stock
-/// smart-home dashboard.
+/// CareColors (a fresh, lighter green rather than the muted dark-mode mint,
+/// plus the light-theme brass) rather than a generic blue, so this still
+/// reads as Rasoi Care rather than a stock smart-home dashboard.
+///
+/// Started as a dark backdrop (near-black + the dark-theme mint/brass); user
+/// feedback on the first pilot build was that it read too heavy in practice
+/// and the green looked muddy against black, so this is now a light/white
+/// backdrop with a brighter accent green instead.
 abstract final class SpatialColors {
-  static const bg0 = Color(0xFF05100C);
-  static const bg1 = Color(0xFF0E1D17);
-  static const glowMint = CareColors.dPrimary;
-  static const glowBrass = CareColors.dBrass;
-  static const textPrimary = Color(0xFFF3F6F4);
-  static const textMuted = Color(0xFFB7C4BE);
-  static const textFaint = Color(0xFF7E8D86);
+  static const bg0 = Color(0xFFFFFFFF);
+  static const bg1 = Color(0xFFF4FBF7);
+  static const glowMint = Color(0xFF2ECC82); // brighter, lighter green than CareColors.pine/dPrimary
+  static const glowBrass = CareColors.brass;
+  static const textPrimary = CareColors.iron;
+  static const textMuted = CareColors.slate;
+  static const textFaint = Color(0xFF9AA69F);
 }
 
-/// Full-bleed dark gradient with two soft glowing colour blobs behind the
+/// Full-bleed light gradient with two soft glowing colour blobs behind the
 /// content — the "spatial" ambient backdrop, standing in for the reference's
 /// blurred real-world camera feed (which this app has no equivalent of).
 class SpatialBackdrop extends StatelessWidget {
@@ -59,7 +64,7 @@ class _Glow extends StatelessWidget {
           child: Container(
             width: size,
             height: size,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: color.withValues(alpha: 0.32)),
+            decoration: BoxDecoration(shape: BoxShape.circle, color: color.withValues(alpha: 0.20)),
           ),
         ),
       );
@@ -90,8 +95,8 @@ class GlassPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fillTop = elevated ? 0.16 : 0.09;
-    final fillBottom = elevated ? 0.08 : 0.04;
+    final fillTop = elevated ? 0.85 : 0.62;
+    final fillBottom = elevated ? 0.72 : 0.46;
     final panel = ClipRRect(
       borderRadius: borderRadius,
       child: BackdropFilter(
@@ -109,10 +114,13 @@ class GlassPanel extends StatelessWidget {
               ],
             ),
             border: Border.all(
-              color: Colors.white.withValues(alpha: elevated ? 0.24 : 0.14),
+              color: Colors.black.withValues(alpha: elevated ? 0.08 : 0.05),
             ),
-            boxShadow: const [
-              BoxShadow(color: Color(0x59000000), blurRadius: 28, offset: Offset(0, 14)),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withValues(alpha: elevated ? 0.12 : 0.07),
+                  blurRadius: 24,
+                  offset: const Offset(0, 10)),
             ],
           ),
           child: child,
