@@ -14,6 +14,30 @@
 -keep class com.google.firebase.** { *; }
 -keep class com.google.android.gms.** { *; }
 
+# Phone-auth verification (Firebase Auth's Play Integrity + reCAPTCHA
+# fallback) lives in these two packages, which are NOT under
+# com.google.android.gms — the previous minified build almost certainly
+# crashed the phone sign-in path specifically because these were still being
+# stripped despite the gms/firebase keeps above.
+-keep class com.google.android.play.core.integrity.** { *; }
+-keep class com.google.android.recaptcha.** { *; }
+
+# google_sign_in's native Credential Manager / legacy GoogleSignIn API surface.
+-keep class com.google.android.gms.auth.api.signin.** { *; }
+-keep class com.google.android.libraries.identity.googleid.** { *; }
+
+# Firebase/Gson-style (de)serialization is reflection-driven and needs these
+# attributes preserved, or model/field lookups silently return null/throw at
+# runtime instead of failing the build.
+-keepattributes Signature
+-keepattributes *Annotation*
+-keepattributes EnclosingMethod
+-keepattributes InnerClasses
+
+# smart_auth (SMS-autofill for the OTP screen) talks to the SMS Retriever
+# API under this package.
+-keep class com.google.android.gms.auth.api.phone.** { *; }
+
 # Uncomment as you add these backends — reflection-heavy SDKs need explicit keeps.
 # -keep class com.razorpay.** { *; }
 
