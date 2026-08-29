@@ -30,6 +30,12 @@ android {
         jniLibs {
             useLegacyPackaging = true
         }
+        // AndroidX/Kotlin/Firebase libs each bundle their own copy of these
+        // license files under META-INF — R8 packaging fails the build over
+        // the duplicate paths without this.
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
     }
 
     compileOptions {

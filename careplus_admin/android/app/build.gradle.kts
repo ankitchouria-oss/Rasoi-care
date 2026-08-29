@@ -29,6 +29,12 @@ android {
         jniLibs {
             useLegacyPackaging = true
         }
+        // AndroidX/Kotlin/Firebase libs each bundle their own copy of these
+        // license files under META-INF — R8 packaging fails the build over
+        // the duplicate paths without this.
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
     }
 
     compileOptions {
@@ -77,6 +83,20 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
+            // First time this app has ever minified — needs the same
+            // Firebase/gms/Play-Integrity/reCAPTCHA/Google-Sign-In/
+            // smart_auth keeps careplus_flutter/careplus_partner needed for
+            // their own equivalent auth stack (see proguard-rules.pro).
+            // Still needs a real-device smoke test (phone OTP, Google
+            // sign-in, Firestore) before trusting it, per those apps'
+            // experience: a successful build doesn't rule out a runtime R8
+            // strip.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 }
