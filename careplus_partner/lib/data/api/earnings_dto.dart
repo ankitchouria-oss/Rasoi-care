@@ -89,8 +89,8 @@ class TechEarningsSummary {
   final String employmentType;
   final double commissionRate;
 
-  /// 0 for a payroll technician — the visit-charge deduction only applies
-  /// to an outsourced one's commission formula.
+  /// The flat visit fee excluded from both employment types' commission
+  /// base — neither gets a cut of a fee that isn't for their own labour.
   final int visitChargePaise;
   final List<EarningsJob> jobs;
   final int commissionTotalPaise;

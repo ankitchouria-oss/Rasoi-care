@@ -2329,6 +2329,29 @@ def advance_booking(booking_id):
                 (new_uuid_id("LEDG"), row["technician_id"], booking_id, "incentive",
                  INCENTIVE_PAISE, f"{JOBS_PER_INCENTIVE} jobs completed milestone", ts),
             )
+        # A second, independent incentive on a weekly cadence (calendar
+        # Monday–Sunday, not a rolling 7 days) — fires exactly once per
+        # week, the moment this technician's completed count for the
+        # current week first reaches WEEKLY_JOBS_FOR_BONUS. The UPDATE
+        # above already moved this booking to Completed on this same
+        # connection, so it's already counted in the query below.
+        completed_at = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        week_start = (completed_at - timedelta(days=completed_at.weekday())).replace(
+            hour=0, minute=0, second=0, microsecond=0)
+        week_start_iso = week_start.strftime("%Y-%m-%dT%H:%M:%SZ")
+        completed_this_week = conn.execute(
+            "SELECT COUNT(*) AS n FROM bookings "
+            "WHERE technician_id = ? AND status = 'Completed' AND updated_at >= ?",
+            (row["technician_id"], week_start_iso),
+        ).fetchone()["n"]
+        if completed_this_week == WEEKLY_JOBS_FOR_BONUS:
+            conn.execute(
+                "INSERT INTO technician_ledger "
+                "(id, technician_id, booking_id, kind, amount_paise, reason, created_at) "
+                "VALUES (?,?,?,?,?,?,?)",
+                (new_uuid_id("LEDG"), row["technician_id"], booking_id, "incentive",
+                 WEEKLY_BONUS_PAISE, f"{WEEKLY_JOBS_FOR_BONUS} jobs completed this week", ts),
+            )
         # Care Coins — 2% of the real total, credited only once the job is
         # actually done (not at booking time, so a cancelled or never-
         # completed booking earns nothing). The idx guard above already
@@ -2568,15 +2591,19 @@ CANCELLATION_FEE_BY_STATUS_FALLBACK = {
 
 # Technician commission — two-tier by how a technician is engaged (see
 # `employment_type` on the technicians table, self-declared once at KYC).
-# Both formulas exclude GST: the backend never stores tax as its own
-# column (see booking_row_to_dict), so it's backed out of the stored
-# GST-inclusive total the same way the Customer app's invoice does,
-# total / (1 + GST_RATE). An outsourced technician's larger cut is also
-# net of a flat visit charge — they aren't reimbursed for the visit
-# itself, only a share of the actual work.
+# Both formulas apply their rate to the same real, GST-inclusive total
+# stripped down to the actual service price: GST is backed out first (the
+# backend never stores tax as its own column, see booking_row_to_dict) the
+# same way the Customer app's invoice does, total / (1 + GST_RATE) — that
+# alone leaves the service price plus the flat visit fee, so the visit fee
+# is then subtracted too, for both employment types, since neither is paid
+# a cut of a fee that isn't for their own labour. E.g. a ₹1,599 deep-clean
+# invoiced at ₹1,944 (₹1,599 + ₹49 visit fee, +18% GST): backing out GST
+# gives ₹1,648, minus the ₹49 visit fee gives back the original ₹1,599 —
+# that's the number both commission rates apply to.
 GST_RATE = _env_float("GST_RATE", 0.18)
 PAYROLL_COMMISSION_RATE = _env_float("PAYROLL_COMMISSION_RATE", 0.10)
-OUTSOURCED_COMMISSION_RATE = _env_float("OUTSOURCED_COMMISSION_RATE", 0.50)
+OUTSOURCED_COMMISSION_RATE = _env_float("OUTSOURCED_COMMISSION_RATE", 0.60)
 # The real ₹49 visit fee already charged on every booking — see
 # kVisitFeePaise in the Customer app's checkout pricing
 # (careplus_flutter/lib/state/providers.dart). Kept as its own constant
@@ -2592,6 +2619,12 @@ VISIT_CHARGE_PAISE = _env_int("VISIT_CHARGE_PAISE", 4900)  # ₹49
 # twice.
 JOBS_PER_INCENTIVE = _env_int("JOBS_PER_INCENTIVE", 20)
 INCENTIVE_PAISE = _env_int("INCENTIVE_PAISE", 50_000)  # ₹500
+# A second, separate incentive on a weekly cadence rather than a lifetime
+# one — see the weekly-count check in advance_booking. Both can fire on
+# the same booking (a technician's 20th job all-time can also happen to be
+# their 15th this week); they're independent milestones.
+WEEKLY_JOBS_FOR_BONUS = _env_int("WEEKLY_JOBS_FOR_BONUS", 15)
+WEEKLY_BONUS_PAISE = _env_int("WEEKLY_BONUS_PAISE", 20_000)  # ₹200
 LATE_ARRIVAL_GRACE_MINUTES = _env_int("LATE_ARRIVAL_GRACE_MINUTES", 60)
 LATE_ARRIVAL_FINE_PAISE = _env_int("LATE_ARRIVAL_FINE_PAISE", 5_000)  # ₹50
 
@@ -2604,10 +2637,9 @@ def compute_commission_paise(total_amount_rupees, employment_type):
     if not total_amount_rupees:
         return 0
     basic_paise = round((total_amount_rupees * 100) / (1 + GST_RATE))
-    if employment_type == "payroll":
-        return round(basic_paise * PAYROLL_COMMISSION_RATE)
     billable_paise = max(0, basic_paise - VISIT_CHARGE_PAISE)
-    return round(billable_paise * OUTSOURCED_COMMISSION_RATE)
+    rate = PAYROLL_COMMISSION_RATE if employment_type == "payroll" else OUTSOURCED_COMMISSION_RATE
+    return round(billable_paise * rate)
 
 
 def technician_earnings_payload(conn, tech_row):
@@ -2654,7 +2686,7 @@ def technician_earnings_payload(conn, tech_row):
     return {
         "employmentType": employment_type,
         "commissionRate": PAYROLL_COMMISSION_RATE if employment_type == "payroll" else OUTSOURCED_COMMISSION_RATE,
-        "visitChargePaise": 0 if employment_type == "payroll" else VISIT_CHARGE_PAISE,
+        "visitChargePaise": VISIT_CHARGE_PAISE,
         "jobs": jobs,
         "commissionTotalPaise": commission_total_paise,
         "ledger": ledger,
