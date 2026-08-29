@@ -1,0 +1,1 @@
+HSLcom/rasoicare/care_plus_partner/MainActivity;->onCreate(Landroid/os/Bundle;)V

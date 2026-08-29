@@ -28,6 +28,12 @@ android {
         jniLibs {
             useLegacyPackaging = true
         }
+        // AndroidX/Kotlin/Firebase libs each bundle their own copy of these
+        // license files under META-INF — R8 packaging fails the build over
+        // the duplicate paths without this.
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
     }
 
     compileOptions {
@@ -84,6 +90,17 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
+            // Previously referenced proguard-rules.pro without ever setting
+            // isMinifyEnabled, so R8 never actually ran and those rules were
+            // a no-op. Turning minification on for real needed the same
+            // Firebase/gms/Play-Integrity/reCAPTCHA/Google-Sign-In/smart_auth
+            // keeps careplus_flutter needed for its own equivalent stack —
+            // see proguard-rules.pro. Still needs a real-device smoke test
+            // (phone OTP, Google sign-in, Firestore) before trusting it, per
+            // that same app's experience: a successful build doesn't rule
+            // out a runtime R8 strip.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -100,4 +117,12 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // Installs src/main/baseline-prof.txt onto the device at first run so it
+    // actually speeds up startup on a sideloaded/test build — without this,
+    // a baseline profile only takes effect via Play Store's cloud
+    // compilation, which a build like this one never gets.
+    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
 }

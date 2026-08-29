@@ -30,6 +30,12 @@ android {
         jniLibs {
             useLegacyPackaging = true
         }
+        // AndroidX/Kotlin/Firebase libs each bundle their own copy of these
+        // license files under META-INF — R8 packaging fails the build over
+        // the duplicate paths without this.
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
     }
 
     compileOptions {
@@ -111,4 +117,12 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // Installs src/main/baseline-prof.txt onto the device at first run so it
+    // actually speeds up startup on a sideloaded/test build — without this,
+    // a baseline profile only takes effect via Play Store's cloud
+    // compilation, which a build like this one never gets.
+    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
 }
