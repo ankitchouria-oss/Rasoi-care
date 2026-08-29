@@ -92,14 +92,15 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
-            // Minification/shrinking disabled for now — it's been crashing the
-            // release build on real devices (R8 strips something reflection-
-            // based, most likely still Firebase-related, even after adding
-            // -keep rules for com.google.firebase/gms). Re-enable once the
-            // exact missing keep rule is found; app size doesn't matter for
-            // sideloaded testing in the meantime.
-            isMinifyEnabled = false
-            isShrinkResources = false
+            // Re-enabled with additional keep rules for Play Integrity/
+            // reCAPTCHA (phone auth) and Google Sign-In — see
+            // proguard-rules.pro for why those specifically, on top of the
+            // existing Firebase/gms keeps, were the likely gap last time
+            // this crashed on a real device. Needs a real-device smoke test
+            // (sign-in, phone OTP, maps, camera) before trusting it, since a
+            // successful build here doesn't rule out a runtime R8 strip.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
