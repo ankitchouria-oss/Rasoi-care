@@ -2577,7 +2577,13 @@ CANCELLATION_FEE_BY_STATUS_FALLBACK = {
 GST_RATE = _env_float("GST_RATE", 0.18)
 PAYROLL_COMMISSION_RATE = _env_float("PAYROLL_COMMISSION_RATE", 0.10)
 OUTSOURCED_COMMISSION_RATE = _env_float("OUTSOURCED_COMMISSION_RATE", 0.50)
-VISIT_CHARGE_PAISE = _env_int("VISIT_CHARGE_PAISE", 9900)  # ₹99
+# The real ₹49 visit fee already charged on every booking — see
+# kVisitFeePaise in the Customer app's checkout pricing
+# (careplus_flutter/lib/state/providers.dart). Kept as its own constant
+# here (rather than importing across languages) since this backend has no
+# shared-constants mechanism with the Flutter apps; the two must be kept
+# in sync by hand if the real fee ever changes.
+VISIT_CHARGE_PAISE = _env_int("VISIT_CHARGE_PAISE", 4900)  # ₹49
 
 # Auto-computed, rule-based additions to a technician's ledger — see
 # advance_booking. Not a manual admin entry: these fire deterministically
