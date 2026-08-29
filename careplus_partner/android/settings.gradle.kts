@@ -2,10 +2,21 @@ pluginManagement {
     val flutterSdkPath =
         run {
             val properties = java.util.Properties()
-            file("local.properties").inputStream().use { properties.load(it) }
-            val flutterSdkPath = properties.getProperty("flutter.sdk")
-            require(flutterSdkPath != null) { "flutter.sdk not set in local.properties" }
-            flutterSdkPath
+            val localPropertiesFile = file("local.properties")
+
+            val flutterSdk = if (localPropertiesFile.exists()) {
+                localPropertiesFile.inputStream().use { properties.load(it) }
+                properties.getProperty("flutter.sdk")
+            } else {
+                // local.properties is gitignored (holds machine-local paths and
+                // secrets), so a fresh CI checkout never has it — fall back to
+                // an env var or the conventional CI install path instead of
+                // crashing.
+                System.getenv("FLUTTER_SDK") ?: "/opt/hostedtoolcache/flutter"
+            }
+
+            require(flutterSdk != null) { "flutter.sdk not found in local.properties or FLUTTER_SDK environment variable" }
+            flutterSdk
         }
 
     includeBuild("$flutterSdkPath/packages/flutter_tools/gradle")
