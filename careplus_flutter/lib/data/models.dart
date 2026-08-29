@@ -258,8 +258,10 @@ class Booking {
   /// Real work-log readings, filled in by the technician as they actually
   /// advance the job (see app.py's advance_booking) — null until the
   /// relevant step has happened, which the invoice treats as "not
-  /// recorded" rather than showing an invented number. m³/hr for the
-  /// suction readings, minutes for time on site.
+  /// recorded" rather than showing an invented number. For a chimney
+  /// (Appliance.chimney) booking these are airflow readings in CFM,
+  /// captured before/after the clean — the Partner app no longer asks for
+  /// this on any other appliance. Minutes for time on site.
   final int? suctionBefore;
   final int? suctionAfter;
   final int? timeOnSiteMin;

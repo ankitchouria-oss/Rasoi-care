@@ -86,11 +86,27 @@ class InvoiceScreen extends ConsumerWidget {
                           Text('Not recorded for this visit.',
                               style: context.type.bodySmall)
                         else ...[
-                          if (booking?.suctionBefore != null)
-                            _line(context, 'Suction before', '${booking!.suctionBefore} m³/hr'),
-                          if (booking?.suctionAfter != null)
-                            _line(context, 'Suction after', '${booking!.suctionAfter} m³/hr',
-                                color: context.care.success),
+                          // Chimney jobs get the real airflow (CFM) reading
+                          // the technician actually took, before and after
+                          // the clean — the only appliance the Partner app
+                          // ever asks this for. Anything else (or an older
+                          // booking recorded before that was true) falls
+                          // back to the plain before/after lines below.
+                          if (booking?.appliance == Appliance.chimney &&
+                              booking?.suctionBefore != null &&
+                              booking?.suctionAfter != null)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 9),
+                              child: _AirflowCompare(
+                                  before: booking!.suctionBefore!, after: booking.suctionAfter!),
+                            )
+                          else ...[
+                            if (booking?.suctionBefore != null)
+                              _line(context, 'Airflow before', '${booking!.suctionBefore} CFM'),
+                            if (booking?.suctionAfter != null)
+                              _line(context, 'Airflow after', '${booking!.suctionAfter} CFM',
+                                  color: context.care.success),
+                          ],
                           if (booking?.timeOnSiteMin != null)
                             _line(context, 'Time on site',
                                 _formatMinutes(booking!.timeOnSiteMin!)),
@@ -142,6 +158,57 @@ String _formatMinutes(int minutes) {
   final mins = minutes % 60;
   if (hrs == 0) return '$mins min';
   return '$hrs hr${mins == 0 ? '' : ' $mins min'}';
+}
+
+/// The real before/after airflow (CFM) reading a technician took on a
+/// chimney job — see the Partner app's AirflowCheckScreen, the only place
+/// these numbers ever come from. No invented improvement figure: the
+/// percentage badge only appears when the after reading actually measured
+/// higher than the before one.
+class _AirflowCompare extends StatelessWidget {
+  const _AirflowCompare({required this.before, required this.after});
+  final int before;
+  final int after;
+
+  @override
+  Widget build(BuildContext context) {
+    final delta = after - before;
+    final pct = before > 0 ? ((delta / before) * 100).round() : 0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(child: _stat(context, 'Airflow before', '$before CFM', context.scheme.onSurface)),
+            Icon(Icons.arrow_forward_rounded, size: 16, color: context.care.inkFaint),
+            const SizedBox(width: 8),
+            Expanded(child: _stat(context, 'Airflow after', '$after CFM', context.care.success)),
+          ],
+        ),
+        if (delta > 0) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: context.care.success.withValues(alpha: 0.1),
+              borderRadius: Radii.pill,
+            ),
+            child: Text('+$pct% stronger airflow after cleaning',
+                style: CareType.mono(context.care.success, size: 11, w: FontWeight.w600)),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _stat(BuildContext context, String label, String value, Color valueColor) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: context.type.bodySmall),
+          const SizedBox(height: 3),
+          Text(value, style: CareType.mono(valueColor, size: 15, w: FontWeight.w600)),
+        ],
+      );
 }
 
 class _PaidStamp extends StatelessWidget {
