@@ -184,6 +184,16 @@ class _OverviewBody extends StatelessWidget {
   }
 
   void _showAttentionDetail(BuildContext context, AttentionItem a) {
+    // An unassigned booking goes straight to the assign picker — no
+    // intermediate dialog+button, both for a more direct flow and to
+    // avoid ever popping one overlay route and opening another in the
+    // same tap (a real bug that crashed this exact flow on the user's
+    // device previously). A complaint has nothing to assign, so it still
+    // just gets its detail in a plain dialog.
+    if (!a.isComplaint) {
+      showAssignTechnicianSheet(context, bookingId: a.jobId, jobTitle: a.title);
+      return;
+    }
     showDialog<void>(
       context: context,
       builder: (_) => AlertDialog(
@@ -191,23 +201,6 @@ class _OverviewBody extends StatelessWidget {
         content: Text(a.detail),
         actions: [
           TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close')),
-          if (!a.isComplaint)
-            FilledButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                // Opening the bottom sheet's own Navigator/Overlay route in
-                // the very same frame as popping the dialog's route was the
-                // actual cause of the black-screen crash reported on this
-                // exact button — a real bug in this new flow, not the GPU/
-                // Impeller issue guessed at previously. Waiting one frame
-                // lets the dialog's pop transition finish first.
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (!context.mounted) return;
-                  showAssignTechnicianSheet(context, bookingId: a.jobId, jobTitle: a.title);
-                });
-              },
-              child: const Text('Assign a technician'),
-            ),
         ],
       ),
     );
