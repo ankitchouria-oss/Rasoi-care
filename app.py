@@ -2350,6 +2350,24 @@ def advance_booking(booking_id):
                 (new_uuid_id("LEDG"), row["technician_id"], booking_id, "incentive",
                  WEEKLY_BONUS_PAISE, f"{WEEKLY_JOBS_FOR_BONUS} jobs completed this week", ts),
             )
+        # A third, independent incentive on a calendar-month cadence — the
+        # biggest of the three, and stacks on top of whatever weekly
+        # bonuses already fired this month rather than replacing them
+        # (each is its own ledger row, so all just sum together).
+        month_start_iso = _month_start_iso(completed_at)
+        completed_this_month = conn.execute(
+            "SELECT COUNT(*) AS n FROM bookings "
+            "WHERE technician_id = ? AND status = 'Completed' AND updated_at >= ?",
+            (row["technician_id"], month_start_iso),
+        ).fetchone()["n"]
+        if completed_this_month == MONTHLY_JOBS_FOR_BONUS:
+            conn.execute(
+                "INSERT INTO technician_ledger "
+                "(id, technician_id, booking_id, kind, amount_paise, reason, created_at) "
+                "VALUES (?,?,?,?,?,?,?)",
+                (new_uuid_id("LEDG"), row["technician_id"], booking_id, "incentive",
+                 MONTHLY_BONUS_PAISE, f"{MONTHLY_JOBS_FOR_BONUS} jobs completed this month", ts),
+            )
         # Care Coins — 2% of the real total, credited only once the job is
         # actually done (not at booking time, so a cancelled or never-
         # completed booking earns nothing). The idx guard above already
@@ -2623,6 +2641,13 @@ INCENTIVE_PAISE = _env_int("INCENTIVE_PAISE", 50_000)  # ₹500
 # their 15th this week); they're independent milestones.
 WEEKLY_JOBS_FOR_BONUS = _env_int("WEEKLY_JOBS_FOR_BONUS", 15)
 WEEKLY_BONUS_PAISE = _env_int("WEEKLY_BONUS_PAISE", 20_000)  # ₹200
+# The biggest of the three — a calendar-month milestone, on top of (never
+# instead of) whatever weekly bonuses already fired within that same
+# month. All three tiers are independent ledger entries that simply sum
+# together in incentiveTotalPaise/netTotalPaise, so a technician's best
+# month stacks a monthly bonus on top of up to 4-5 weekly ones.
+MONTHLY_JOBS_FOR_BONUS = _env_int("MONTHLY_JOBS_FOR_BONUS", 75)
+MONTHLY_BONUS_PAISE = _env_int("MONTHLY_BONUS_PAISE", 50_000)  # ₹500
 LATE_ARRIVAL_GRACE_MINUTES = _env_int("LATE_ARRIVAL_GRACE_MINUTES", 60)
 LATE_ARRIVAL_FINE_PAISE = _env_int("LATE_ARRIVAL_FINE_PAISE", 5_000)  # ₹50
 
@@ -2636,6 +2661,14 @@ def _week_start_iso(dt):
     week_start = (dt - timedelta(days=dt.weekday())).replace(
         hour=0, minute=0, second=0, microsecond=0)
     return week_start.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _month_start_iso(dt):
+    """The ISO start (1st of the month, 00:00:00) of dt's calendar month —
+    shared by advance_booking's monthly-bonus check and
+    technician_earnings_payload's monthly progress count."""
+    month_start = dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    return month_start.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def compute_commission_paise(total_amount_rupees, employment_type):
@@ -2698,11 +2731,18 @@ def technician_earnings_payload(conn, tech_row):
     # auto-incentive checks in advance_booking decide whether to fire, so
     # the number shown here is always "how many more until the next real
     # payout" rather than a static/stale snapshot.
-    week_start_iso = _week_start_iso(datetime.now(timezone.utc))
+    now = datetime.now(timezone.utc)
+    week_start_iso = _week_start_iso(now)
     jobs_completed_this_week = conn.execute(
         "SELECT COUNT(*) AS n FROM bookings "
         "WHERE technician_id = ? AND status = 'Completed' AND updated_at >= ?",
         (tech_row["id"], week_start_iso),
+    ).fetchone()["n"]
+    month_start_iso = _month_start_iso(now)
+    jobs_completed_this_month = conn.execute(
+        "SELECT COUNT(*) AS n FROM bookings "
+        "WHERE technician_id = ? AND status = 'Completed' AND updated_at >= ?",
+        (tech_row["id"], month_start_iso),
     ).fetchone()["n"]
     return {
         "employmentType": employment_type,
@@ -2716,10 +2756,13 @@ def technician_earnings_payload(conn, tech_row):
         "netTotalPaise": commission_total_paise + ledger_total_paise,
         "jobsCompletedTotal": jobs_completed_total,
         "jobsCompletedThisWeek": jobs_completed_this_week,
+        "jobsCompletedThisMonth": jobs_completed_this_month,
         "jobsPerIncentive": JOBS_PER_INCENTIVE,
         "incentivePaise": INCENTIVE_PAISE,
         "weeklyJobsForBonus": WEEKLY_JOBS_FOR_BONUS,
         "weeklyBonusPaise": WEEKLY_BONUS_PAISE,
+        "monthlyJobsForBonus": MONTHLY_JOBS_FOR_BONUS,
+        "monthlyBonusPaise": MONTHLY_BONUS_PAISE,
         "lateArrivalGraceMinutes": LATE_ARRIVAL_GRACE_MINUTES,
         "lateArrivalFinePaise": LATE_ARRIVAL_FINE_PAISE,
     }

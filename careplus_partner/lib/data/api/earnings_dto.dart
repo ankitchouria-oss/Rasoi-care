@@ -84,10 +84,13 @@ class TechEarningsSummary {
     required this.netTotalPaise,
     required this.jobsCompletedTotal,
     required this.jobsCompletedThisWeek,
+    required this.jobsCompletedThisMonth,
     required this.jobsPerIncentive,
     required this.incentivePaise,
     required this.weeklyJobsForBonus,
     required this.weeklyBonusPaise,
+    required this.monthlyJobsForBonus,
+    required this.monthlyBonusPaise,
     required this.lateArrivalGraceMinutes,
     required this.lateArrivalFinePaise,
   });
@@ -111,12 +114,14 @@ class TechEarningsSummary {
   /// technician has actually earned.
   final int netTotalPaise;
 
-  /// The technician's real lifetime completed-job count (technicians.jobs_completed)
-  /// and this calendar week's (Mon–Sun) completed count — both computed
-  /// backend-side, live, on every fetch, so progress toward the next
-  /// milestone below is never a client-side guess.
+  /// The technician's real lifetime completed-job count
+  /// (technicians.jobs_completed), this calendar week's (Mon–Sun), and
+  /// this calendar month's — all computed backend-side, live, on every
+  /// fetch, so progress toward the next milestone below is never a
+  /// client-side guess.
   final int jobsCompletedTotal;
   final int jobsCompletedThisWeek;
+  final int jobsCompletedThisMonth;
 
   /// The real, currently-configured milestone thresholds and payouts (see
   /// JOBS_PER_INCENTIVE etc. in app.py) — exposed rather than hardcoded
@@ -125,6 +130,11 @@ class TechEarningsSummary {
   final int incentivePaise;
   final int weeklyJobsForBonus;
   final int weeklyBonusPaise;
+
+  /// The biggest of the three tiers — stacks on top of (never replaces)
+  /// whatever weekly bonuses already fired within the same month.
+  final int monthlyJobsForBonus;
+  final int monthlyBonusPaise;
   final int lateArrivalGraceMinutes;
   final int lateArrivalFinePaise;
 
@@ -146,6 +156,12 @@ class TechEarningsSummary {
 
   bool get weeklyBonusEarnedThisWeek => jobsCompletedThisWeek >= weeklyJobsForBonus;
 
+  /// How many more jobs this calendar month until the monthly bonus fires.
+  int get jobsUntilMonthlyBonus =>
+      (monthlyJobsForBonus - jobsCompletedThisMonth).clamp(0, monthlyJobsForBonus);
+
+  bool get monthlyBonusEarnedThisMonth => jobsCompletedThisMonth >= monthlyJobsForBonus;
+
   factory TechEarningsSummary.fromJson(Map<String, dynamic> json) => TechEarningsSummary(
         employmentType: (json['employmentType'] as String?) ?? 'outsourced',
         commissionRate: (json['commissionRate'] as num?)?.toDouble() ?? 0,
@@ -166,10 +182,13 @@ class TechEarningsSummary {
         netTotalPaise: (json['netTotalPaise'] as num?)?.round() ?? 0,
         jobsCompletedTotal: (json['jobsCompletedTotal'] as num?)?.round() ?? 0,
         jobsCompletedThisWeek: (json['jobsCompletedThisWeek'] as num?)?.round() ?? 0,
+        jobsCompletedThisMonth: (json['jobsCompletedThisMonth'] as num?)?.round() ?? 0,
         jobsPerIncentive: (json['jobsPerIncentive'] as num?)?.round() ?? 20,
         incentivePaise: (json['incentivePaise'] as num?)?.round() ?? 50000,
         weeklyJobsForBonus: (json['weeklyJobsForBonus'] as num?)?.round() ?? 15,
         weeklyBonusPaise: (json['weeklyBonusPaise'] as num?)?.round() ?? 20000,
+        monthlyJobsForBonus: (json['monthlyJobsForBonus'] as num?)?.round() ?? 75,
+        monthlyBonusPaise: (json['monthlyBonusPaise'] as num?)?.round() ?? 50000,
         lateArrivalGraceMinutes: (json['lateArrivalGraceMinutes'] as num?)?.round() ?? 60,
         lateArrivalFinePaise: (json['lateArrivalFinePaise'] as num?)?.round() ?? 5000,
       );

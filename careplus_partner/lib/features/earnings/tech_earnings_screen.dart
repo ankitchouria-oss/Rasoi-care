@@ -314,6 +314,18 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
                             ),
                       done: summary.weeklyBonusEarnedThisWeek,
                     ),
+                    const SizedBox(height: 8),
+                    _MilestoneCard(
+                      label: t.earningsMilestoneMonthlyLabel(summary.monthlyJobsForBonus),
+                      progress: summary.jobsCompletedThisMonth / summary.monthlyJobsForBonus,
+                      message: summary.monthlyBonusEarnedThisMonth
+                          ? t.earningsMilestoneMonthlyDone(Money.rupees(summary.monthlyBonusPaise))
+                          : t.earningsMilestoneMonthly(
+                              summary.jobsUntilMonthlyBonus,
+                              Money.rupees(summary.monthlyBonusPaise),
+                            ),
+                      done: summary.monthlyBonusEarnedThisMonth,
+                    ),
                     if (summary.incentives.isNotEmpty) ...[
                       const SizedBox(height: 8),
                       for (final e in summary.incentives) ...[
