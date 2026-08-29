@@ -9,8 +9,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/api/api_repository.dart';
 import '../data/local/biometric_service.dart';
-import '../data/models.dart';
 import '../data/repository.dart';
+import '../features/jobs/airflow_check_screen.dart';
 
 /// Live-backend-backed repository. It falls back to
 /// [MockPartnerRepository]-shaped data internally for anything the server
@@ -45,22 +45,21 @@ class ThemeModeVM extends Notifier<ThemeMode> {
 }
 
 // ---------------------------------------------------------------------------
-// Job checklist — one mutable list per job id, keyed by jobId so the feed and
-// the job screen can share the same ticks if revisited.
+// Chimney (RasoiAir) airflow "before" reading — captured once, at arrival,
+// when the technician enters the customer's start code (see
+// TechJobScreen._handlePrimaryAction). Held here, keyed by jobId, until the
+// job's completion screen needs it to seed the "after" reading and compute
+// the improvement — the backend only accepts suctionBefore/suctionAfter
+// together, at the final Completed transition, so this is what bridges the
+// gap between when the reading is actually taken and when it's submitted.
 // ---------------------------------------------------------------------------
-final techChecklistProvider = NotifierProvider.family<TechChecklistVM,
-    List<ChecklistItem>, String>(TechChecklistVM.new);
+final techAirflowBeforeProvider = NotifierProvider.family<TechAirflowBeforeVM,
+    AirflowReading?, String>(TechAirflowBeforeVM.new);
 
-class TechChecklistVM extends FamilyNotifier<List<ChecklistItem>, String> {
+class TechAirflowBeforeVM extends FamilyNotifier<AirflowReading?, String> {
   @override
-  List<ChecklistItem> build(String arg) =>
-      ref.read(repositoryProvider).jobDetail(arg).checklist;
-
-  void toggle(int i) {
-    final next = [...state];
-    next[i] = next[i].copyWith(checked: !next[i].checked);
-    state = next;
-  }
+  AirflowReading? build(String arg) => null;
+  void set(AirflowReading reading) => state = reading;
 }
 
 /// The before/after photos actually captured (via the device camera) for a

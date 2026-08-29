@@ -11,10 +11,7 @@
 // Anything the backend genuinely has no concept of at all (a parts/quote
 // workflow, invoice line detail) stays empty rather than fabricating it —
 // this never serves [MockPartnerRepository]'s canned data for a real,
-// fetched booking. The in-job checklist is real too, just not backend-
-// sourced: [defaultChecklistFor] is a genuine per-category procedure list
-// (no fabricated readings, nothing pre-checked), the same way the
-// Customer app's ServiceItem.included lists are real static content.
+// fetched booking.
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -600,11 +597,6 @@ class ApiRepository implements PartnerRepository {
       // was actually reported (or nothing at all).
       reportedTags: b.issues,
       reportedQuote: b.notes ?? '',
-      // A genuine per-category procedure list, all unchecked — previously
-      // every real job showed the identical mock chimney checklist,
-      // including two items pre-ticked with a fabricated suction reading
-      // ("480 m³/hr") nobody had actually taken yet.
-      checklist: defaultChecklistFor(b.category),
       // No real parts/quote backend exists yet — an empty list here (never
       // the mock's fabricated pre-approved "Baffle filter — Elica 90cm")
       // is what TechJobScreen renders as a genuine "coming soon" state.
@@ -689,56 +681,3 @@ class ApiRepository implements PartnerRepository {
   }
 }
 
-/// A genuine on-site procedure list for a real booking, by the backend's
-/// appliance category code (see appliance_category.dart in the Customer
-/// app) — every item starts unchecked; the technician actually ticks them
-/// off during the visit. This replaces MockPartnerRepository's single fixed
-/// chimney checklist, which used to show for every category and shipped
-/// two items pre-checked with a fabricated suction reading.
-List<ChecklistItem> defaultChecklistFor(String category) {
-  final steps = switch (category) {
-    'RasoiAir' => const [
-        'Floor sheeting laid',
-        'Filters and blower degreased',
-        'Duct checked for blockage or leaks',
-        'Suction tested after cleaning',
-        'Site cleaned, customer walkthrough',
-      ],
-    'RasoiSpark' => const [
-        'Burner caps and igniters inspected',
-        'Gas line leak-tested on every joint',
-        'Flame colour and evenness checked',
-        'Site cleaned, customer walkthrough',
-      ],
-    'RasoiWash' => const [
-        'Filter, spray arms and seals checked',
-        'Drain line tested for blockage',
-        'Test cycle run',
-        'Site cleaned, customer walkthrough',
-      ],
-    'RasoiBuilt' => const [
-        'Door seal and hinge checked',
-        'Heating element and thermostat tested',
-        'Test cycle run',
-        'Site cleaned, customer walkthrough',
-      ],
-    'RasoiChill' => const [
-        'Coolant lines and compressor checked',
-        'Door seal tested',
-        'Temperature verified after service',
-        'Site cleaned, customer walkthrough',
-      ],
-    'RasoiPure' => const [
-        'Filters inspected and replaced if due',
-        'Membrane and tank checked',
-        'Output water tested',
-        'Site cleaned, customer walkthrough',
-      ],
-    _ => const [
-        'Fault diagnosed and confirmed with customer',
-        'Repair completed',
-        'Site cleaned, customer walkthrough',
-      ],
-  };
-  return [for (final step in steps) ChecklistItem(step)];
-}

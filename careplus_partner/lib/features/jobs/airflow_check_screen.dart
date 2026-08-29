@@ -1,12 +1,16 @@
-// Before/after chimney airflow (CFM) measurement screen — pushed from
-// TechJobScreen when completing an in-progress chimney (RasoiAir) job,
-// replacing the plain suction-readings dialog with a real, purpose-built
-// tool for that one appliance category. All numbers come from what the
-// technician actually measures and enters; nothing here is invented.
+// Chimney airflow (CFM) measurement screen, used in two stages for a chimney
+// (RasoiAir) job — the only category this ever appears for:
 //
-// Pops with (beforeCfm, afterCfm) as rounded ints on save — the caller
-// (TechJobScreen) is the one that actually calls the API, same as the
-// plain-dialog path it replaces.
+//  - [AirflowStage.before]: pushed from TechJobScreen right after the
+//    technician enters the customer's start code on arrival. Only the
+//    "before" reading and duct size are captured; pops with the resulting
+//    [AirflowReading] (or null if backed out), which TechJobScreen stashes in
+//    techAirflowBeforeProvider until the job is completed.
+//  - [AirflowStage.after]: pushed when completing the job, seeded with the
+//    reading captured at arrival (duct size and before-velocity locked, since
+//    they were already measured) — only the "after" reading is entered here.
+//    Pops with (beforeCfm, afterCfm) as rounded ints, same as the caller's
+//    old plain suction-readings dialog for other appliance categories.
 
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -63,17 +67,28 @@ class AirflowReading {
 final airflowReadingProvider =
     StateProvider.autoDispose<AirflowReading>((ref) => const AirflowReading());
 
+/// Which half of the before/after capture this screen instance is doing.
+enum AirflowStage { before, after }
+
 class AirflowCheckScreen extends ConsumerStatefulWidget {
   const AirflowCheckScreen({
     super.key,
     required this.jobId,
     required this.customerName,
     required this.customerArea,
+    required this.stage,
+    this.initialReading = const AirflowReading(),
   });
 
   final String jobId;
   final String customerName;
   final String customerArea;
+  final AirflowStage stage;
+
+  /// For [AirflowStage.after], the reading captured at arrival — its
+  /// before-velocity and duct dimensions are shown locked (already measured)
+  /// while the after-velocity field is what this screen actually collects.
+  final AirflowReading initialReading;
 
   @override
   ConsumerState<AirflowCheckScreen> createState() => _AirflowCheckScreenState();
@@ -88,7 +103,8 @@ class _AirflowCheckScreenState extends ConsumerState<AirflowCheckScreen> {
   @override
   void initState() {
     super.initState();
-    final r = ref.read(airflowReadingProvider);
+    final r = widget.initialReading;
+    ref.read(airflowReadingProvider.notifier).state = r;
     _beforeCtrl = TextEditingController(text: r.beforeVelocityMs.toString());
     _afterCtrl = TextEditingController(text: r.afterVelocityMs.toString());
     _widthCtrl = TextEditingController(text: r.ductWidthIn.toStringAsFixed(0));
@@ -120,6 +136,7 @@ class _AirflowCheckScreenState extends ConsumerState<AirflowCheckScreen> {
   Widget build(BuildContext context) {
     final reading = ref.watch(airflowReadingProvider);
     final t = context.l10n;
+    final isBefore = widget.stage == AirflowStage.before;
 
     return Scaffold(
       body: SafeArea(
@@ -139,39 +156,56 @@ class _AirflowCheckScreenState extends ConsumerState<AirflowCheckScreen> {
                   children: [
                     Eyebrow(t.airflowLiveReading),
                     const SizedBox(height: 6),
-                    Text(t.airflowDrawImprovement, style: context.type.headlineMedium),
+                    Text(isBefore ? t.airflowBeforeHeadline : t.airflowDrawImprovement,
+                        style: context.type.headlineMedium),
                     const SizedBox(height: 4),
-                    Text(t.airflowInstructions, style: context.type.bodyMedium),
+                    Text(isBefore ? t.airflowBeforeInstructions : t.airflowInstructions,
+                        style: context.type.bodyMedium),
                     const SizedBox(height: 20),
-                    Center(child: _DialGauge(pct: reading.improvementPct)),
-                    const SizedBox(height: 24),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _ReadingCard(
-                            label: t.airflowBefore,
-                            controller: _beforeCtrl,
-                            cfmLabel: '${reading.beforeCfm.round()} CFM',
-                            accent: context.care.inkMuted,
-                            onChanged: (_) => setState(_update),
+                    if (!isBefore) ...[
+                      Center(child: _DialGauge(pct: reading.improvementPct)),
+                      const SizedBox(height: 24),
+                    ],
+                    if (isBefore)
+                      _ReadingCard(
+                        label: t.airflowBefore,
+                        controller: _beforeCtrl,
+                        cfmLabel: '${reading.beforeCfm.round()} CFM',
+                        accent: context.care.inkMuted,
+                        enabled: true,
+                        onChanged: (_) => setState(_update),
+                      )
+                    else
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _ReadingCard(
+                              label: t.airflowBefore,
+                              controller: _beforeCtrl,
+                              cfmLabel: '${reading.beforeCfm.round()} CFM',
+                              accent: context.care.inkMuted,
+                              enabled: false,
+                              onChanged: (_) => setState(_update),
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _ReadingCard(
-                            label: t.airflowAfter,
-                            controller: _afterCtrl,
-                            cfmLabel: '${reading.afterCfm.round()} CFM',
-                            accent: context.care.success,
-                            onChanged: (_) => setState(_update),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _ReadingCard(
+                              label: t.airflowAfter,
+                              controller: _afterCtrl,
+                              cfmLabel: '${reading.afterCfm.round()} CFM',
+                              accent: context.care.success,
+                              enabled: true,
+                              onChanged: (_) => setState(_update),
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
                     const SizedBox(height: 16),
                     _DuctSizeField(
                       widthCtrl: _widthCtrl,
                       heightCtrl: _heightCtrl,
+                      enabled: isBefore,
                       onChanged: () => setState(_update),
                     ),
                     const SizedBox(height: 16),
@@ -208,8 +242,10 @@ class _AirflowCheckScreenState extends ConsumerState<AirflowCheckScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    _ResultStrip(reading: reading),
+                    if (!isBefore) ...[
+                      const SizedBox(height: 8),
+                      _ResultStrip(reading: reading),
+                    ],
                   ],
                 ),
               ),
@@ -218,9 +254,10 @@ class _AirflowCheckScreenState extends ConsumerState<AirflowCheckScreen> {
               child: SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: () => context.pop(
-                      (reading.beforeCfm.round(), reading.afterCfm.round())),
-                  child: Text(t.airflowSaveReading),
+                  onPressed: () => isBefore
+                      ? context.pop(reading)
+                      : context.pop((reading.beforeCfm.round(), reading.afterCfm.round())),
+                  child: Text(isBefore ? t.airflowSaveBeforeReading : t.airflowSaveReading),
                 ),
               ),
             ),
@@ -442,6 +479,7 @@ class _ReadingCard extends StatelessWidget {
     required this.cfmLabel,
     required this.accent,
     required this.onChanged,
+    this.enabled = true,
   });
 
   final String label;
@@ -449,6 +487,7 @@ class _ReadingCard extends StatelessWidget {
   final String cfmLabel;
   final Color accent;
   final ValueChanged<String> onChanged;
+  final bool enabled;
 
   // A rounded card with a colored accent bar down the left edge. Flutter's
   // Border doesn't support per-side colors together with a borderRadius (it
@@ -485,7 +524,9 @@ class _ReadingCard extends StatelessWidget {
                               controller: controller,
                               keyboardType: const TextInputType.numberWithOptions(decimal: true),
                               onChanged: onChanged,
-                              style: CareType.mono(context.scheme.onSurface,
+                              enabled: enabled,
+                              style: CareType.mono(
+                                  enabled ? context.scheme.onSurface : context.care.inkFaint,
                                   size: 24, w: FontWeight.w600),
                               decoration: const InputDecoration(
                                 isDense: true,
@@ -528,11 +569,13 @@ class _DuctSizeField extends StatelessWidget {
     required this.widthCtrl,
     required this.heightCtrl,
     required this.onChanged,
+    this.enabled = true,
   });
 
   final TextEditingController widthCtrl;
   final TextEditingController heightCtrl;
   final VoidCallback onChanged;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -573,7 +616,9 @@ class _DuctSizeField extends StatelessWidget {
           controller: ctrl,
           keyboardType: TextInputType.number,
           onChanged: (_) => onChanged(),
-          style: CareType.mono(context.scheme.onSurface, size: 18, w: FontWeight.w600),
+          enabled: enabled,
+          style: CareType.mono(enabled ? context.scheme.onSurface : context.care.inkFaint,
+              size: 18, w: FontWeight.w600),
           decoration: InputDecoration(
             isDense: true,
             border: UnderlineInputBorder(borderSide: BorderSide(color: context.care.hairline)),

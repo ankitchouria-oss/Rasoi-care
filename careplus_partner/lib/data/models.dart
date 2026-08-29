@@ -88,15 +88,6 @@ class RouteStop {
   final StopStatus status;
 }
 
-/// One line on the technician's in-job checklist.
-class ChecklistItem {
-  const ChecklistItem(this.label, {this.checked = false});
-  final String label;
-  final bool checked;
-  ChecklistItem copyWith({bool? checked}) =>
-      ChecklistItem(label, checked: checked ?? this.checked);
-}
-
 /// A part fitted during the visit, pending or already customer-approved.
 class PartLine {
   const PartLine({
@@ -125,7 +116,6 @@ class JobDetail {
     required this.directions,
     required this.reportedTags,
     required this.reportedQuote,
-    required this.checklist,
     required this.parts,
     this.lat,
     this.lng,
@@ -138,7 +128,6 @@ class JobDetail {
   final String directions;
   final List<String> reportedTags;
   final String reportedQuote;
-  final List<ChecklistItem> checklist;
   final List<PartLine> parts;
 
   /// The service address's real coordinates, when the booking was made

@@ -1,6 +1,6 @@
 // Shared "assign a technician to this unassigned booking" flow — used from
 // both the Bookings queue's detail sheet and the Overview tab's "Needs
-// attention" list, so there's exactly one place this dropdown-and-PATCH
+// attention" list, so there's exactly one place this picker-and-PATCH
 // logic lives.
 
 import 'package:flutter/material.dart';
@@ -91,19 +91,53 @@ class _AssignTechnicianSheetState extends ConsumerState<_AssignTechnicianSheet> 
               body: 'Verify a technician on the Team tab before you can assign a job.',
             )
           else ...[
-            DropdownButtonFormField<String>(
-              initialValue: _selectedId,
-              decoration: const InputDecoration(labelText: 'Technician'),
-              items: [
-                for (final t in options)
-                  DropdownMenuItem(
-                    value: t.id,
-                    child: Text('${t.name} · ${t.specialties}'),
+            // A plain tappable list rather than DropdownButtonFormField —
+            // this app has never used a Flutter dropdown menu anywhere
+            // else, and it's the one genuinely new, untested widget in the
+            // exact tap that was crashing the app to a black screen on the
+            // user's device; a form-field dropdown's popup-menu overlay is
+            // a known trigger for Android GPU-driver rendering crashes on
+            // some devices. This uses only widgets (Container, Pressable)
+            // already proven to render fine elsewhere in this app.
+            for (final t in options)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Pressable(
+                  onTap: () => setState(() => _selectedId = t.id),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: _selectedId == t.id
+                          ? context.scheme.primaryContainer
+                          : context.scheme.surface,
+                      borderRadius: Radii.rMd,
+                      border: Border.all(
+                        color: _selectedId == t.id
+                            ? context.scheme.primary
+                            : context.care.hairline,
+                        width: _selectedId == t.id ? 1.5 : 1,
+                      ),
+                    ),
+                    child: Row(children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(t.name,
+                                style: const TextStyle(
+                                    fontSize: 13.5, fontWeight: FontWeight.w700)),
+                            const SizedBox(height: 2),
+                            Text(t.specialties, style: context.type.bodySmall),
+                          ],
+                        ),
+                      ),
+                      if (_selectedId == t.id)
+                        Icon(Icons.check_circle, color: context.scheme.primary, size: 20),
+                    ]),
                   ),
-              ],
-              onChanged: (v) => setState(() => _selectedId = v),
-            ),
-            const SizedBox(height: 18),
+                ),
+              ),
+            const SizedBox(height: 10),
             SizedBox(
               width: double.infinity,
               child: FilledButton(

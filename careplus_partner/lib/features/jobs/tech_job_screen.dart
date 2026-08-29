@@ -16,6 +16,7 @@ import '../../data/models.dart';
 import '../../l10n/app_localizations.dart';
 import '../../l10n/l10n_extensions.dart';
 import '../../state/providers.dart';
+import 'airflow_check_screen.dart';
 
 class TechJobScreen extends ConsumerStatefulWidget {
   const TechJobScreen({super.key, required this.jobId});
@@ -148,38 +149,48 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
     // "Arrived — start job": the backend refuses to move into "In
     // Progress" without the 4-digit code the Customer app shows that
     // customer, so a technician can't mark a visit started without
-    // actually being there in person to ask for it.
+    // actually being there in person to ask for it. For a chimney
+    // (RasoiAir) job, this is also the moment the airflow "before" reading
+    // gets taken — right as the visit actually starts, not retroactively
+    // guessed at completion.
     if (liveStatus == 'On the way') {
       final code = await _askStartCode();
       if (code == null || !mounted) return; // cancelled
+      final repo = ref.read(repositoryProvider);
+      final category = repo is ApiRepository ? repo.categoryOf(widget.jobId) : null;
+      if (category == 'RasoiAir') {
+        final before = await _askAirflowBefore(job);
+        if (!mounted) return;
+        if (before != null) {
+          ref.read(techAirflowBeforeProvider(widget.jobId).notifier).set(before);
+        }
+      }
       await _advanceStatus(startCode: code);
       return;
     }
 
     if (liveStatus == 'In Progress') {
-      final checklist = ref.read(techChecklistProvider(widget.jobId));
-      if (checklist.any((c) => !c.checked)) {
-        _toast(context, t.jobDetailChecklistIncomplete);
-        return;
-      }
       final beforeDone = ref.read(techBeforePhotosProvider(widget.jobId)).isNotEmpty;
       final afterDone = ref.read(techAfterPhotosProvider(widget.jobId)).isNotEmpty;
       if (!beforeDone || !afterDone) {
         _toast(context, t.jobDetailPhotosMissing);
         return;
       }
-      // This is the one real chance to record suction readings for the
-      // customer's invoice, so ask before moving on. Chimney jobs get the
-      // richer airflow (CFM) screen instead of the plain dialog. The
-      // actual advance-to-Completed call now happens on the close screen,
-      // once the customer's signature is captured — not here, which is
-      // exactly what let an invoice appear before a signature ever existed.
+      // Airflow (CFM) is the only reading this app ever asks a technician
+      // for, and only for chimney (RasoiAir) jobs — the "before" half was
+      // already captured on arrival, above; this is just the "after" half.
+      // The actual advance-to-Completed call now happens on the close
+      // screen, once the customer's signature is captured — not here,
+      // which is exactly what let an invoice appear before a signature
+      // ever existed.
       final repo = ref.read(repositoryProvider);
       final category = repo is ApiRepository ? repo.categoryOf(widget.jobId) : null;
-      final suction = category == 'RasoiAir'
-          ? await _askAirflowReadings(job)
-          : await _askSuctionReadings();
-      if (!mounted) return;
+      (int?, int?) suction = (null, null);
+      if (category == 'RasoiAir') {
+        final before = ref.read(techAirflowBeforeProvider(widget.jobId)) ?? const AirflowReading();
+        suction = await _askAirflowAfter(job, before);
+        if (!mounted) return;
+      }
       context.push('/tech/job/${widget.jobId}/close', extra: suction);
       return;
     }
@@ -226,55 +237,20 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
     );
   }
 
-  Future<(int?, int?)> _askAirflowReadings(JobDetail job) async {
+  /// Pushed the moment a chimney (RasoiAir) technician enters the start
+  /// code on arrival — captures only the "before" reading and duct size.
+  /// Returns null if the technician backs out without saving.
+  Future<AirflowReading?> _askAirflowBefore(JobDetail job) => context.push<AirflowReading>(
+        '/tech/job/${widget.jobId}/airflow',
+        extra: (AirflowStage.before, job.customerName, job.addressLine, const AirflowReading()),
+      );
+
+  /// Pushed when completing a chimney (RasoiAir) job — seeded with the
+  /// reading already captured on arrival, collects only the "after" value.
+  Future<(int?, int?)> _askAirflowAfter(JobDetail job, AirflowReading before) async {
     final result = await context.push<(int, int)>(
       '/tech/job/${widget.jobId}/airflow',
-      extra: (job.customerName, job.addressLine),
-    );
-    return result ?? (null, null);
-  }
-
-  Future<(int?, int?)> _askSuctionReadings() async {
-    final t = context.l10n;
-    final beforeCtrl = TextEditingController();
-    final afterCtrl = TextEditingController();
-    final result = await showDialog<(int?, int?)>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(t.jobDetailSuctionTitle),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(t.jobDetailSuctionSubtitle,
-                style: Theme.of(dialogContext).textTheme.bodySmall),
-            const SizedBox(height: 14),
-            TextField(
-              controller: beforeCtrl,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(labelText: t.jobDetailSuctionBefore),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: afterCtrl,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(labelText: t.jobDetailSuctionAfter),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop((null, null)),
-            child: Text(t.jobDetailSkip),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop((
-              int.tryParse(beforeCtrl.text),
-              int.tryParse(afterCtrl.text),
-            )),
-            child: Text(t.jobDetailSave),
-          ),
-        ],
-      ),
+      extra: (AirflowStage.after, job.customerName, job.addressLine, before),
     );
     return result ?? (null, null);
   }
@@ -346,11 +322,8 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
     final repo = ref.watch(repositoryProvider);
     final job = repo.jobDetail(widget.jobId);
     final liveStatus = repo is ApiRepository ? repo.statusOf(widget.jobId) : null;
-    final checklist = ref.watch(techChecklistProvider(widget.jobId));
-    final checklistVM = ref.read(techChecklistProvider(widget.jobId).notifier);
     final beforePhotos = ref.watch(techBeforePhotosProvider(widget.jobId));
     final afterPhotos = ref.watch(techAfterPhotosProvider(widget.jobId));
-    final doneCount = checklist.where((c) => c.checked).length;
     final t = context.l10n;
 
     return Scaffold(
@@ -477,22 +450,6 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
                             Text('"${job.reportedQuote}"',
                                 style: context.type.bodySmall!.copyWith(height: 1.55)),
                         ],
-                      ],
-                    ),
-                  ),
-                  SectionHeader(t.jobDetailChecklist,
-                      trailing: Mono('$doneCount / ${checklist.length}',
-                          color: context.care.inkMuted)),
-                  CareCard(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Column(
-                      children: [
-                        for (var i = 0; i < checklist.length; i++)
-                          _ChecklistRow(
-                            item: checklist[i],
-                            onTap: () => checklistVM.toggle(i),
-                            last: i == checklist.length - 1,
-                          ),
                       ],
                     ),
                   ),
@@ -660,38 +617,6 @@ class _ActionTile extends StatelessWidget {
               Text(label, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600)),
             ],
           ),
-        ),
-      );
-}
-
-class _ChecklistRow extends StatelessWidget {
-  const _ChecklistRow({required this.item, required this.onTap, required this.last});
-  final ChecklistItem item;
-  final VoidCallback onTap;
-  final bool last;
-  @override
-  Widget build(BuildContext context) => InkWell(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            border: last ? null : Border(bottom: BorderSide(color: context.care.hairline)),
-          ),
-          child: Row(children: [
-            Icon(item.checked ? Icons.check_box : Icons.check_box_outline_blank,
-                size: 20,
-                color: item.checked ? context.care.success : context.care.inkFaint),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(item.label,
-                  style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: item.checked
-                          ? context.scheme.onSurface
-                          : context.care.inkMuted)),
-            ),
-          ]),
         ),
       );
 }
