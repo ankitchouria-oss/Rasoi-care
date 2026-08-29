@@ -3,11 +3,12 @@
 // a jobs-completed count, and a chronological list of paid jobs) — built
 // entirely from GET /api/technician/earnings (ApiRepository.fetchEarnings()),
 // never invented figures. The total shown here is the technician's real
-// commission (10% of the GST-exclusive base for a payroll technician, 50%
-// of that base after the visit charge for an outsourced one — see
-// compute_commission_paise in app.py), plus their real bonus/incentive and
-// fine ledger — never the customer's full invoice amount, which is what
-// this screen showed before employment-type-based commissions existed.
+// commission — the invoice's base price, with GST and the flat visit fee
+// both excluded, at 10% for a payroll technician or 60% for an outsourced
+// one (see compute_commission_paise in app.py) — plus their real
+// bonus/incentive and fine ledger, never the customer's full invoice
+// amount, which is what this screen showed before employment-type-based
+// commissions existed.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
