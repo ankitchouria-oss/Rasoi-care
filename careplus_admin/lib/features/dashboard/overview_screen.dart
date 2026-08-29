@@ -195,7 +195,16 @@ class _OverviewBody extends StatelessWidget {
             FilledButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                showAssignTechnicianSheet(context, bookingId: a.jobId, jobTitle: a.title);
+                // Opening the bottom sheet's own Navigator/Overlay route in
+                // the very same frame as popping the dialog's route was the
+                // actual cause of the black-screen crash reported on this
+                // exact button — a real bug in this new flow, not the GPU/
+                // Impeller issue guessed at previously. Waiting one frame
+                // lets the dialog's pop transition finish first.
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!context.mounted) return;
+                  showAssignTechnicianSheet(context, bookingId: a.jobId, jobTitle: a.title);
+                });
               },
               child: const Text('Assign a technician'),
             ),
