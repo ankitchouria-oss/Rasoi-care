@@ -293,17 +293,6 @@ class _TechEarningsScreenState extends ConsumerState<TechEarningsScreen> {
                     Text(t.earningsIncentivesExplain, style: context.type.bodySmall),
                     const SizedBox(height: 10),
                     _MilestoneCard(
-                      label: t.earningsMilestoneLifetimeLabel(summary.jobsPerIncentive),
-                      progress: (summary.jobsPerIncentive -
-                              summary.jobsUntilNextLifetimeMilestone) /
-                          summary.jobsPerIncentive,
-                      message: t.earningsMilestoneLifetime(
-                        summary.jobsUntilNextLifetimeMilestone,
-                        Money.rupees(summary.incentivePaise),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    _MilestoneCard(
                       label: t.earningsMilestoneWeeklyLabel(summary.weeklyJobsForBonus),
                       progress: summary.jobsCompletedThisWeek / summary.weeklyJobsForBonus,
                       message: summary.weeklyBonusEarnedThisWeek

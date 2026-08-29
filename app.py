@@ -2312,29 +2312,18 @@ def advance_booking(booking_id):
             except ValueError:
                 pass  # malformed scheduled_at on an old row — never block the real status change for this
     if new_status == "Completed":
-        new_jobs_completed = (request.technician["jobs_completed"] or 0) + 1
         conn.execute(
             "UPDATE technicians SET jobs_completed = jobs_completed + 1 WHERE id = ?",
             (row["technician_id"],),
         )
-        # Auto-incentive — a real, deterministic milestone bonus (never a
-        # manual admin entry) that fires exactly once per multiple of
-        # JOBS_PER_INCENTIVE, computed from the technician's own real
-        # completed-job count rather than anything guessable client-side.
-        if new_jobs_completed % JOBS_PER_INCENTIVE == 0:
-            conn.execute(
-                "INSERT INTO technician_ledger "
-                "(id, technician_id, booking_id, kind, amount_paise, reason, created_at) "
-                "VALUES (?,?,?,?,?,?,?)",
-                (new_uuid_id("LEDG"), row["technician_id"], booking_id, "incentive",
-                 INCENTIVE_PAISE, f"{JOBS_PER_INCENTIVE} jobs completed milestone", ts),
-            )
-        # A second, independent incentive on a weekly cadence (calendar
-        # Monday–Sunday, not a rolling 7 days) — fires exactly once per
-        # week, the moment this technician's completed count for the
-        # current week first reaches WEEKLY_JOBS_FOR_BONUS. The UPDATE
-        # above already moved this booking to Completed on this same
-        # connection, so it's already counted in the query below.
+        # Two independent, auto-computed incentives (never a manual admin
+        # entry): a weekly one (calendar Monday–Sunday) and a monthly one
+        # that replaces the old lifetime-jobs milestone — see
+        # MONTHLY_JOBS_FOR_BONUS below. Each fires exactly once per its own
+        # period, the moment the technician's completed count for that
+        # period first reaches the threshold. The UPDATE above already
+        # moved this booking to Completed on this same connection, so it's
+        # already counted in both queries below.
         completed_at = datetime.fromisoformat(ts.replace("Z", "+00:00"))
         week_start_iso = _week_start_iso(completed_at)
         completed_this_week = conn.execute(
@@ -2632,18 +2621,13 @@ VISIT_CHARGE_PAISE = _env_int("VISIT_CHARGE_PAISE", 4900)  # ₹49
 # advance_booking. Not a manual admin entry: these fire deterministically
 # off real activity (a job actually completed, a job actually started
 # late), so the same milestone or the same late arrival is never counted
-# twice.
-JOBS_PER_INCENTIVE = _env_int("JOBS_PER_INCENTIVE", 20)
-INCENTIVE_PAISE = _env_int("INCENTIVE_PAISE", 50_000)  # ₹500
-# A second, separate incentive on a weekly cadence rather than a lifetime
-# one — see the weekly-count check in advance_booking. Both can fire on
-# the same booking (a technician's 20th job all-time can also happen to be
-# their 15th this week); they're independent milestones.
+# twice. Two independent tiers — weekly and monthly (there used to also be
+# a lifetime-jobs milestone; it was replaced by the monthly one below).
 WEEKLY_JOBS_FOR_BONUS = _env_int("WEEKLY_JOBS_FOR_BONUS", 15)
 WEEKLY_BONUS_PAISE = _env_int("WEEKLY_BONUS_PAISE", 20_000)  # ₹200
-# The biggest of the three — a calendar-month milestone, on top of (never
+# The bigger of the two — a calendar-month milestone, on top of (never
 # instead of) whatever weekly bonuses already fired within that same
-# month. All three tiers are independent ledger entries that simply sum
+# month. Both tiers are independent ledger entries that simply sum
 # together in incentiveTotalPaise/netTotalPaise, so a technician's best
 # month stacks a monthly bonus on top of up to 4-5 weekly ones.
 MONTHLY_JOBS_FOR_BONUS = _env_int("MONTHLY_JOBS_FOR_BONUS", 75)
@@ -2725,8 +2709,6 @@ def technician_earnings_payload(conn, tech_row):
         for r in ledger_rows
     ]
     ledger_total_paise = sum(r["amount_paise"] for r in ledger_rows)
-    jobs_completed_total = tech_row["jobs_completed"] if "jobs_completed" in tech_row.keys() else 0
-    jobs_completed_total = jobs_completed_total or 0
     # Live progress toward each milestone, computed the same way the
     # auto-incentive checks in advance_booking decide whether to fire, so
     # the number shown here is always "how many more until the next real
@@ -2754,11 +2736,8 @@ def technician_earnings_payload(conn, tech_row):
         "incentiveTotalPaise": sum(r["amount_paise"] for r in ledger_rows if r["kind"] == "incentive"),
         "fineTotalPaise": sum(r["amount_paise"] for r in ledger_rows if r["kind"] == "fine"),
         "netTotalPaise": commission_total_paise + ledger_total_paise,
-        "jobsCompletedTotal": jobs_completed_total,
         "jobsCompletedThisWeek": jobs_completed_this_week,
         "jobsCompletedThisMonth": jobs_completed_this_month,
-        "jobsPerIncentive": JOBS_PER_INCENTIVE,
-        "incentivePaise": INCENTIVE_PAISE,
         "weeklyJobsForBonus": WEEKLY_JOBS_FOR_BONUS,
         "weeklyBonusPaise": WEEKLY_BONUS_PAISE,
         "monthlyJobsForBonus": MONTHLY_JOBS_FOR_BONUS,
