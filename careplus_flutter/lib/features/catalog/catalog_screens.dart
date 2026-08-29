@@ -410,6 +410,21 @@ class _IncludedDropdown extends StatelessWidget {
                       const SizedBox(height: 5),
                       Text(service.notIncluded, style: context.type.bodySmall),
                     ],
+                    if (service.requirements.isNotEmpty) ...[
+                      const SizedBox(height: 14),
+                      const Divider(height: 1),
+                      const SizedBox(height: 12),
+                      const Text("What we'll need from you",
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 16,
+                        runSpacing: 10,
+                        children: [
+                          for (final r in service.requirements) _RequirementTile(r),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -418,6 +433,50 @@ class _IncludedDropdown extends StatelessWidget {
               duration: Motion.screen,
               sizeCurve: Motion.ease,
             ),
+          ],
+        ),
+      );
+}
+
+/// One "what we'll need from you" item — an icon over a short label, in a
+/// row with the others. The icon is guessed from the label's own wording
+/// (no separate icon field on [ServiceItem] — every requirement so far is
+/// short enough that a few keyword checks cover it, and a service with
+/// nothing unusual to ask for just doesn't set any).
+IconData _requirementIcon(String label) {
+  final l = label.toLowerCase();
+  if (l.contains('water') || l.contains('bucket')) return Icons.water_drop_outlined;
+  if (l.contains('power') || l.contains('socket') || l.contains('point')) {
+    return Icons.electrical_services_outlined;
+  }
+  if (l.contains('ladder') || l.contains('stool')) return Icons.stairs_outlined;
+  return Icons.info_outline;
+}
+
+class _RequirementTile extends StatelessWidget {
+  const _RequirementTile(this.label);
+  final String label;
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: 74,
+        child: Column(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: context.scheme.surfaceContainerHigh,
+              ),
+              child: Icon(_requirementIcon(label), size: 19, color: context.scheme.primary),
+            ),
+            const SizedBox(height: 6),
+            Text(label,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: context.type.bodySmall),
           ],
         ),
       );

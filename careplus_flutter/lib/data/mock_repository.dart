@@ -65,6 +65,11 @@ class MockRepository implements CareRepository {
               ],
               notIncluded: 'Replacement filters, motor rewinding, control boards and duct '
                   'extensions beyond 6 ft. Quoted in the app before work starts.',
+              requirements: const [
+                'Bucket & water',
+                'Power point nearby',
+                'Ladder or stool',
+              ],
             ),
             ServiceItem(
               id: '${a.name}_filter_clean',
