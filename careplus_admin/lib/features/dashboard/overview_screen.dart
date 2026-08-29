@@ -5,6 +5,7 @@ import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
 import '../../data/models.dart';
 import '../../state/providers.dart';
+import 'assign_technician_sheet.dart';
 import 'dashboard_header.dart';
 import 'location_picker.dart';
 
@@ -187,11 +188,17 @@ class _OverviewBody extends StatelessWidget {
       context: context,
       builder: (_) => AlertDialog(
         title: Text(a.title),
-        content: Text(a.isComplaint
-            ? a.detail
-            : '${a.detail}\n\nOpen the Bookings tab to assign a technician.'),
+        content: Text(a.detail),
         actions: [
           TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close')),
+          if (!a.isComplaint)
+            FilledButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                showAssignTechnicianSheet(context, bookingId: a.jobId, jobTitle: a.title);
+              },
+              child: const Text('Assign a technician'),
+            ),
         ],
       ),
     );

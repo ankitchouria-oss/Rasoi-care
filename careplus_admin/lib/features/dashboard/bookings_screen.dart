@@ -6,6 +6,7 @@ import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
 import '../../data/models.dart';
 import '../../state/providers.dart';
+import 'assign_technician_sheet.dart';
 import 'dashboard_header.dart';
 import 'location_picker.dart';
 
@@ -205,7 +206,23 @@ class _BookingDetailSheet extends StatelessWidget {
             _row(context, 'Total', Money.rupees(b.totalPaise)),
             _row(context, 'Area', b.area ?? '—'),
             _row(context, 'Customer', b.customerName ?? '—'),
-            _row(context, 'Technician', b.technicianName ?? 'Not yet assigned'),
+            if (b.technicianName != null)
+              _row(context, 'Technician', b.technicianName!)
+            else
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Technician', style: context.type.bodySmall),
+                    TextButton(
+                      onPressed: () => showAssignTechnicianSheet(context,
+                          bookingId: b.jobId, jobTitle: b.title),
+                      child: const Text('Assign a technician'),
+                    ),
+                  ],
+                ),
+              ),
             _row(
                 context,
                 'Booked',

@@ -29,6 +29,12 @@ abstract interface class AdminRepository {
   /// they start appearing in auto-routing and their own job feed.
   Future<bool> verifyTechnician(String technicianId);
 
+  /// Assigns (or reassigns) which technician is on a booking
+  /// (`PATCH /api/bookings/<id>/assign`) — how an admin routes a freshly
+  /// requested job that auto-routing hasn't picked up, or swaps in a
+  /// replacement.
+  Future<bool> assignTechnician(String bookingId, String technicianId);
+
   /// Owner-only: creates a new staff account with an initial PIN, mirroring
   /// admin.html's existing invite flow (`POST /api/staff`).
   Future<bool> inviteStaff({

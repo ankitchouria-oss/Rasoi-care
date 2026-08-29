@@ -33,6 +33,15 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- Falls back to Skia, Flutter's older but far more broadly
+             compatible Android renderer. A whole-screen-goes-black crash
+             requiring the app to be relaunched (no visible Dart exception,
+             since it's a GPU-driver-level failure) is a known, documented
+             Impeller compatibility issue on some older/budget Android GPUs
+             — this is the standard mitigation. -->
+        <meta-data
+            android:name="io.flutter.embedding.android.EnableImpeller"
+            android:value="false" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
