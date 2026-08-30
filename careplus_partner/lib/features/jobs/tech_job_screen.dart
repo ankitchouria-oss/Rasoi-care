@@ -485,12 +485,12 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
       ),
     );
     if (confirmed != true || !mounted) return;
-    final ok = await repo.changeService(widget.jobId, selected.id);
+    final result = await repo.changeService(widget.jobId, selected.id);
     if (!mounted) return;
-    if (ok) {
+    if (result.ok) {
       ref.read(jobsFeedTickProvider.notifier).bump();
     } else {
-      _toast(context, t.jobDetailServiceChangeError);
+      _toast(context, result.error ?? t.jobDetailServiceChangeError);
     }
   }
 
@@ -729,7 +729,16 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
                   ),
                   SectionHeader(t.jobDetailServiceHeader,
                       trailing: TextButton(
-                        onPressed: job.category.trim().isEmpty ? null : _showChangeService,
+                        // Mirrors the backend's own gate in
+                        // update_booking_service — a Completed/Cancelled
+                        // job's invoice is final, so offering this at all
+                        // just invites a confusing "couldn't change"
+                        // failure instead of never showing the option.
+                        onPressed: job.category.trim().isEmpty ||
+                                liveStatus == 'Completed' ||
+                                liveStatus == 'Cancelled'
+                            ? null
+                            : _showChangeService,
                         child: Text(t.jobDetailChangeService),
                       )),
                   CareCard(

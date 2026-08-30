@@ -758,10 +758,10 @@ class ApiRepository implements PartnerRepository {
   /// change so the customer's invoice shows exactly what changed. Updates
   /// the cached booking's service/total/serviceChanges from the real
   /// response on success.
-  Future<bool> changeService(String jobId, String serviceId) async {
+  Future<({bool ok, String? error})> changeService(String jobId, String serviceId) async {
     try {
       final token = await _idToken();
-      if (token == null) return false;
+      if (token == null) return (ok: false, error: null);
       final res = await http
           .patch(
             Uri.parse('${ApiConfig.baseUrl}/api/technician/bookings/$jobId/service'),
@@ -772,7 +772,21 @@ class ApiRepository implements PartnerRepository {
             body: jsonEncode({'serviceId': serviceId}),
           )
           .timeout(_timeout);
-      if (res.statusCode != 200) return false;
+      if (res.statusCode != 200) {
+        // Relay the backend's real reason (e.g. "Can't change the service
+        // on a completed or cancelled job.") instead of the client always
+        // guessing "check your connection" — this is almost never actually
+        // a network failure, it's a real business-rule rejection the
+        // technician needs to understand, not retry.
+        String? error;
+        try {
+          final body = jsonDecode(res.body);
+          if (body is Map<String, dynamic>) error = body['message'] as String?;
+        } catch (_) {
+          // Non-JSON error body — fall through with no message.
+        }
+        return (ok: false, error: error);
+      }
       final data = jsonDecode(res.body);
       if (data is Map<String, dynamic>) {
         final updated = BookingDto.fromJson(data);
@@ -789,9 +803,9 @@ class ApiRepository implements PartnerRepository {
           ];
         }
       }
-      return true;
+      return (ok: true, error: null);
     } catch (_) {
-      return false;
+      return (ok: false, error: null);
     }
   }
 
