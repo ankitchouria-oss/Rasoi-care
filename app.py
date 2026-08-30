@@ -2328,6 +2328,24 @@ def advance_booking(booking_id):
                 "error": "Job not ready to complete",
                 "message": "Still missing: " + ", ".join(missing) + ".",
             }), 400
+        # A part/quote the technician raised is worthless to the customer
+        # once the job is already Completed and invoiced — there's no
+        # re-invoicing flow, so an undecided quote left dangling here would
+        # never get paid for, and the customer never even gets a real
+        # chance to approve or reject it. Block completion until every
+        # part on this booking has an actual customer decision on record.
+        pending_parts = conn.execute(
+            "SELECT name FROM booking_parts WHERE booking_id = ? AND status = 'pending' "
+            "ORDER BY created_at",
+            (booking_id,),
+        ).fetchall()
+        if pending_parts:
+            conn.close()
+            names = ", ".join(r["name"] for r in pending_parts)
+            return jsonify({
+                "error": "Awaiting customer approval",
+                "message": f"The customer still needs to approve or reject: {names}.",
+            }), 400
 
     ts = now()
     conn.execute(
