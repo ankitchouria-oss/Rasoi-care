@@ -3892,6 +3892,7 @@ def hs_create_booking():
     date = data["date"]
 
     conn = get_db()
+    hs_ensure_wallet_and_profile(conn, request.user["id"], request.user["name"])
     booking_id = new_uuid_id("HS")
     ts = now()
     conn.execute(
@@ -3919,6 +3920,7 @@ def hs_advance_booking(booking_id):
     if not row:
         conn.close()
         return jsonify({"error": "not found"}), 404
+    hs_ensure_wallet_and_profile(conn, user_id, request.user["name"])
 
     idx = STATUS_ORDER.index(row["status"]) if row["status"] in STATUS_ORDER else 0
     if idx < len(STATUS_ORDER) - 1:

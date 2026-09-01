@@ -116,12 +116,8 @@ class FirebaseAuthService implements AuthService {
       throw AuthException(_friendly(e));
     } on AuthException {
       rethrow;
-    } catch (e) {
-      // Temporarily surfacing the raw error while diagnosing a real device
-      // issue — this used to be a generic, undiagnosable message here.
-      // TODO: revert to a friendly generic message once Google sign-in is
-      // confirmed working end-to-end.
-      throw AuthException('Google sign-in failed: $e');
+    } catch (_) {
+      throw const AuthException('Google sign-in failed. Please try again.');
     }
   }
 
