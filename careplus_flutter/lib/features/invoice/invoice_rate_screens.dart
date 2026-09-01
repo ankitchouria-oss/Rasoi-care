@@ -4,16 +4,37 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
+import '../../data/api/api_repository.dart';
 import '../../data/models.dart';
 import '../../state/providers.dart';
 
 // ============================================================ INVOICE
-class InvoiceScreen extends ConsumerWidget {
+class InvoiceScreen extends ConsumerStatefulWidget {
   const InvoiceScreen({super.key, required this.bookingId});
   final String bookingId;
+  @override
+  ConsumerState<InvoiceScreen> createState() => _InvoiceScreenState();
+}
+
+class _InvoiceScreenState extends ConsumerState<InvoiceScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // A technician can add a part/quote (or change the service) any time
+    // before the job is Completed — the cached booking list from the last
+    // time the customer opened the Bookings screen can easily predate
+    // that. Re-fetch on open so a pending approval or a price change is
+    // never missed just because this screen was reached from a stale
+    // cache. Same reasoning/pattern as BookingsScreen's own refresh.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final repo = ref.read(repositoryProvider);
+      if (repo is ApiRepository) repo.refreshBookings();
+    });
+  }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
+    final bookingId = widget.bookingId;
     final booking = ref.watch(repositoryProvider).bookingById(bookingId);
     // GST-inclusive total is all a Booking actually carries — back out the
     // base/tax split from it rather than inventing part-level line items
@@ -73,6 +94,26 @@ class InvoiceScreen extends ConsumerWidget {
                       ],
                     ),
                   ),
+                  if (booking != null && booking.serviceChanges.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    CareCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Eyebrow('Service updated'),
+                          const SizedBox(height: 10),
+                          for (final change in booking.serviceChanges) ...[
+                            Text(
+                              '${change.oldService} (${Money.rupees(change.oldPricePaise)}) '
+                              '→ ${change.newService} (${Money.rupees(change.newPricePaise)})',
+                              style: context.type.bodySmall!.copyWith(height: 1.5),
+                            ),
+                            if (change != booking.serviceChanges.last) const SizedBox(height: 8),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   CareCard(
                     child: Column(

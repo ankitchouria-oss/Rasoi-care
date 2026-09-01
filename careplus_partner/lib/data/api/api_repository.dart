@@ -640,6 +640,19 @@ class ApiRepository implements PartnerRepository {
       customerPhone: b.customerPhone,
       brand: b.brand,
       modelNumber: b.modelNumber,
+      category: b.category,
+      service: b.service,
+      totalAmountPaise: b.totalAmountPaise,
+      serviceChanges: b.serviceChanges
+          .map((c) => ServiceChangeLine(
+                id: c.id,
+                oldService: c.oldService,
+                newService: c.newService,
+                oldPricePaise: c.oldPricePaise,
+                newPricePaise: c.newPricePaise,
+                createdAt: c.createdAt?.toIso8601String(),
+              ))
+          .toList(growable: false),
     );
   }
 
@@ -712,6 +725,87 @@ class ApiRepository implements PartnerRepository {
       return true;
     } catch (_) {
       return false;
+    }
+  }
+
+  /// Real, catalog-priced options a technician can switch this booking's
+  /// service to — always scoped to the booking's own category (see
+  /// ServiceOptionDto). GET /api/services is public, no auth needed. Empty
+  /// list on any failure — the UI just shows nothing to pick, never a
+  /// fabricated option.
+  Future<List<ServiceOptionDto>> fetchServiceOptions(String category) async {
+    try {
+      final res = await http
+          .get(Uri.parse(
+              '${ApiConfig.baseUrl}/api/services?category=${Uri.encodeQueryComponent(category)}'))
+          .timeout(_timeout);
+      if (res.statusCode != 200) return const [];
+      final data = jsonDecode(res.body);
+      if (data is! List) return const [];
+      return data
+          .whereType<Map<String, dynamic>>()
+          .map(ServiceOptionDto.fromJson)
+          .toList(growable: false);
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Swaps this booking's service for a different one in the same
+  /// category — e.g. the customer asks mid-visit to upgrade a filter clean
+  /// into a full deep clean. See app.py's PATCH .../service, which
+  /// recomputes price/total_amount from the real catalog and logs the
+  /// change so the customer's invoice shows exactly what changed. Updates
+  /// the cached booking's service/total/serviceChanges from the real
+  /// response on success.
+  Future<({bool ok, String? error})> changeService(String jobId, String serviceId) async {
+    try {
+      final token = await _idToken();
+      if (token == null) return (ok: false, error: null);
+      final res = await http
+          .patch(
+            Uri.parse('${ApiConfig.baseUrl}/api/technician/bookings/$jobId/service'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({'serviceId': serviceId}),
+          )
+          .timeout(_timeout);
+      if (res.statusCode != 200) {
+        // Relay the backend's real reason (e.g. "Can't change the service
+        // on a completed or cancelled job.") instead of the client always
+        // guessing "check your connection" — this is almost never actually
+        // a network failure, it's a real business-rule rejection the
+        // technician needs to understand, not retry.
+        String? error;
+        try {
+          final body = jsonDecode(res.body);
+          if (body is Map<String, dynamic>) error = body['message'] as String?;
+        } catch (_) {
+          // Non-JSON error body — fall through with no message.
+        }
+        return (ok: false, error: error);
+      }
+      final data = jsonDecode(res.body);
+      if (data is Map<String, dynamic>) {
+        final updated = BookingDto.fromJson(data);
+        final i = _bookings.indexWhere((b) => b.id == jobId);
+        if (i != -1) {
+          _bookings = [
+            ..._bookings.sublist(0, i),
+            _bookings[i].copyWith(
+              service: updated.service,
+              totalAmountPaise: updated.totalAmountPaise,
+              serviceChanges: updated.serviceChanges,
+            ),
+            ..._bookings.sublist(i + 1),
+          ];
+        }
+      }
+      return (ok: true, error: null);
+    } catch (_) {
+      return (ok: false, error: null);
     }
   }
 

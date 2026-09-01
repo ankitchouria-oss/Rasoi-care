@@ -790,7 +790,43 @@ def fetch_booking_parts_bulk(conn, booking_ids):
     return by_booking
 
 
-def booking_row_to_dict(row, *, include_start_code=False, parts=None):
+def service_change_row_to_dict(row):
+    return {
+        "id": row["id"],
+        "oldService": row["old_service"],
+        "newService": row["new_service"],
+        "oldPricePaise": row["old_price"] * 100,
+        "newPricePaise": row["new_price"] * 100,
+        "createdAt": row["created_at"],
+    }
+
+
+def fetch_booking_service_changes(conn, booking_id):
+    rows = conn.execute(
+        "SELECT * FROM booking_service_changes WHERE booking_id = ? ORDER BY created_at",
+        (booking_id,),
+    ).fetchall()
+    return [service_change_row_to_dict(r) for r in rows]
+
+
+def fetch_booking_service_changes_bulk(conn, booking_ids):
+    """One query for every booking id in a list response — see
+    fetch_booking_parts_bulk, same reasoning."""
+    if not booking_ids:
+        return {}
+    placeholders = ",".join("?" * len(booking_ids))
+    rows = conn.execute(
+        f"SELECT * FROM booking_service_changes WHERE booking_id IN ({placeholders}) "
+        "ORDER BY created_at",
+        tuple(booking_ids),
+    ).fetchall()
+    by_booking = {}
+    for r in rows:
+        by_booking.setdefault(r["booking_id"], []).append(service_change_row_to_dict(r))
+    return by_booking
+
+
+def booking_row_to_dict(row, *, include_start_code=False, parts=None, service_changes=None):
     keys = row.keys()
     return {
         "id": row["id"],
@@ -849,6 +885,11 @@ def booking_row_to_dict(row, *, include_start_code=False, parts=None):
         # the Partner/Customer apps re-fetch the full list/detail endpoints,
         # which always do, to see current parts state).
         "parts": parts if parts is not None else [],
+        # Real record of the technician swapping this booking's service for
+        # a different one — [] when it's never happened, or when the caller
+        # didn't pass `service_changes=` (see the `parts` comment above for
+        # why that's fine: the list/detail endpoints that matter always do).
+        "serviceChanges": service_changes if service_changes is not None else [],
         # The real day+slot the customer picked, as an ISO timestamp — see
         # create_booking and _cancellation_fee_for. Null for bookings made
         # before this was captured, or by a client that didn't send one.
@@ -1959,9 +2000,15 @@ def list_bookings():
     else:
         rows = conn.execute(BOOKING_SELECT + " ORDER BY created_at DESC").fetchall()
     parts_by_booking = fetch_booking_parts_bulk(conn, [r["id"] for r in rows])
+    service_changes_by_booking = fetch_booking_service_changes_bulk(conn, [r["id"] for r in rows])
     conn.close()
     return jsonify([
-        booking_row_to_dict(r, include_start_code=bool(user), parts=parts_by_booking.get(r["id"]))
+        booking_row_to_dict(
+            r,
+            include_start_code=bool(user),
+            parts=parts_by_booking.get(r["id"]),
+            service_changes=service_changes_by_booking.get(r["id"]),
+        )
         for r in rows
     ])
 
@@ -1984,8 +2031,11 @@ def get_booking(booking_id):
         conn.close()
         return jsonify({"error": "not found"}), 404
     parts = fetch_booking_parts(conn, booking_id)
+    service_changes = fetch_booking_service_changes(conn, booking_id)
     conn.close()
-    return jsonify(booking_row_to_dict(row, include_start_code=bool(user), parts=parts))
+    return jsonify(booking_row_to_dict(
+        row, include_start_code=bool(user), parts=parts, service_changes=service_changes,
+    ))
 
 
 # httpSMS (https://httpsms.com) turns a real Android phone with a SIM into
@@ -2277,6 +2327,24 @@ def advance_booking(booking_id):
             return jsonify({
                 "error": "Job not ready to complete",
                 "message": "Still missing: " + ", ".join(missing) + ".",
+            }), 400
+        # A part/quote the technician raised is worthless to the customer
+        # once the job is already Completed and invoiced — there's no
+        # re-invoicing flow, so an undecided quote left dangling here would
+        # never get paid for, and the customer never even gets a real
+        # chance to approve or reject it. Block completion until every
+        # part on this booking has an actual customer decision on record.
+        pending_parts = conn.execute(
+            "SELECT name FROM booking_parts WHERE booking_id = ? AND status = 'pending' "
+            "ORDER BY created_at",
+            (booking_id,),
+        ).fetchall()
+        if pending_parts:
+            conn.close()
+            names = ", ".join(r["name"] for r in pending_parts)
+            return jsonify({
+                "error": "Awaiting customer approval",
+                "message": f"The customer still needs to approve or reject: {names}.",
             }), 400
 
     ts = now()
@@ -3298,9 +3366,15 @@ def technician_my_bookings():
         (request.technician["id"],),
     ).fetchall()
     parts_by_booking = fetch_booking_parts_bulk(conn, [r["id"] for r in rows])
+    service_changes_by_booking = fetch_booking_service_changes_bulk(conn, [r["id"] for r in rows])
     conn.close()
     return jsonify([
-        booking_row_to_dict(r, parts=parts_by_booking.get(r["id"])) for r in rows
+        booking_row_to_dict(
+            r,
+            parts=parts_by_booking.get(r["id"]),
+            service_changes=service_changes_by_booking.get(r["id"]),
+        )
+        for r in rows
     ])
 
 
@@ -3337,6 +3411,70 @@ def update_booking_appliance(booking_id):
     parts = fetch_booking_parts(conn, booking_id)
     conn.close()
     return jsonify(booking_row_to_dict(row, parts=parts))
+
+
+@app.route("/api/technician/bookings/<booking_id>/service", methods=["PATCH"])
+@require_technician_auth
+@validate_json({
+    "serviceId": Field(str, required=True, max_len=50),
+})
+def update_booking_service(booking_id):
+    """The technician swaps this booking's service for a different one in
+    the same catalog category — e.g. the customer asks mid-visit to
+    upgrade a filter clean into a full deep clean. Recomputes price/
+    total_amount straight from the real services catalog the exact same
+    way create_booking's service_id path does (total_amount = the
+    catalog's own price), so the new amount is real, not client-supplied,
+    and immediately shows up everywhere that reads this booking — the
+    Customer app's invoice included. Logs the change to
+    booking_service_changes so the customer can see exactly what changed.
+    Blocked once the job is already Completed or Cancelled — the invoice
+    is final by then."""
+    data = request.get_json(force=True, silent=True) or {}
+    service_id = data["serviceId"]
+    conn = get_db()
+    row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": "not found"}), 404
+    if row["technician_id"] != request.technician["id"]:
+        conn.close()
+        return jsonify({"error": "Forbidden", "message": "Not your job"}), 403
+    if row["status"] in ("Completed", "Cancelled"):
+        conn.close()
+        return jsonify({
+            "error": "Job already finished",
+            "message": "Can't change the service on a completed or cancelled job.",
+        }), 400
+    service_row = conn.execute(SERVICE_SELECT + " WHERE services.id = ?", (service_id,)).fetchone()
+    if not service_row:
+        conn.close()
+        return jsonify({"error": "Unknown serviceId"}), 400
+    if service_row["category"] != row["category"]:
+        conn.close()
+        return jsonify({
+            "error": "Service category mismatch",
+            "message": "That service isn't offered for this job's category.",
+        }), 400
+    new_service_name = service_row["appliance_name"] + " · " + service_row["name"]
+    new_price = service_row["price"]
+    ts = now()
+    conn.execute(
+        "INSERT INTO booking_service_changes "
+        "(id, booking_id, old_service, new_service, old_price, new_price, created_at) "
+        "VALUES (?,?,?,?,?,?,?)",
+        (new_uuid_id("SVCC"), booking_id, row["service"], new_service_name, row["price"], new_price, ts),
+    )
+    conn.execute(
+        "UPDATE bookings SET service = ?, price = ?, total_amount = ?, updated_at = ? WHERE id = ?",
+        (new_service_name, new_price, new_price, ts, booking_id),
+    )
+    conn.commit()
+    row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
+    parts = fetch_booking_parts(conn, booking_id)
+    service_changes = fetch_booking_service_changes(conn, booking_id)
+    conn.close()
+    return jsonify(booking_row_to_dict(row, parts=parts, service_changes=service_changes))
 
 
 @app.route("/api/technician/bookings/<booking_id>/parts", methods=["POST"])

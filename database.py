@@ -88,6 +88,21 @@ CREATE TABLE IF NOT EXISTS booking_parts (
     decided_at      TEXT
 );
 
+-- A real record of the technician swapping this booking's service for a
+-- different one in the same catalog category — e.g. the customer asked
+-- mid-visit to upgrade a filter clean into a full deep clean. old/new
+-- price are whole rupees, matching bookings.price/total_amount's own
+-- convention. See update_booking_service in app.py.
+CREATE TABLE IF NOT EXISTS booking_service_changes (
+    id              TEXT PRIMARY KEY,
+    booking_id      TEXT NOT NULL REFERENCES bookings(id),
+    old_service     TEXT NOT NULL,
+    new_service     TEXT NOT NULL,
+    old_price       INTEGER NOT NULL,
+    new_price       INTEGER NOT NULL,
+    created_at      TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS complaints (
     id              TEXT PRIMARY KEY,
     booking_id      TEXT NOT NULL REFERENCES bookings(id),

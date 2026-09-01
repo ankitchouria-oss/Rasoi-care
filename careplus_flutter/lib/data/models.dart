@@ -235,6 +235,35 @@ class PartQuote {
       );
 }
 
+/// A real record of the technician swapping this booking's service for a
+/// different one — e.g. asked mid-visit to upgrade a filter clean into a
+/// full deep clean. See app.py's PATCH .../service. The invoice always
+/// shows the booking's current (already-updated) service/total; this is
+/// just the "here's what changed" note shown alongside it.
+class ServiceChange {
+  const ServiceChange({
+    required this.id,
+    required this.oldService,
+    required this.newService,
+    required this.oldPricePaise,
+    required this.newPricePaise,
+  });
+
+  final String id;
+  final String oldService;
+  final String newService;
+  final int oldPricePaise;
+  final int newPricePaise;
+
+  factory ServiceChange.fromJson(Map<String, dynamic> json) => ServiceChange(
+        id: '${json['id']}',
+        oldService: (json['oldService'] as String?) ?? '',
+        newService: (json['newService'] as String?) ?? '',
+        oldPricePaise: (json['oldPricePaise'] as num?)?.round() ?? 0,
+        newPricePaise: (json['newPricePaise'] as num?)?.round() ?? 0,
+      );
+}
+
 class Booking {
   const Booking({
     required this.id,
@@ -260,6 +289,7 @@ class Booking {
     this.brand,
     this.modelNumber,
     this.parts = const [],
+    this.serviceChanges = const [],
   });
 
   final String id;
@@ -341,6 +371,10 @@ class Booking {
   /// Real part/extra-work quotes the technician has raised for this
   /// booking — see PartQuote. Empty when none exist.
   final List<PartQuote> parts;
+
+  /// Real history of the technician swapping this booking's service for a
+  /// different one — see ServiceChange. Empty when it's never happened.
+  final List<ServiceChange> serviceChanges;
 }
 
 /// The cancellation-fee policy shown to the customer — mirrors (for

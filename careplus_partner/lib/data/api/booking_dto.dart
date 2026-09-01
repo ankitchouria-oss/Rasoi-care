@@ -38,6 +38,69 @@ class PartQuoteDto {
       );
 }
 
+/// A real record of the technician swapping this booking's service for a
+/// different one — e.g. the customer asked mid-visit to upgrade a filter
+/// clean into a full deep clean. See app.py's PATCH .../service.
+class ServiceChangeDto {
+  const ServiceChangeDto({
+    required this.id,
+    required this.oldService,
+    required this.newService,
+    required this.oldPricePaise,
+    required this.newPricePaise,
+    this.createdAt,
+  });
+
+  final String id;
+  final String oldService;
+  final String newService;
+  final int oldPricePaise;
+  final int newPricePaise;
+  final DateTime? createdAt;
+
+  factory ServiceChangeDto.fromJson(Map<String, dynamic> json) => ServiceChangeDto(
+        id: '${json['id']}',
+        oldService: (json['oldService'] as String?) ?? '',
+        newService: (json['newService'] as String?) ?? '',
+        oldPricePaise: (json['oldPricePaise'] as num?)?.round() ?? 0,
+        newPricePaise: (json['newPricePaise'] as num?)?.round() ?? 0,
+        createdAt: DateTime.tryParse('${json['createdAt'] ?? ''}'),
+      );
+}
+
+/// One real, catalog-priced service option a technician can switch a
+/// booking to — from GET /api/services?category=..., the same real
+/// backend catalog create_booking's service_id path prices a new booking
+/// from. Only ever offered for the booking's own category, so a chimney
+/// job can't be "upgraded" into a fridge repair.
+class ServiceOptionDto {
+  const ServiceOptionDto({
+    required this.id,
+    required this.category,
+    required this.applianceName,
+    required this.name,
+    required this.pricePaise,
+  });
+
+  final String id;
+  final String category;
+  final String applianceName;
+  final String name;
+  final int pricePaise;
+
+  /// Matches the "Appliance · Service" naming create_booking/
+  /// update_booking_service both use server-side for `bookings.service`.
+  String get displayName => '$applianceName · $name';
+
+  factory ServiceOptionDto.fromJson(Map<String, dynamic> json) => ServiceOptionDto(
+        id: '${json['id']}',
+        category: (json['category'] as String?) ?? '',
+        applianceName: (json['appliance_name'] as String?) ?? '',
+        name: (json['name'] as String?) ?? '',
+        pricePaise: ((json['price'] as num?) ?? 0).round() * 100,
+      );
+}
+
 class BookingDto {
   const BookingDto({
     required this.id,
@@ -64,6 +127,7 @@ class BookingDto {
     this.brand,
     this.modelNumber,
     this.parts = const [],
+    this.serviceChanges = const [],
   });
 
   final String id;
@@ -134,6 +198,10 @@ class BookingDto {
   /// Real part/extra-work quotes raised for this job — see PartQuoteDto.
   final List<PartQuoteDto> parts;
 
+  /// Real record of the technician swapping this booking's service for a
+  /// different one — [] when it's never happened. See ServiceChangeDto.
+  final List<ServiceChangeDto> serviceChanges;
+
   factory BookingDto.fromJson(Map<String, dynamic> json) {
     // total_amount arrives in rupees (see app.py) — this app stores money in
     // paise everywhere, so convert at the edge.
@@ -187,10 +255,17 @@ class BookingDto {
               .map(PartQuoteDto.fromJson)
               .toList(growable: false) ??
           const [],
+      serviceChanges: (json['serviceChanges'] as List?)
+              ?.whereType<Map<String, dynamic>>()
+              .map(ServiceChangeDto.fromJson)
+              .toList(growable: false) ??
+          const [],
     );
   }
 
   BookingDto copyWith({
+    String? service,
+    int? totalAmountPaise,
     String? status,
     String? paymentMethod,
     bool? beforePhotoReady,
@@ -199,14 +274,15 @@ class BookingDto {
     String? brand,
     String? modelNumber,
     List<PartQuoteDto>? parts,
+    List<ServiceChangeDto>? serviceChanges,
   }) =>
       BookingDto(
         id: id,
         category: category,
-        service: service,
+        service: service ?? this.service,
         status: status ?? this.status,
         customerName: customerName,
-        totalAmountPaise: totalAmountPaise,
+        totalAmountPaise: totalAmountPaise ?? this.totalAmountPaise,
         area: area,
         addressLine: addressLine,
         createdAt: createdAt,
@@ -225,6 +301,7 @@ class BookingDto {
         brand: brand ?? this.brand,
         modelNumber: modelNumber ?? this.modelNumber,
         parts: parts ?? this.parts,
+        serviceChanges: serviceChanges ?? this.serviceChanges,
       );
 }
 
