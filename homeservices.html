@@ -218,14 +218,35 @@
 
   let bookings = [];
   let wallet = { points: 100, tx: [] };
-  let profile = { name: "Ankit", plan: null };
+  let profile = { name: "", plan: null };
   let pendingBooking = null;
+
+  // ---------------- auth (reuses the RasoiCare login) ----------------
+  // Home Services has no login screen of its own — it shares customer.html's
+  // localStorage session (same origin, same backend), so a customer who has
+  // already logged in there is already logged in here. If there's no
+  // session yet, send them to log in and come straight back afterward.
+  const authToken = localStorage.getItem("rc_token");
+  if(!authToken){
+    location.href = "/customer?returnTo=" + encodeURIComponent(location.pathname);
+    throw new Error("redirecting to login");
+  }
+  const authUser = JSON.parse(localStorage.getItem("rc_user") || "null");
 
   async function api(path, options){
     const res = await fetch(path, {
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + authToken
+      },
       ...options
     });
+    if(res.status === 401){
+      localStorage.removeItem("rc_token");
+      localStorage.removeItem("rc_user");
+      location.href = "/customer?returnTo=" + encodeURIComponent(location.pathname);
+      throw new Error("session expired");
+    }
     const body = await res.json().catch(() => ({}));
     if(!res.ok) throw new Error(body.error || "Request failed");
     return body;

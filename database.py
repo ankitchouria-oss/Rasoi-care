@@ -204,10 +204,12 @@ CREATE TABLE IF NOT EXISTS shop_orders (
 );
 
 -- Standalone Home Services app (separate from the RasoiCare tables
--- above). Single-user prototype for now, so wallet/profile are one
--- fixed row (id=1) rather than keyed by an authenticated user.
+-- above), keyed by the same authenticated user id as RasoiCare's own
+-- bookings — Home Services reuses the RasoiCare login rather than
+-- having its own account system.
 CREATE TABLE IF NOT EXISTS hs_bookings (
     id              TEXT PRIMARY KEY,
+    user_id         TEXT NOT NULL REFERENCES users(id),
     service_id      TEXT NOT NULL,
     service_name    TEXT NOT NULL,
     price           INTEGER NOT NULL,
@@ -218,20 +220,21 @@ CREATE TABLE IF NOT EXISTS hs_bookings (
 );
 
 CREATE TABLE IF NOT EXISTS hs_wallet (
-    id      INTEGER PRIMARY KEY CHECK (id = 1),
+    user_id TEXT PRIMARY KEY REFERENCES users(id),
     points  INTEGER NOT NULL DEFAULT 100
 );
 
 CREATE TABLE IF NOT EXISTS hs_wallet_tx (
     id          TEXT PRIMARY KEY,
+    user_id     TEXT NOT NULL REFERENCES users(id),
     label       TEXT NOT NULL,
     amount      INTEGER NOT NULL,
     created_at  TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS hs_profile (
-    id      INTEGER PRIMARY KEY CHECK (id = 1),
-    name    TEXT NOT NULL DEFAULT 'Ankit',
+    user_id TEXT PRIMARY KEY REFERENCES users(id),
+    name    TEXT NOT NULL DEFAULT '',
     plan    TEXT
 );
 """
@@ -782,14 +785,25 @@ def seed_staff(conn):
     conn.commit()
 
 
-def seed_home_services(conn):
-    """One-time defaults for the Home Services wallet/profile row. Left
-    alone on subsequent boots (and by the RasoiCare /api/reset, which
-    only touches the RasoiCare tables) so real usage isn't wiped."""
-    if conn.execute("SELECT 1 FROM hs_wallet WHERE id = 1").fetchone() is None:
-        conn.execute("INSERT INTO hs_wallet (id, points) VALUES (1, 100)")
-    if conn.execute("SELECT 1 FROM hs_profile WHERE id = 1").fetchone() is None:
-        conn.execute("INSERT INTO hs_profile (id, name, plan) VALUES (1, 'Ankit', NULL)")
+def migrate_home_services_columns(conn):
+    """Home Services used to be a single-user prototype (one fixed row,
+    id=1, in hs_wallet/hs_profile, and no owner on hs_bookings/hs_wallet_tx).
+    It now reuses the RasoiCare login, so every row needs a user_id. Older
+    databases predate that column; add it in place rather than dropping
+    the old prototype's rows. The old id=1 wallet/profile rows (if any)
+    are simply orphaned — nothing reads them by id anymore."""
+    cols = _table_columns(conn, "hs_bookings")
+    if "user_id" not in cols:
+        conn.execute("ALTER TABLE hs_bookings ADD COLUMN user_id TEXT")
+    cols = _table_columns(conn, "hs_wallet")
+    if "user_id" not in cols:
+        conn.execute("ALTER TABLE hs_wallet ADD COLUMN user_id TEXT")
+    cols = _table_columns(conn, "hs_wallet_tx")
+    if "user_id" not in cols:
+        conn.execute("ALTER TABLE hs_wallet_tx ADD COLUMN user_id TEXT")
+    cols = _table_columns(conn, "hs_profile")
+    if "user_id" not in cols:
+        conn.execute("ALTER TABLE hs_profile ADD COLUMN user_id TEXT")
     conn.commit()
 
 
@@ -812,9 +826,9 @@ def init_db():
     migrate_technicians_columns(conn)
     migrate_firebase_columns(conn)
     migrate_users_columns(conn)
+    migrate_home_services_columns(conn)
     seed_catalog(conn)
     seed_staff(conn)
-    seed_home_services(conn)
     # Cleans up the four demo technicians and two demo bookings any
     # deployment before this fix already picked up from the old
     # always-seed-fake-data behavior in seed() above. Idempotent — a

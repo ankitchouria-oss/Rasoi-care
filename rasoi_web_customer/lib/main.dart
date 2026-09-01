@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
-/// Set this to your deployed Rasoi Care backend once it's live
-/// (see README.md "Deploy it for real"), e.g.
-/// "https://rasoicare-backend.onrender.com" — then rebuild the APK.
-const String kBackendBaseUrl = "https://your-rasoi-care-backend.example.com";
+const String kBackendBaseUrl = "https://rasoicare-backend.onrender.com";
 const String kAppPath = "/customer";
 
 void main() => runApp(const RasoiCareApp());

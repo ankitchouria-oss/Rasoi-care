@@ -3809,10 +3809,9 @@ def reset():
 
 
 # ==================================================================
-# Home Services API — backs homeservices.html. A separate, single-user
-# prototype (no auth yet), so wallet/profile are the one fixed row
-# seeded by seed_home_services(); untouched by /api/reset above, which
-# only resets the RasoiCare tables.
+# Home Services API — backs homeservices.html. Reuses the RasoiCare
+# login (@require_auth, same as /api/bookings etc.) rather than having
+# its own account system; every row is scoped to request.user["id"].
 # ==================================================================
 def hs_booking_row_to_dict(row):
     return {
@@ -3827,34 +3826,58 @@ def hs_booking_row_to_dict(row):
     }
 
 
-def hs_wallet_state(conn):
-    wallet_row = conn.execute("SELECT * FROM hs_wallet WHERE id = 1").fetchone()
-    tx_rows = conn.execute("SELECT * FROM hs_wallet_tx ORDER BY created_at DESC").fetchall()
+def hs_wallet_state(conn, user_id):
+    wallet_row = conn.execute("SELECT * FROM hs_wallet WHERE user_id = ?", (user_id,)).fetchone()
+    tx_rows = conn.execute(
+        "SELECT * FROM hs_wallet_tx WHERE user_id = ? ORDER BY created_at DESC", (user_id,)
+    ).fetchall()
     return {
-        "points": wallet_row["points"],
+        "points": wallet_row["points"] if wallet_row else 100,
         "tx": [{"label": t["label"], "amount": t["amount"], "ts": t["created_at"]} for t in tx_rows],
     }
 
 
-def hs_profile_dict(row):
-    return {"name": row["name"], "plan": row["plan"]}
+def hs_profile_dict(row, user_id, fallback_name):
+    if row is None:
+        return {"name": fallback_name, "plan": None}
+    return {"name": row["name"] or fallback_name, "plan": row["plan"]}
+
+
+def hs_ensure_wallet_and_profile(conn, user_id, fallback_name):
+    """First Home Services call for this user — create their wallet
+    (100 starter points, matching the old prototype's default) and
+    profile rows. A no-op on every later call."""
+    if conn.execute("SELECT 1 FROM hs_wallet WHERE user_id = ?", (user_id,)).fetchone() is None:
+        conn.execute("INSERT INTO hs_wallet (user_id, points) VALUES (?, 100)", (user_id,))
+    if conn.execute("SELECT 1 FROM hs_profile WHERE user_id = ?", (user_id,)).fetchone() is None:
+        conn.execute(
+            "INSERT INTO hs_profile (user_id, name, plan) VALUES (?, ?, NULL)",
+            (user_id, fallback_name),
+        )
+    conn.commit()
 
 
 @app.route("/api/hs/state", methods=["GET"])
+@require_auth
 def hs_state():
+    user_id = request.user["id"]
     conn = get_db()
-    bookings = conn.execute("SELECT * FROM hs_bookings ORDER BY created_at DESC").fetchall()
-    profile_row = conn.execute("SELECT * FROM hs_profile WHERE id = 1").fetchone()
-    wallet = hs_wallet_state(conn)
+    hs_ensure_wallet_and_profile(conn, user_id, request.user["name"])
+    bookings = conn.execute(
+        "SELECT * FROM hs_bookings WHERE user_id = ? ORDER BY created_at DESC", (user_id,)
+    ).fetchall()
+    profile_row = conn.execute("SELECT * FROM hs_profile WHERE user_id = ?", (user_id,)).fetchone()
+    wallet = hs_wallet_state(conn, user_id)
     conn.close()
     return jsonify({
         "bookings": [hs_booking_row_to_dict(b) for b in bookings],
         "wallet": wallet,
-        "profile": hs_profile_dict(profile_row),
+        "profile": hs_profile_dict(profile_row, user_id, request.user["name"]),
     })
 
 
 @app.route("/api/hs/bookings", methods=["POST"])
+@require_auth
 @validate_json({
     "serviceId": Field(str, required=True, min_len=1, max_len=50),
     "serviceName": Field(str, required=True, min_len=1, max_len=200),
@@ -3872,9 +3895,9 @@ def hs_create_booking():
     booking_id = new_uuid_id("HS")
     ts = now()
     conn.execute(
-        "INSERT INTO hs_bookings (id, service_id, service_name, price, date, status, created_at, updated_at) "
-        "VALUES (?,?,?,?,?,?,?,?)",
-        (booking_id, service_id, service_name, price, date, STATUS_ORDER[0], ts, ts),
+        "INSERT INTO hs_bookings (id, user_id, service_id, service_name, price, date, status, created_at, updated_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?)",
+        (booking_id, request.user["id"], service_id, service_name, price, date, STATUS_ORDER[0], ts, ts),
     )
     conn.commit()
     row = conn.execute("SELECT * FROM hs_bookings WHERE id = ?", (booking_id,)).fetchone()
@@ -3883,12 +3906,16 @@ def hs_create_booking():
 
 
 @app.route("/api/hs/bookings/<booking_id>/advance", methods=["PATCH"])
+@require_auth
 def hs_advance_booking(booking_id):
     """Called by the client's auto-progress timers to move a booking to
     its next status; awards wallet cashback the moment it reaches
     Completed. Same STATUS_ORDER stages as RasoiCare's bookings."""
+    user_id = request.user["id"]
     conn = get_db()
-    row = conn.execute("SELECT * FROM hs_bookings WHERE id = ?", (booking_id,)).fetchone()
+    row = conn.execute(
+        "SELECT * FROM hs_bookings WHERE id = ? AND user_id = ?", (booking_id, user_id)
+    ).fetchone()
     if not row:
         conn.close()
         return jsonify({"error": "not found"}), 404
@@ -3902,62 +3929,75 @@ def hs_advance_booking(booking_id):
         )
         if new_status == "Completed":
             earned = round(row["price"] * 0.05)
-            conn.execute("UPDATE hs_wallet SET points = points + ? WHERE id = 1", (earned,))
             conn.execute(
-                "INSERT INTO hs_wallet_tx (id, label, amount, created_at) VALUES (?,?,?,?)",
-                (new_uuid_id("TX"), "Cashback: " + row["service_name"], earned, now()),
+                "UPDATE hs_wallet SET points = points + ? WHERE user_id = ?", (earned, user_id)
+            )
+            conn.execute(
+                "INSERT INTO hs_wallet_tx (id, user_id, label, amount, created_at) VALUES (?,?,?,?,?)",
+                (new_uuid_id("TX"), user_id, "Cashback: " + row["service_name"], earned, now()),
             )
         conn.commit()
         row = conn.execute("SELECT * FROM hs_bookings WHERE id = ?", (booking_id,)).fetchone()
 
-    wallet = hs_wallet_state(conn)
+    wallet = hs_wallet_state(conn, user_id)
     conn.close()
     return jsonify({"booking": hs_booking_row_to_dict(row), "wallet": wallet})
 
 
 @app.route("/api/hs/wallet/redeem", methods=["POST"])
+@require_auth
 def hs_redeem():
+    user_id = request.user["id"]
     conn = get_db()
-    wallet_row = conn.execute("SELECT * FROM hs_wallet WHERE id = 1").fetchone()
+    hs_ensure_wallet_and_profile(conn, user_id, request.user["name"])
+    wallet_row = conn.execute("SELECT * FROM hs_wallet WHERE user_id = ?", (user_id,)).fetchone()
     if wallet_row["points"] < 50:
         conn.close()
         return jsonify({"error": "Not enough points"}), 400
-    conn.execute("UPDATE hs_wallet SET points = points - 50 WHERE id = 1")
+    conn.execute("UPDATE hs_wallet SET points = points - 50 WHERE user_id = ?", (user_id,))
     conn.execute(
-        "INSERT INTO hs_wallet_tx (id, label, amount, created_at) VALUES (?,?,?,?)",
-        (new_uuid_id("TX"), "Redeemed for ₹5 off", -50, now()),
+        "INSERT INTO hs_wallet_tx (id, user_id, label, amount, created_at) VALUES (?,?,?,?,?)",
+        (new_uuid_id("TX"), user_id, "Redeemed for ₹5 off", -50, now()),
     )
     conn.commit()
-    wallet = hs_wallet_state(conn)
+    wallet = hs_wallet_state(conn, user_id)
     conn.close()
     return jsonify(wallet)
 
 
 @app.route("/api/hs/profile", methods=["PATCH"])
+@require_auth
 @validate_json({
     "name": Field(str, max_len=100),
     "plan": Field(str, max_len=100),
 })
 def hs_update_profile():
     data = request.get_json(force=True, silent=True) or {}
+    user_id = request.user["id"]
     conn = get_db()
+    hs_ensure_wallet_and_profile(conn, user_id, request.user["name"])
     if data.get("name"):
-        conn.execute("UPDATE hs_profile SET name = ? WHERE id = 1", (data["name"].strip(),))
+        conn.execute("UPDATE hs_profile SET name = ? WHERE user_id = ?", (data["name"].strip(), user_id))
     if "plan" in data:
-        conn.execute("UPDATE hs_profile SET plan = ? WHERE id = 1", (data["plan"],))
+        conn.execute("UPDATE hs_profile SET plan = ? WHERE user_id = ?", (data["plan"], user_id))
     conn.commit()
-    row = conn.execute("SELECT * FROM hs_profile WHERE id = 1").fetchone()
+    row = conn.execute("SELECT * FROM hs_profile WHERE user_id = ?", (user_id,)).fetchone()
     conn.close()
-    return jsonify(hs_profile_dict(row))
+    return jsonify(hs_profile_dict(row, user_id, request.user["name"]))
 
 
 @app.route("/api/hs/reset", methods=["POST"])
+@require_auth
 def hs_reset():
+    user_id = request.user["id"]
     conn = get_db()
-    conn.execute("DELETE FROM hs_bookings")
-    conn.execute("DELETE FROM hs_wallet_tx")
-    conn.execute("UPDATE hs_wallet SET points = 100 WHERE id = 1")
-    conn.execute("UPDATE hs_profile SET name = 'Ankit', plan = NULL WHERE id = 1")
+    conn.execute("DELETE FROM hs_bookings WHERE user_id = ?", (user_id,))
+    conn.execute("DELETE FROM hs_wallet_tx WHERE user_id = ?", (user_id,))
+    conn.execute("UPDATE hs_wallet SET points = 100 WHERE user_id = ?", (user_id,))
+    conn.execute(
+        "UPDATE hs_profile SET name = ?, plan = NULL WHERE user_id = ?",
+        (request.user["name"], user_id),
+    )
     conn.commit()
     conn.close()
     return jsonify({"ok": True})
