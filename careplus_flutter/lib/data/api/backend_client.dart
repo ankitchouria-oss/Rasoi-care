@@ -128,6 +128,76 @@ class BackendClient {
     }
   }
 
+  /// POST /api/bookings/cart — the real checkout call, replacing a client-
+  /// computed total with one or more real catalog `serviceId`s. The
+  /// backend looks up each service's real price and computes the visit
+  /// fee/coupon/GST/coins math itself, so the returned bookings' prices
+  /// are always the authoritative ones — never trust a locally-computed
+  /// figure once this call returns. Same never-throw/best-effort shape as
+  /// createBooking above.
+  Future<({List<Map<String, dynamic>>? bookings, Map<String, dynamic>? pricing, String? error, bool unauthorized})>
+      createBookingCart({
+    required String idToken,
+    required List<String> serviceIds,
+    required bool useCoins,
+    String? area,
+    String? addressLine,
+    double? lat,
+    double? lng,
+    String? directions,
+    String? notes,
+    List<String>? issues,
+    DateTime? scheduledAt,
+  }) async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('${ApiConfig.baseUrl}/api/bookings/cart'),
+            headers: _headers(idToken),
+            body: jsonEncode({
+              'serviceIds': serviceIds,
+              'useCoins': useCoins,
+              if (area != null && area.isNotEmpty) 'area': area,
+              if (addressLine != null && addressLine.isNotEmpty) 'addressLine': addressLine,
+              if (lat != null) 'lat': lat,
+              if (lng != null) 'lng': lng,
+              if (directions != null && directions.isNotEmpty) 'directions': directions,
+              if (notes != null && notes.isNotEmpty) 'notes': notes,
+              if (issues != null && issues.isNotEmpty) 'issues': issues,
+              if (scheduledAt != null) 'scheduledAt': scheduledAt.toUtc().toIso8601String(),
+            }),
+          )
+          .timeout(_timeout);
+      final decoded = jsonDecode(res.body);
+      if (res.statusCode == 201 && decoded is Map<String, dynamic>) {
+        final bookings = (decoded['bookings'] as List?)?.whereType<Map<String, dynamic>>().toList();
+        return (
+          bookings: bookings,
+          pricing: decoded['pricing'] as Map<String, dynamic>?,
+          error: null,
+          unauthorized: false,
+        );
+      }
+      if (res.statusCode == 401) {
+        return (
+          bookings: null,
+          pricing: null,
+          error: 'Your session needs refreshing — please try again.',
+          unauthorized: true,
+        );
+      }
+      final message = decoded is Map<String, dynamic> ? decoded['error'] as String? : null;
+      return (
+        bookings: null,
+        pricing: null,
+        error: message ?? 'The server rejected this booking (${res.statusCode}).',
+        unauthorized: false,
+      );
+    } catch (_) {
+      return (bookings: null, pricing: null, error: null, unauthorized: false);
+    }
+  }
+
   /// GET /api/bookings with the caller's Firebase ID token — the backend
   /// scopes the result to that user's own bookings. Returns an empty list
   /// on any failure.

@@ -205,6 +205,75 @@ class ApiRepository implements CareRepository {
     return (booking: booking, error: null);
   }
 
+  /// The real checkout call for one or more catalog [services] at once —
+  /// replaces createBooking's per-item, client-computed-total loop. Every
+  /// [ServiceItem.id] must be a real catalog id (see mock_repository.dart —
+  /// they're kept in sync with the backend's own `services` table); the
+  /// backend looks up each one's real price and computes the visit fee,
+  /// auto-coupon, GST, and (if [useCoins]) Care Coins redemption itself —
+  /// see computePricing in providers.dart for the same formula mirrored
+  /// server-side — so the returned bookings' prices are always the
+  /// authoritative figures the customer is actually charged, never a
+  /// number this app invented. Coins redemption happens atomically inside
+  /// this same call now, so there's no separate pre-step that could redeem
+  /// against one figure while this charges a different one.
+  Future<({List<Booking>? bookings, String? error})> createBookingCart({
+    required List<ServiceItem> services,
+    required bool useCoins,
+    String? areaLabel,
+    String? addressLine,
+    double? lat,
+    double? lng,
+    String? directions,
+    String? notes,
+    List<String>? issues,
+    DateTime? scheduledAt,
+  }) async {
+    final token = await _idToken();
+    if (token == null) return (bookings: null, error: 'You need to be signed in to book.');
+    final serviceIds = [for (final s in services) s.id];
+    var result = await _client.createBookingCart(
+      idToken: token,
+      serviceIds: serviceIds,
+      useCoins: useCoins,
+      area: areaLabel,
+      addressLine: addressLine,
+      lat: lat,
+      lng: lng,
+      directions: directions,
+      notes: notes,
+      issues: issues,
+      scheduledAt: scheduledAt,
+    );
+    if (result.unauthorized) {
+      final freshToken = await _idToken(forceRefresh: true);
+      if (freshToken != null) {
+        result = await _client.createBookingCart(
+          idToken: freshToken,
+          serviceIds: serviceIds,
+          useCoins: useCoins,
+          area: areaLabel,
+          addressLine: addressLine,
+          lat: lat,
+          lng: lng,
+          directions: directions,
+          notes: notes,
+          issues: issues,
+          scheduledAt: scheduledAt,
+        );
+      }
+    }
+    if (result.bookings == null) return (bookings: null, error: result.error);
+    final bookings = [for (final b in result.bookings!) _bookingFromJson(b)];
+    _realBookings = [...(_realBookings ?? []), ...bookings];
+    onBookingsChanged?.call();
+    // Coins may have just been redeemed server-side — refresh the real
+    // balance so AccountScreen and the next checkout reflect it instead of
+    // showing what was true before this purchase.
+    unawaited(refreshCoins());
+    return (bookings: bookings, error: null);
+  }
+
   /// Submits the real star rating from RateScreen — previously the
   /// "Submit rating" button never called anything, just showed a fake
   /// "60 Care Coins added" toast and went home regardless of what was

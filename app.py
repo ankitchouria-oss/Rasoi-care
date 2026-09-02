@@ -1311,6 +1311,25 @@ def require_owner(fn):
     return wrapper
 
 
+def get_current_technician_optional():
+    """Same shape as get_current_user_optional/get_current_staff_optional,
+    for the technicians table — used by endpoints that accept a customer,
+    staff, or technician token and decide access based on which one
+    actually shows up."""
+    token = get_bearer_token()
+    if not token:
+        return None
+    claims = verify_firebase_token(token)
+    if not claims:
+        return None
+    conn = get_db()
+    row = conn.execute(
+        "SELECT * FROM technicians WHERE firebase_uid = ?", (claims["uid"],)
+    ).fetchone()
+    conn.close()
+    return row
+
+
 def require_technician_auth(fn):
     """Technicians only ever authenticate via Firebase (the Partner app) —
     there's no legacy backend JWT for them, since technician.html has
@@ -1377,10 +1396,11 @@ def staff_me():
 def bootstrap_staff():
     """Called once right after Firebase sign-in/sign-up in the Admin app.
     The very first person to bootstrap becomes 'owner' automatically (a
-    fresh deployment has no staff yet); everyone after that is created
-    as whatever role they asked for, since only an existing owner's
-    invite flow should be minting new owners in a real rollout — the
-    role passed here is otherwise advisory for this prototype."""
+    fresh deployment has no staff yet); everyone after that is always
+    created as plain 'staff' regardless of what `role` they send — only
+    an existing owner's invite flow (POST /api/staff, @require_owner) may
+    mint a new owner. The `role` field is accepted for backward
+    compatibility with older clients but is otherwise ignored."""
     token = get_bearer_token()
     claims = verify_firebase_token(token) if token else None
     if not claims:
@@ -1388,7 +1408,6 @@ def bootstrap_staff():
 
     data = request.get_json(force=True, silent=True) or {}
     name = (data.get("name") or claims.get("name") or "").strip() or "Staff"
-    requested_role = data.get("role") if data.get("role") in ("owner", "staff") else "staff"
 
     conn = get_db()
     row = conn.execute("SELECT * FROM staff WHERE firebase_uid = ?", (claims["uid"],)).fetchone()
@@ -1403,7 +1422,7 @@ def bootstrap_staff():
         staff_id = row["id"]
     else:
         any_staff = conn.execute("SELECT 1 FROM staff LIMIT 1").fetchone()
-        role = "owner" if not any_staff else requested_role
+        role = "owner" if not any_staff else "staff"
         staff_id = new_uuid_id("STF")
         conn.execute(
             "INSERT INTO staff (id, name, phone, email, pin_hash, role, active, created_at, firebase_uid) "
@@ -2195,6 +2214,155 @@ def create_booking():
     return jsonify(booking_row_to_dict(row, include_start_code=True)), 201
 
 
+CART_VISIT_FEE = 49
+CART_COUPON_THRESHOLD = 1700
+CART_COUPON_DISCOUNT = 200
+CART_GST_RATE = 0.18
+
+
+@app.route("/api/bookings/cart", methods=["POST"])
+@require_auth
+@validate_json({
+    "serviceIds": Field(list, required=True, min_len=1, max_len=20, item_type=str),
+    "useCoins": Field(bool),
+    "scheduledAt": Field(str, max_len=40, pattern=ISO_DATETIME_RE, strip=False),
+    "area": Field(str, max_len=200),
+    "addressLine": Field(str, max_len=300),
+    "lat": Field(NUMBER, min_val=-90, max_val=90),
+    "lng": Field(NUMBER, min_val=-180, max_val=180),
+    "directions": Field(str, max_len=500),
+    "notes": Field(str, max_len=2000),
+    "issues": Field(list, max_len=30, item_type=str),
+})
+def create_booking_cart():
+    """Real checkout for the Customer app's Service tab — one or more
+    catalog services booked at once, sharing one visit/address/schedule.
+    Every rupee charged here comes from a value only the server knows: the
+    catalog's own price per serviceId, the same fixed visit-fee/coupon/GST
+    business rules the app itself discloses (mirrored from
+    PricingBreakdown in providers.dart), and the caller's real Care Coins
+    balance — never a client-supplied total. This is what closes the hole
+    create_booking's legacy category/service/price shape always left open:
+    that endpoint still exists for the older Bachat Package promo flow,
+    which isn't a purchasable catalog item and has no per-service price to
+    verify against."""
+    data = request.get_json(force=True, silent=True) or {}
+    service_ids = data.get("serviceIds") or []
+    use_coins = bool(data.get("useCoins"))
+    scheduled_at = data.get("scheduledAt")
+    area = (data.get("area") or "").strip() or None
+    address_line = (data.get("addressLine") or "").strip() or None
+    lat = data.get("lat")
+    lng = data.get("lng")
+    lat = float(lat) if isinstance(lat, (int, float)) else None
+    lng = float(lng) if isinstance(lng, (int, float)) else None
+    directions = (data.get("directions") or "").strip() or None
+    notes = (data.get("notes") or "").strip() or None
+    issues = data.get("issues")
+    issues_json = json.dumps(issues) if isinstance(issues, list) and issues else None
+
+    conn = get_db()
+    rows = []
+    for sid in service_ids:
+        row = conn.execute(SERVICE_SELECT + " WHERE services.id = ?", (sid,)).fetchone()
+        if not row:
+            conn.close()
+            return jsonify({"error": f"Unknown serviceId: {sid}"}), 400
+        rows.append(row)
+
+    if conn.execute("SELECT 1 FROM technicians LIMIT 1").fetchone() is None:
+        conn.close()
+        return jsonify({"error": "No technician is available for this service yet"}), 503
+
+    subtotal = sum(r["price"] for r in rows)
+    pre_gst_base = subtotal + CART_VISIT_FEE
+    coupon = CART_COUPON_DISCOUNT if pre_gst_base > CART_COUPON_THRESHOLD else 0
+    after_coupon = pre_gst_base - coupon
+    gst = round(after_coupon * CART_GST_RATE)
+    before_coins = after_coupon + gst
+
+    coins_redeemed = 0
+    if use_coins:
+        user_row = conn.execute(
+            "SELECT coins_balance FROM users WHERE id = ?", (request.user["id"],)
+        ).fetchone()
+        coins_redeemed = min(user_row["coins_balance"], before_coins)
+        if coins_redeemed > 0:
+            conn.execute(
+                "UPDATE users SET coins_balance = coins_balance - ? WHERE id = ?",
+                (coins_redeemed, request.user["id"]),
+            )
+
+    grand_total = before_coins - coins_redeemed
+
+    # Same proportional-share algorithm as the app's own _allocate() in
+    # booking_screens.dart — each booking row still carries a real,
+    # individually-meaningful price while the sum matches the checkout
+    # total exactly; the last line absorbs any rounding remainder.
+    allocations = []
+    allocated = 0
+    for i, r in enumerate(rows):
+        if i == len(rows) - 1:
+            allocations.append(grand_total - allocated)
+        else:
+            share = round(grand_total * r["price"] / subtotal) if subtotal else 0
+            allocations.append(share)
+            allocated += share
+
+    created_ids = []
+    ts = now()
+    for r, price in zip(rows, allocations):
+        booking_id = next_id(conn, "order", "RC")
+        start_code = f"{secrets.randbelow(10000):04d}"
+        category = r["category"]
+        service = r["appliance_name"] + " · " + r["name"]
+        conn.execute(
+            "INSERT INTO bookings (id, category, service, price, technician_id, customer_name, "
+            "status, bachat_slot, service_rating, tech_rating, area, created_at, updated_at, "
+            "user_id, service_id, total_amount, lat, lng, directions, notes, issues_json, "
+            "start_code, scheduled_at, address_line) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (booking_id, category, service, price, None, request.user["name"],
+             "Requested", None, None, None, area, ts, ts,
+             request.user["id"], r["id"], price, lat, lng, directions,
+             notes, issues_json, start_code, scheduled_at, address_line),
+        )
+        created_ids.append((booking_id, service, start_code))
+    conn.commit()
+
+    bookings_out = []
+    for booking_id, _service, _start_code in created_ids:
+        row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
+        parts = fetch_booking_parts(conn, booking_id)
+        service_changes = fetch_booking_service_changes(conn, booking_id)
+        bookings_out.append(booking_row_to_dict(
+            row, include_start_code=True, parts=parts, service_changes=service_changes,
+        ))
+    conn.close()
+
+    # Best-effort — same as create_booking's own SMS, one per booking.
+    if request.user["phone"]:
+        for booking_id, service, start_code in created_ids:
+            send_sms(
+                f"+91{request.user['phone']}",
+                f"Rasoi Care: your start code for {service} is {start_code}. "
+                "Share it with your technician when they arrive to begin the job.",
+                request_id=booking_id,
+            )
+
+    return jsonify({
+        "bookings": bookings_out,
+        "pricing": {
+            "subtotal": subtotal,
+            "visitFee": CART_VISIT_FEE,
+            "couponDiscount": coupon,
+            "gst": gst,
+            "coinsRedeemed": coins_redeemed,
+            "grandTotal": grand_total,
+        },
+    }), 201
+
+
 @app.route("/api/technician/bookings/available", methods=["GET"])
 @require_technician_auth
 def technician_available_bookings():
@@ -2540,10 +2708,32 @@ def get_job_photo(booking_id, kind):
     plain Image.network(url) the same way they already do for Firebase
     Storage document URLs, without needing a separate download step. The
     column is picked via an explicit if/elif/else (not string-built from
-    `kind`) so no request-influenced value ever reaches the SQL text."""
+    `kind`) so no request-influenced value ever reaches the SQL text.
+
+    Booking IDs are sequential, so this must never be reachable without
+    proof the caller is the customer on this exact booking, the technician
+    assigned to it, or staff — same three token types every other booking
+    route accepts, checked here against this specific booking's owners."""
     if kind not in _PHOTO_MIME:
         return jsonify({"error": "kind must be 'before', 'after', or 'signature'"}), 400
+    user = get_current_user_optional()
+    staff = get_current_staff_optional() if not user else None
+    technician = get_current_technician_optional() if not user and not staff else None
+    if not user and not staff and not technician:
+        return jsonify({"error": "Unauthorized", "message": "Missing or invalid bearer token"}), 401
     conn = get_db()
+    owner_row = conn.execute(
+        "SELECT user_id, technician_id FROM bookings WHERE id = ?", (booking_id,)
+    ).fetchone()
+    if not owner_row:
+        conn.close()
+        return jsonify({"error": "not found"}), 404
+    if user and owner_row["user_id"] != user["id"]:
+        conn.close()
+        return jsonify({"error": "not found"}), 404
+    if technician and owner_row["technician_id"] != technician["id"]:
+        conn.close()
+        return jsonify({"error": "not found"}), 404
     if kind == "before":
         row = conn.execute(
             "SELECT before_photo_b64 AS data FROM bookings WHERE id = ?", (booking_id,)

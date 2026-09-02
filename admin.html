@@ -476,6 +476,10 @@ async function apiPatchAuth(path, body){
 function toast(m){const t=document.getElementById('toast');document.getElementById('toastMsg').textContent=m;t.classList.add('show');clearTimeout(t._x);t._x=setTimeout(()=>t.classList.remove('show'),2400);}
 function chipPick(el){[...el.parentElement.children].forEach(c=>c.classList&&c.classList.remove('on'));el.classList.add('on');}
 function initials(name){ return name.split(' ').map(p=>p[0]).slice(0,2).join('').toUpperCase(); }
+// Escapes customer/technician-supplied text before it's interpolated into an
+// innerHTML template — names, areas, and complaint text all come from other
+// users' accounts and must never be trusted as HTML.
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 const ADMIN_TABS = ['adOps','adBook','adTeam','adReports','adStock','adSettings'];
 function tabSwap(btn, show){
@@ -550,7 +554,7 @@ async function loadOverview(){
     document.getElementById('attnList').innerHTML = open.length ? open.slice(0,6).map(c=>`
       <div class="card card-p tap" style="border-left:3px solid var(--signal)" onclick="openComplaint('${c.id}')">
         <div class="between"><b style="font-size:13px">${c.bookingId}</b><span class="mono muted">${c.status}</span></div>
-        <p class="tiny muted" style="margin:5px 0 0">${c.text}</p>
+        <p class="tiny muted" style="margin:5px 0 0">${esc(c.text)}</p>
       </div>`).join('') : '<p class="sub" style="padding:14px 0">Nothing needs attention.</p>';
   }catch(e){ console.warn(e); }
 }
@@ -563,7 +567,7 @@ function techOptionsHtml(selectedId, bookingArea){
     return (a.online===b.online) ? 0 : (a.online ? -1 : 1);
   });
   return sorted.map(t=>
-    `<option value="${t.id}" ${t.id===selectedId?'selected':''}>${t.name} — ${t.area}${bookingArea && t.area===bookingArea?' · same area':''}${t.online?'':' (offline)'}</option>`
+    `<option value="${t.id}" ${t.id===selectedId?'selected':''}>${esc(t.name)} — ${esc(t.area)}${bookingArea && t.area===bookingArea?' · same area':''}${t.online?'':' (offline)'}</option>`
   ).join('');
 }
 
@@ -591,8 +595,8 @@ function renderBookings(){
     const tech = STATE.technicians.find(t=>t.id===b.technicianId);
     return `<div class="card card-p tap" onclick="openBooking('${b.id}')">
       <div class="between"><span class="chip ${b.status==='Completed'?'chip-grow':(b.status==='Requested'?'chip-signal':'chip-brass')}" style="height:24px;font-size:10.5px">${b.status}</span><span class="mono muted">${b.id}</span></div>
-      <b style="display:block;margin-top:10px;font-size:13.5px">${b.service}</b>
-      <p class="tiny muted" style="margin:4px 0 0">${b.customerName} · ₹${b.total_amount||b.price}${b.area?' · '+b.area:''} · ${tech?tech.name:'Unassigned'}</p></div>`;
+      <b style="display:block;margin-top:10px;font-size:13.5px">${esc(b.service)}</b>
+      <p class="tiny muted" style="margin:4px 0 0">${esc(b.customerName)} · ₹${b.total_amount||b.price}${b.area?' · '+esc(b.area):''} · ${tech?esc(tech.name):'Unassigned'}</p></div>`;
   }).join('') || '<p class="sub" style="padding:14px 0">No bookings in this filter.</p>';
 }
 
@@ -605,18 +609,19 @@ async function loadTeam(){
     const avg = STATE.technicians.length ? (STATE.technicians.reduce((s,t)=>s+t.rating,0)/STATE.technicians.length).toFixed(2) : '—';
     document.getElementById('teamAvgRating').textContent = avg;
     document.getElementById('adTeamList').innerHTML = STATE.technicians.map(t=>{
-      const tInitials = initials(t.name);
+      const tInitials = esc(initials(t.name));
+      const categoryLine = esc(t.categories&&t.categories.length?t.categories.join(', '):t.category);
       if(!t.verified){
         return `<div class="card card-p" style="border-color:var(--accent);border-width:1.5px">
           <div class="row"><div class="avatar" style="width:40px;height:40px;flex:0 0 40px;font-size:12px">${tInitials}</div>
-          <div style="flex:1"><b style="font-size:13.5px">${t.name}</b><p class="tiny muted" style="margin:2px 0 0">${(t.categories&&t.categories.length?t.categories.join(', '):t.category)} · ${t.area}</p></div>
+          <div style="flex:1"><b style="font-size:13.5px">${esc(t.name)}</b><p class="tiny muted" style="margin:2px 0 0">${categoryLine} · ${esc(t.area)}</p></div>
           <span class="chip chip-brass" style="height:24px;font-size:10.5px">Pending</span></div>
           <button class="btn btn-p btn-sm btn-block" style="margin-top:11px" onclick="verifyTechnician('${t.id}')">Verify &amp; bring online</button>
         </div>`;
       }
-      return `<div class="card card-p tap row" onclick="toast('${t.name}${t.partnerCode?' · '+t.partnerCode:''} · ${t.jobsCompleted} jobs completed')">
+      return `<div class="card card-p tap row" onclick="showTechInfo('${t.id}')">
         <div class="avatar" style="width:40px;height:40px;flex:0 0 40px;font-size:12px">${tInitials}</div>
-        <div style="flex:1"><b style="font-size:13.5px">${t.name}</b><p class="tiny muted" style="margin:2px 0 0">${(t.categories&&t.categories.length?t.categories.join(', '):t.category)} · ${t.area}${t.partnerCode?' · '+t.partnerCode:''}</p></div>
+        <div style="flex:1"><b style="font-size:13.5px">${esc(t.name)}</b><p class="tiny muted" style="margin:2px 0 0">${categoryLine} · ${esc(t.area)}${t.partnerCode?' · '+esc(t.partnerCode):''}</p></div>
         <div style="text-align:right"><b class="price tiny" style="color:var(--accent)">★ ${t.rating}</b><p class="tiny muted" style="margin:3px 0 0">${t.online?'On duty':'Offline'}</p></div></div>`;
     }).join('');
   }catch(e){ console.warn(e); }
@@ -648,6 +653,11 @@ async function submitAddTechnician(){
     await loadTeam();
   }catch(e){ toast('Could not add technician'); }
 }
+function showTechInfo(id){
+  const t = STATE.technicians.find(x=>x.id===id);
+  if(!t) return;
+  toast(t.name + (t.partnerCode?' · '+t.partnerCode:'') + ' · ' + t.jobsCompleted + ' jobs completed');
+}
 async function verifyTechnician(id){
   try{
     await apiPatchAuth('/api/technicians/'+id+'/verify', {});
@@ -666,10 +676,10 @@ function openBooking(id){
   const nextStatus = idx>=0 && idx<STATUS_ORDER.length-1 ? STATUS_ORDER[idx+1] : null;
   document.getElementById('sheetBookingBody').innerHTML = `
     <div class="between"><b class="mono">${b.id}</b><span class="chip ${b.status==='Completed'?'chip-grow':(b.status==='Requested'?'chip-signal':'chip-brass')}" style="height:24px;font-size:10.5px">${b.status}</span></div>
-    <b class="display" style="font-size:19px;display:block;margin-top:10px">${b.service}</b>
-    <p class="tiny muted" style="margin:5px 0 0">${b.customerName} · ₹${b.total_amount||b.price}${b.area?' · '+b.area:''}</p>
+    <b class="display" style="font-size:19px;display:block;margin-top:10px">${esc(b.service)}</b>
+    <p class="tiny muted" style="margin:5px 0 0">${esc(b.customerName)} · ₹${b.total_amount||b.price}${b.area?' · '+esc(b.area):''}</p>
     <div class="divider"></div>
-    <p class="eyebrow">Assign technician${b.area?' — customer is in '+b.area:''}</p>
+    <p class="eyebrow">Assign technician${b.area?' — customer is in '+esc(b.area):''}</p>
     <select id="assignSelect" style="${SELECT_STYLE}">
       ${techOptionsHtml(b.technicianId, b.area)}
     </select>
@@ -707,10 +717,10 @@ function openComplaint(id){
   window._sheetComplaintId = id;
   document.getElementById('sheetComplaintBody').innerHTML = `
     <div class="between"><b class="mono">${c.bookingId}</b><span class="chip ${c.status==='Resolved'?'chip-grow':'chip-signal'}" style="height:24px;font-size:10.5px">${c.status}</span></div>
-    <p class="sub" style="margin-top:12px">${c.text}</p>
+    <p class="sub" style="margin-top:12px">${esc(c.text)}</p>
     <div class="divider"></div>
     <p class="eyebrow">Response to customer</p>
-    <label class="field" style="margin-top:8px"><textarea id="complaintResponse" placeholder=" ">${c.response||''}</textarea><span>Write a response</span></label>
+    <label class="field" style="margin-top:8px"><textarea id="complaintResponse" placeholder=" ">${esc(c.response||'')}</textarea><span>Write a response</span></label>
     <button class="btn btn-p btn-block" style="margin-top:12px" onclick="resolveComplaint()">${c.status==='Resolved'?'Update response':'Resolve complaint'}</button>
   `;
   openSheet('sheetComplaint');
@@ -754,7 +764,7 @@ async function loadReports(period){
     document.getElementById('repLeaderboard').innerHTML = r.technicianLeaderboard.map((t,i)=>`
       <div class="card card-p row">
         <b class="mono muted" style="width:20px">${i+1}</b>
-        <div style="flex:1"><b style="font-size:13.5px">${t.name}</b><p class="tiny muted" style="margin:2px 0 0">${t.jobsInPeriod} jobs · ★ ${t.rating}</p></div>
+        <div style="flex:1"><b style="font-size:13.5px">${esc(t.name)}</b><p class="tiny muted" style="margin:2px 0 0">${t.jobsInPeriod} jobs · ★ ${t.rating}</p></div>
         <b class="price tiny">₹${t.revenueInPeriod.toLocaleString('en-IN')}</b>
       </div>`).join('');
 
