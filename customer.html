@@ -1560,6 +1560,8 @@ function finishAuth(resp, phone){
   localStorage.setItem('rc_token', STATE.token);
   localStorage.setItem('rc_user', JSON.stringify(STATE.user));
   updateIdentity();
+  const returnTo = new URLSearchParams(location.search).get('returnTo');
+  if(returnTo && returnTo.startsWith('/')){ location.href = returnTo; return; }
   go('home');
 }
 function logout(){
