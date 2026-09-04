@@ -48,7 +48,7 @@ class MockRepository implements CareRepository {
   List<ServiceItem> servicesFor(Appliance a) => switch (a) {
         Appliance.chimney => [
             ServiceItem(
-              id: '${a.name}_clean',
+              id: 'svc_chimney_deep_clean_full',
               appliance: a,
               title: 'Deep clean — filters, motor, duct',
               blurb: 'Degreasing bath for baffle filters, blower and oil collector · 90 min',
@@ -72,7 +72,7 @@ class MockRepository implements CareRepository {
               ],
             ),
             ServiceItem(
-              id: '${a.name}_filter_clean',
+              id: 'svc_chimney_filter_clean',
               appliance: a,
               title: 'Normal filter clean',
               blurb: 'Baffle or mesh filters degreased and refitted · 30 min',
@@ -87,7 +87,7 @@ class MockRepository implements CareRepository {
                   'for the full service.',
             ),
             ServiceItem(
-              id: '${a.name}_repair',
+              id: 'svc_chimney_repair_visit',
               appliance: a,
               title: 'Repair visit and diagnosis',
               blurb: 'Fee waived if you approve the repair quote · parts extra',
@@ -103,7 +103,7 @@ class MockRepository implements CareRepository {
                   'and fitted only after your approval.',
             ),
             ServiceItem(
-              id: '${a.name}_install',
+              id: 'svc_chimney_install',
               appliance: a,
               title: 'Installation with duct work',
               blurb: 'Wall or island mount, up to 6 ft of ducting included',
@@ -118,7 +118,7 @@ class MockRepository implements CareRepository {
                   'point extension.',
             ),
             ServiceItem(
-              id: '${a.name}_uninstall',
+              id: 'svc_chimney_uninstall',
               appliance: a,
               title: 'Uninstall and shift',
               blurb: 'Safe removal, capping and packing for a move',
@@ -134,7 +134,7 @@ class MockRepository implements CareRepository {
           ],
         Appliance.hob => [
             ServiceItem(
-              id: '${a.name}_clean',
+              id: 'svc_hob_deep_clean_full',
               appliance: a,
               title: 'Deep clean — burners, valves, igniters',
               blurb: 'Ultrasonic bath for burner caps, igniter contacts tested · 60 min',
@@ -153,7 +153,7 @@ class MockRepository implements CareRepository {
                   'Quoted in the app before work starts.',
             ),
             ServiceItem(
-              id: '${a.name}_repair',
+              id: 'svc_hob_repair_visit',
               appliance: a,
               title: 'Repair visit and diagnosis',
               blurb: 'Fee waived if you approve the repair quote · parts extra',
@@ -169,7 +169,7 @@ class MockRepository implements CareRepository {
                   'fitted only after approval.',
             ),
             ServiceItem(
-              id: '${a.name}_install',
+              id: 'svc_hob_install',
               appliance: a,
               title: 'Installation with gas line check',
               blurb: 'Countertop or built-in mount, leak-tested on every joint',
@@ -184,7 +184,7 @@ class MockRepository implements CareRepository {
                   'replacement.',
             ),
             ServiceItem(
-              id: '${a.name}_uninstall',
+              id: 'svc_hob_uninstall',
               appliance: a,
               title: 'Uninstall and cap the line',
               blurb: 'Safe gas disconnection and capping for a move',
@@ -200,7 +200,7 @@ class MockRepository implements CareRepository {
           ],
         Appliance.cooktop => [
             ServiceItem(
-              id: '${a.name}_clean',
+              id: 'svc_cooktop_deep_clean_full',
               appliance: a,
               title: 'Deep clean and calibration',
               blurb: 'Glass surface polish, sensor and touch panel check · 50 min',
@@ -219,7 +219,7 @@ class MockRepository implements CareRepository {
                   'Quoted before work starts.',
             ),
             ServiceItem(
-              id: '${a.name}_repair',
+              id: 'svc_cooktop_repair_visit',
               appliance: a,
               title: 'Repair visit and diagnosis',
               blurb: 'Fee waived if you approve the repair quote · parts extra',
@@ -234,7 +234,7 @@ class MockRepository implements CareRepository {
                   'fitted only after approval.',
             ),
             ServiceItem(
-              id: '${a.name}_install',
+              id: 'svc_cooktop_install',
               appliance: a,
               title: 'Installation and panel fitting',
               blurb: 'Countertop cutout fitting and power point check',
@@ -248,7 +248,7 @@ class MockRepository implements CareRepository {
               notIncluded: 'Countertop cutting/enlargement and new power point wiring.',
             ),
             ServiceItem(
-              id: '${a.name}_uninstall',
+              id: 'svc_cooktop_uninstall',
               appliance: a,
               title: 'Uninstall and pack for a move',
               blurb: 'Safe removal and packing, glass surface protected',
@@ -264,7 +264,7 @@ class MockRepository implements CareRepository {
           ],
         Appliance.dishwasher => [
             ServiceItem(
-              id: '${a.name}_clean',
+              id: 'svc_dishwasher_deep_clean_full',
               appliance: a,
               title: 'Deep clean — filter, spray arms, seals',
               blurb: 'Filter basket, spray arms and door seals descaled · 75 min',
@@ -283,7 +283,7 @@ class MockRepository implements CareRepository {
                   'Quoted before work starts.',
             ),
             ServiceItem(
-              id: '${a.name}_repair',
+              id: 'svc_dishwasher_repair_visit',
               appliance: a,
               title: 'Repair visit and diagnosis',
               blurb: 'Fee waived if you approve the repair quote · parts extra',
@@ -298,7 +298,7 @@ class MockRepository implements CareRepository {
                   'after your approval.',
             ),
             ServiceItem(
-              id: '${a.name}_install',
+              id: 'svc_dishwasher_install',
               appliance: a,
               title: 'Installation and plumbing connection',
               blurb: 'Water inlet, drain hose and levelling included',
@@ -311,7 +311,7 @@ class MockRepository implements CareRepository {
               notIncluded: 'New plumbing points and cabinet modification.',
             ),
             ServiceItem(
-              id: '${a.name}_uninstall',
+              id: 'svc_dishwasher_uninstall',
               appliance: a,
               title: 'Uninstall and cap the lines',
               blurb: 'Safe disconnection and capping for a move',
@@ -327,7 +327,7 @@ class MockRepository implements CareRepository {
           ],
         Appliance.microwave => [
             ServiceItem(
-              id: '${a.name}_clean',
+              id: 'svc_microwave_deep_clean_full',
               appliance: a,
               title: 'Deep clean and safety check',
               blurb: 'Interior degrease, door switch and leakage test · 45 min',
@@ -346,7 +346,7 @@ class MockRepository implements CareRepository {
                   'before work starts.',
             ),
             ServiceItem(
-              id: '${a.name}_repair',
+              id: 'svc_microwave_repair_visit',
               appliance: a,
               title: 'Repair visit and diagnosis',
               blurb: 'Fee waived if you approve the repair quote · parts extra',
@@ -361,7 +361,7 @@ class MockRepository implements CareRepository {
                   'only after approval.',
             ),
             ServiceItem(
-              id: '${a.name}_install',
+              id: 'svc_microwave_install',
               appliance: a,
               title: 'Built-in installation and trim kit',
               blurb: 'Cabinet mount, trim kit and vent check',
@@ -375,7 +375,7 @@ class MockRepository implements CareRepository {
               notIncluded: 'Cabinet cutout modification and new power point.',
             ),
             ServiceItem(
-              id: '${a.name}_uninstall',
+              id: 'svc_microwave_uninstall',
               appliance: a,
               title: 'Uninstall and cap the housing',
               blurb: 'Safe removal and packing for a move',
@@ -391,7 +391,7 @@ class MockRepository implements CareRepository {
           ],
         Appliance.otg => [
             ServiceItem(
-              id: '${a.name}_clean',
+              id: 'svc_otg_deep_clean_full',
               appliance: a,
               title: 'Deep clean and element check',
               blurb: 'Interior degrease and heating element inspection · 40 min',
@@ -410,7 +410,7 @@ class MockRepository implements CareRepository {
                   'before work starts.',
             ),
             ServiceItem(
-              id: '${a.name}_repair',
+              id: 'svc_otg_repair_visit',
               appliance: a,
               title: 'Repair visit and diagnosis',
               blurb: 'Fee waived if you approve the repair quote · parts extra',
@@ -425,7 +425,7 @@ class MockRepository implements CareRepository {
                   'fitted only after approval.',
             ),
             ServiceItem(
-              id: '${a.name}_install',
+              id: 'svc_otg_install',
               appliance: a,
               title: 'Installation and test bake',
               blurb: 'Placement, wiring check and a verified test bake',
@@ -438,7 +438,7 @@ class MockRepository implements CareRepository {
               notIncluded: 'New power point and cabinet modification.',
             ),
             ServiceItem(
-              id: '${a.name}_uninstall',
+              id: 'svc_otg_uninstall',
               appliance: a,
               title: 'Uninstall and pack for a move',
               blurb: 'Safe removal and packing for a move',

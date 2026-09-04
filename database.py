@@ -271,6 +271,42 @@ SERVICES_SEED = [
     ("svc_purifier_annual_service", "app_purifier", "RasoiPure", "Annual Service", 349, 1),
 ]
 
+# (id, appliance_id, category, name, price, quick_fix) — the deep-clean /
+# repair / install / uninstall services the Customer app's Service tab has
+# always shown (previously hardcoded client-side with no real catalog row
+# behind them, so a booking's price could never be verified server-side).
+# Added via migrate_add_customer_catalog_services below rather than
+# SERVICES_SEED so it reaches databases that were already seeded — prices
+# match exactly what the app already charges, so this changes no customer-
+# facing number, only makes it server-verifiable.
+CUSTOMER_CATALOG_SEED = [
+    ("svc_chimney_deep_clean_full", "app_chimney", "RasoiAir", "Deep clean — filters, motor, duct", 1599, 0),
+    ("svc_chimney_filter_clean", "app_chimney", "RasoiAir", "Normal filter clean", 899, 0),
+    ("svc_chimney_repair_visit", "app_chimney", "RasoiAir", "Repair visit and diagnosis", 399, 1),
+    ("svc_chimney_install", "app_chimney", "RasoiAir", "Installation with duct work", 1699, 0),
+    ("svc_chimney_uninstall", "app_chimney", "RasoiAir", "Uninstall and shift", 599, 0),
+    ("svc_hob_deep_clean_full", "app_hob", "RasoiSpark", "Deep clean — burners, valves, igniters", 799, 0),
+    ("svc_hob_repair_visit", "app_hob", "RasoiSpark", "Repair visit and diagnosis", 399, 1),
+    ("svc_hob_install", "app_hob", "RasoiSpark", "Installation with gas line check", 699, 0),
+    ("svc_hob_uninstall", "app_hob", "RasoiSpark", "Uninstall and cap the line", 399, 0),
+    ("svc_cooktop_deep_clean_full", "app_cooktop", "RasoiSpark", "Deep clean and calibration", 499, 0),
+    ("svc_cooktop_repair_visit", "app_cooktop", "RasoiSpark", "Repair visit and diagnosis", 399, 1),
+    ("svc_cooktop_install", "app_cooktop", "RasoiSpark", "Installation and panel fitting", 399, 0),
+    ("svc_cooktop_uninstall", "app_cooktop", "RasoiSpark", "Uninstall and pack for a move", 299, 0),
+    ("svc_dishwasher_deep_clean_full", "app_dishwasher", "RasoiWash", "Deep clean — filter, spray arms, seals", 1199, 0),
+    ("svc_dishwasher_repair_visit", "app_dishwasher", "RasoiWash", "Repair visit and diagnosis", 599, 1),
+    ("svc_dishwasher_install", "app_dishwasher", "RasoiWash", "Installation and plumbing connection", 1499, 0),
+    ("svc_dishwasher_uninstall", "app_dishwasher", "RasoiWash", "Uninstall and cap the lines", 599, 0),
+    ("svc_microwave_deep_clean_full", "app_microwave", "RasoiBuilt", "Deep clean and safety check", 549, 0),
+    ("svc_microwave_repair_visit", "app_microwave", "RasoiBuilt", "Repair visit and diagnosis", 399, 1),
+    ("svc_microwave_install", "app_microwave", "RasoiBuilt", "Built-in installation and trim kit", 999, 0),
+    ("svc_microwave_uninstall", "app_microwave", "RasoiBuilt", "Uninstall and cap the housing", 599, 0),
+    ("svc_otg_deep_clean_full", "app_otg", "RasoiBuilt", "Deep clean and element check", 549, 0),
+    ("svc_otg_repair_visit", "app_otg", "RasoiBuilt", "Repair visit and diagnosis", 399, 1),
+    ("svc_otg_install", "app_otg", "RasoiBuilt", "Installation and test bake", 999, 0),
+    ("svc_otg_uninstall", "app_otg", "RasoiBuilt", "Uninstall and pack for a move", 599, 0),
+]
+
 # (id, name, price, duration_months, benefits list)
 AMC_PLANS_SEED = [
     ("amc_basic", "Basic Care", 999, 12,
@@ -803,6 +839,20 @@ def migrate_users_columns(conn):
     conn.commit()
 
 
+def migrate_add_customer_catalog_services(conn):
+    """Idempotently inserts CUSTOMER_CATALOG_SEED's rows — safe to run on
+    every boot (INSERT OR IGNORE keyed on the primary key `id`) so it
+    reaches databases seed_catalog already ran on long ago."""
+    ts = now()
+    for sid, appliance_id, category, name, price, quick_fix in CUSTOMER_CATALOG_SEED:
+        conn.execute(
+            "INSERT OR IGNORE INTO services (id, appliance_id, category, name, price, quick_fix, created_at) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (sid, appliance_id, category, name, price, quick_fix, ts),
+        )
+    conn.commit()
+
+
 def init_db():
     conn = get_db()
     conn.executescript(SCHEMA)
@@ -813,6 +863,7 @@ def init_db():
     migrate_firebase_columns(conn)
     migrate_users_columns(conn)
     seed_catalog(conn)
+    migrate_add_customer_catalog_services(conn)
     seed_staff(conn)
     seed_home_services(conn)
     # Cleans up the four demo technicians and two demo bookings any

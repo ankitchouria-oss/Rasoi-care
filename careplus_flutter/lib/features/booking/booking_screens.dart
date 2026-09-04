@@ -472,29 +472,6 @@ class PaymentScreen extends ConsumerStatefulWidget {
 class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   bool _submitting = false;
 
-  /// Splits [grandTotalPaise] across each service in proportion to its own
-  /// share of the pre-fee subtotal, so each booking row still carries a
-  /// real, individually-meaningful price (visible to its own technician)
-  /// while the sum across all of them matches the real checkout total
-  /// exactly — the last line absorbs whatever a penny of rounding leaves
-  /// over rather than losing or inventing a paisa.
-  List<int> _allocate(List<ServiceItem> services, int grandTotalPaise) {
-    final subtotal = services.fold(0, (s, i) => s + i.pricePaise);
-    if (subtotal == 0) return List.filled(services.length, 0);
-    final shares = <int>[];
-    var allocated = 0;
-    for (var i = 0; i < services.length; i++) {
-      if (i == services.length - 1) {
-        shares.add(grandTotalPaise - allocated);
-      } else {
-        final share = (grandTotalPaise * services[i].pricePaise / subtotal).round();
-        shares.add(share);
-        allocated += share;
-      }
-    }
-    return shares;
-  }
-
   /// Places both halves of a possibly-mixed cart — real bookings for
   /// [draft.services] and, if [shopCart] isn't empty, one real Shop order
   /// for it too — from this single "Pay" tap, so a kit and a repair visit
@@ -507,18 +484,6 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   /// when only one half actually went through.
   Future<void> _pay(BookingDraft draft, PricingBreakdown pricing, Map<String, int> shopCart) async {
     setState(() => _submitting = true);
-    // Redeemed once for the whole order — before any bookings are created —
-    // so a multi-service cart never redeems the same coins once per row.
-    if (pricing.coinsRedeemed > 0) {
-      final ok = await ref.read(apiRepositoryProvider).redeemCoins(pricing.coinsRedeemed);
-      if (!ok) {
-        if (!mounted) return;
-        setState(() => _submitting = false);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text("Couldn't redeem your Care Coins — check your connection and try again.")));
-        return;
-      }
-    }
     SavedAddress? selected;
     for (final a in [
       ...ref.read(savedAddressesProvider),
@@ -546,13 +511,12 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       for (final issue in draft.issues)
         if (issue.selected) issue.label,
     ];
-    final allocations = _allocate(draft.services, pricing.grandTotalPaise);
-    final created = <Booking>[];
+    var created = <Booking>[];
     String? bookingError;
-    for (var i = 0; i < draft.services.length; i++) {
-      final result = await ref.read(apiRepositoryProvider).createBooking(
-            service: draft.services[i],
-            totalPaise: allocations[i],
+    if (draft.services.isNotEmpty) {
+      final result = await ref.read(apiRepositoryProvider).createBookingCart(
+            services: draft.services,
+            useCoins: draft.useCoins,
             areaLabel: selected?.label,
             addressLine: selected?.line,
             lat: selected?.lat,
@@ -562,8 +526,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             issues: selectedIssues,
             scheduledAt: draft.scheduledAt,
           );
-      if (result.booking != null) created.add(result.booking!);
-      if (result.error != null) bookingError = result.error;
+      if (result.bookings != null) created = result.bookings!;
+      bookingError = result.error;
     }
     int? shopOrderTotal;
     String? shopError;

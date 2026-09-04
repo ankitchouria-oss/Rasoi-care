@@ -435,6 +435,10 @@ async function apiPatch(path, body){ const r = await fetch(API_BASE+path, { meth
 async function apiPost(path, body){ const r = await fetch(API_BASE+path, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{}) }); if(!r.ok) throw new Error('POST '+path+' '+r.status); return r.json(); }
 
 function toast(m){const t=document.getElementById('toast');document.getElementById('toastMsg').textContent=m;t.classList.add('show');clearTimeout(t._x);t._x=setTimeout(()=>t.classList.remove('show'),2400);}
+// Escapes customer-supplied text (name, area) before it's interpolated into
+// an innerHTML template — this is a technician's own device, but the text
+// comes from someone else's account and must never be trusted as HTML.
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 async function refreshJobs(){
   try{ STATE.bookings = await apiGet('/api/bookings'); }catch(e){ console.warn(e); }
@@ -452,9 +456,9 @@ function renderJobFeed(){
     newReqSection.innerHTML = `
       <div class="sect"><h3>New request</h3><span class="mono muted">${requested.length} waiting</span></div>
       <div class="card card-p" style="border-color:var(--accent);border-width:1.5px">
-        <div class="between"><span class="chip chip-brass" style="height:24px;font-size:10.5px">${b.category}</span><span class="mono muted">${b.id}</span></div>
-        <b style="display:block;margin-top:11px;font-size:14.5px">${b.service} · ${b.customerName}</b>
-        <p class="tiny muted" style="margin:4px 0 0">${b.area?b.area+' · ':''}₹${b.total_amount||b.price} payout</p>
+        <div class="between"><span class="chip chip-brass" style="height:24px;font-size:10.5px">${esc(b.category)}</span><span class="mono muted">${b.id}</span></div>
+        <b style="display:block;margin-top:11px;font-size:14.5px">${esc(b.service)} · ${esc(b.customerName)}</b>
+        <p class="tiny muted" style="margin:4px 0 0">${b.area?esc(b.area)+' · ':''}₹${b.total_amount||b.price} payout</p>
         <div class="grid2" style="margin-top:13px;gap:9px">
           <button class="btn btn-o btn-sm" style="height:42px" onclick="passJob('${b.id}')">Pass</button>
           <button class="btn btn-p btn-sm" style="height:42px" onclick="acceptJob('${b.id}')">Accept</button>
@@ -468,8 +472,8 @@ function renderJobFeed(){
   document.getElementById('routeList').innerHTML = active.length ? active.map(b=>`
     <div class="card card-p tap" onclick="openJob('${b.id}')">
       <div class="between"><span class="chip ${b.status==='Accepted'?'':'chip-grow'}" style="height:24px;font-size:10.5px">${b.status}</span><span class="mono muted">${b.id}</span></div>
-      <b style="display:block;margin-top:10px;font-size:14px">${b.service} · ${b.customerName}</b>
-      <p class="tiny muted" style="margin:4px 0 0">${b.category}${b.area?' · '+b.area:''}</p>
+      <b style="display:block;margin-top:10px;font-size:14px">${esc(b.service)} · ${esc(b.customerName)}</b>
+      <p class="tiny muted" style="margin:4px 0 0">${esc(b.category)}${b.area?' · '+esc(b.area):''}</p>
     </div>`).join('') : '<p class="sub" style="padding:14px 0">No active jobs right now.</p>';
 
   document.getElementById('earningsToday').textContent = '₹' + done.reduce((s,b)=>s+(b.total_amount||b.price),0);
