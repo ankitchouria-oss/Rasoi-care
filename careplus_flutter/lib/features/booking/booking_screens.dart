@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
 import '../../data/models.dart';
+import '../../l10n/l10n_extensions.dart';
 import '../../state/providers.dart';
 import '../shop/shop_screen.dart' show shopProducts;
 import 'select_location_screen.dart';
@@ -58,21 +59,20 @@ class IssueScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final draft = ref.watch(bookingDraftProvider);
     final vm = ref.read(bookingDraftProvider.notifier);
+    final t = context.l10n;
     return _StepScaffold(
-      title: 'Describe the problem',
+      title: t.issueTitle,
       progress: 0.25,
       dock: SizedBox(
         width: double.infinity,
         child: FilledButton(
             onPressed: () => context.push('/book/slot'),
-            child: const Text('Pick a time slot')),
+            child: Text(t.issueNextButton)),
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-              'Pick everything you\'ve noticed. The technician sees this before they arrive and packs the right parts.',
-              style: context.type.bodyMedium),
+          Text(t.issueBody, style: context.type.bodyMedium),
           const SizedBox(height: 18),
           for (var i = 0; i < draft.issues.length; i++) ...[
             _IssueRow(issue: draft.issues[i], onTap: () => vm.toggleIssue(i)),
@@ -83,10 +83,10 @@ class IssueScreen extends ConsumerWidget {
             initialValue: draft.notes,
             maxLines: 3,
             onChanged: vm.setNotes,
-            decoration: const InputDecoration(labelText: 'Anything else? (optional)'),
+            decoration: InputDecoration(labelText: t.issueNotesLabel),
           ),
           const SizedBox(height: 22),
-          Eyebrow('Photos help — add up to 4'),
+          Eyebrow(t.issuePhotosEyebrow),
           const SizedBox(height: 10),
           const _PhotoPicker(),
         ],
@@ -141,6 +141,7 @@ class _PhotoPickerState extends State<_PhotoPicker> {
   final List<File> _photos = [];
 
   Future<void> _add() async {
+    final t = context.l10n;
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
       builder: (sheetContext) => SafeArea(
@@ -149,12 +150,12 @@ class _PhotoPickerState extends State<_PhotoPicker> {
           children: [
             ListTile(
               leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Camera'),
+              title: Text(t.issuePhotoCamera),
               onTap: () => Navigator.of(sheetContext).pop(ImageSource.camera),
             ),
             ListTile(
               leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Gallery'),
+              title: Text(t.issuePhotoGallery),
               onTap: () => Navigator.of(sheetContext).pop(ImageSource.gallery),
             ),
           ],
@@ -247,12 +248,12 @@ class SlotScreen extends ConsumerWidget {
   /// Today plus the next 5 real calendar days — this used to be six days
   /// hardcoded to "24 Jul – 29 Jul" regardless of the actual date, so every
   /// booking after that one week showed the wrong "Today".
-  static List<(String, String, DateTime)> get _days {
+  static List<(String, String, DateTime)> _days(String todayLabel) {
     final now = DateTime.now();
     return [
       for (var i = 0; i < 6; i++)
         (
-          i == 0 ? 'Today' : DateFormat('E').format(now.add(Duration(days: i))),
+          i == 0 ? todayLabel : DateFormat('E').format(now.add(Duration(days: i))),
           DateFormat('d MMM').format(now.add(Duration(days: i))),
           DateTime(now.year, now.month, now.day).add(Duration(days: i)),
         ),
@@ -268,22 +269,24 @@ class SlotScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final draft = ref.watch(bookingDraftProvider);
     final vm = ref.read(bookingDraftProvider.notifier);
+    final t = context.l10n;
+    final days = _days(t.slotToday);
     return _StepScaffold(
-      title: 'Choose a slot',
+      title: t.slotTitle,
       progress: 0.5,
       dock: Row(children: [
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Eyebrow('Selected'),
+              Eyebrow(t.slotSelectedEyebrow),
               Text('${draft.day} · ${draft.slot}',
                   style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
             ],
           ),
         ),
         FilledButton(
-            onPressed: () => context.push('/book/address'), child: const Text('Next')),
+            onPressed: () => context.push('/book/address'), child: Text(t.slotNext)),
       ]),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -292,13 +295,13 @@ class SlotScreen extends ConsumerWidget {
             height: 76,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
-              itemCount: _days.length,
+              itemCount: days.length,
               separatorBuilder: (_, __) => const SizedBox(width: 9),
               itemBuilder: (_, i) {
-                final label = '${_days[i].$1} ${_days[i].$2}';
+                final label = '${days[i].$1} ${days[i].$2}';
                 final sel = draft.day == label;
                 return Pressable(
-                  onTap: () => vm.setSlot(label, draft.slot, dayDate: _days[i].$3),
+                  onTap: () => vm.setSlot(label, draft.slot, dayDate: days[i].$3),
                   child: Container(
                     width: 66,
                     decoration: BoxDecoration(
@@ -310,14 +313,14 @@ class SlotScreen extends ConsumerWidget {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(_days[i].$1,
+                        Text(days[i].$1,
                             style: TextStyle(
                                 fontSize: 11,
                                 color: sel
                                     ? context.scheme.onPrimary.withValues(alpha: 0.8)
                                     : context.care.inkMuted)),
                         const SizedBox(height: 3),
-                        Text(_days[i].$2.split(' ').first,
+                        Text(days[i].$2.split(' ').first,
                             style: CareType.mono(
                                 sel ? context.scheme.onPrimary : context.scheme.onSurface,
                                 size: 15,
@@ -329,9 +332,9 @@ class SlotScreen extends ConsumerWidget {
               },
             ),
           ),
-          const SectionHeader('Morning'),
+          SectionHeader(t.slotMorning),
           _slotGrid(context, ref, draft, _am),
-          const SectionHeader('Afternoon and evening'),
+          SectionHeader(t.slotAfternoonEvening),
           _slotGrid(context, ref, draft, _pm),
         ],
       ),
@@ -405,14 +408,15 @@ class AddressScreen extends ConsumerWidget {
     final draft = ref.watch(bookingDraftProvider);
     final vm = ref.read(bookingDraftProvider.notifier);
     final current = _currentAddress(ref, draft);
+    final t = context.l10n;
     return _StepScaffold(
-      title: 'Where should we come?',
+      title: t.addressTitle,
       progress: 0.75,
       dock: SizedBox(
         width: double.infinity,
         child: FilledButton(
             onPressed: current == null ? null : () => context.push('/book/payment'),
-            child: const Text('Review and pay')),
+            child: Text(t.addressReviewAndPay)),
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -423,9 +427,9 @@ class AddressScreen extends ConsumerWidget {
               child: Row(children: [
                 Icon(Icons.add_location_alt_outlined, color: context.scheme.primary),
                 const SizedBox(width: 12),
-                const Expanded(
-                  child: Text('Select your location',
-                      style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+                Expanded(
+                  child: Text(t.addressSelectLocation,
+                      style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
                 ),
                 const Icon(Icons.chevron_right),
               ]),
@@ -447,12 +451,12 @@ class AddressScreen extends ConsumerWidget {
                     ],
                   ),
                 ),
-                const Text('Change',
-                    style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
+                Text(t.addressChange,
+                    style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
               ]),
             ),
           const SizedBox(height: 16),
-          CareField('Directions for the technician (optional)',
+          CareField(t.addressDirectionsLabel,
               initial: draft.directions,
               maxLines: 2,
               onChanged: vm.setDirections),
@@ -544,6 +548,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     final shopWanted = shopCart.isNotEmpty;
     final shopOk = !shopWanted || shopOrderTotal != null;
 
+    final t = context.l10n;
     if (!bookingsOk && !shopOk) {
       // Honest failure — no fake "you're booked" when nothing was actually
       // created. Show the real reason (e.g. the backend has no technician
@@ -551,9 +556,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       // connection, which is wrong for anything but a genuine network
       // failure and actively misleading for a real server-side rejection.
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(bookingError ??
-              shopError ??
-              "Couldn't confirm your order — check your connection and try again.")));
+          content: Text(bookingError ?? shopError ?? t.paymentOrderError)));
       return;
     }
     if (shopOk && shopWanted) ref.read(shopCartProvider.notifier).clear();
@@ -563,8 +566,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         // Partial success: say exactly what didn't go through rather than
         // staying silent about the half that failed.
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('Booked — but the Shop order failed: '
-                '${shopError ?? "try adding it again from the Shop"}.')));
+            content: Text(t.paymentPartialShopFailed(
+                shopError ?? t.paymentShopRetryHint))));
       }
       context.go('/booking/${created.first.id}/confirmed', extra: created.length);
       return;
@@ -573,9 +576,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     // failed) but the Shop order went through on its own.
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(bookingsWanted && !bookingsOk
-            ? 'Shop order placed (${Money.rupees(shopOrderTotal!)}) — but '
-                '${bookingError ?? "the booking failed"}.'
-            : 'Order placed — ${Money.rupees(shopOrderTotal!)}.')));
+            ? t.paymentShopPlacedBookingFailed(
+                Money.rupees(shopOrderTotal!), bookingError ?? t.paymentBookingFailedHint)
+            : t.paymentShopOrderPlaced(Money.rupees(shopOrderTotal!)))));
     context.go('/');
   }
 
@@ -599,15 +602,16 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     final shopTotalPaise =
         shopLines.fold(0, (sum, l) => sum + l.$1.mrpPaise * l.$2);
     final grandTotalPaise = pricing.grandTotalPaise + shopTotalPaise;
+    final t = context.l10n;
     return _StepScaffold(
-      title: 'Review and pay',
+      title: t.paymentTitle,
       progress: 1,
       dock: Row(children: [
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Eyebrow('Payable now'),
+              Eyebrow(t.paymentPayableNow),
               Text(Money.rupees(grandTotalPaise),
                   style: CareType.mono(context.scheme.onSurface,
                       size: 17, w: FontWeight.w600)),
@@ -623,7 +627,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                   width: 18,
                   height: 18,
                   child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : Text('Pay ${Money.rupees(grandTotalPaise)}'),
+              : Text(t.paymentPayButton(Money.rupees(grandTotalPaise))),
         ),
       ]),
       body: Column(
@@ -665,14 +669,14 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                   Text('${draft.day} · ${draft.slot}', style: context.type.bodySmall),
                 if (draft.services.isNotEmpty) ...[
                   const Divider(height: 24),
-                  _priceLine(context, 'Visit fee', Money.rupees(pricing.visitFeePaise)),
+                  _priceLine(context, t.paymentVisitFee, Money.rupees(pricing.visitFeePaise)),
                   if (pricing.couponDiscountPaise > 0)
-                    _priceLine(context, 'CARE200 applied',
+                    _priceLine(context, t.paymentCouponApplied,
                         '-${Money.rupees(pricing.couponDiscountPaise)}',
                         color: context.care.success),
-                  _priceLine(context, 'GST (18%)', Money.rupees(pricing.gstPaise)),
+                  _priceLine(context, t.paymentGst, Money.rupees(pricing.gstPaise)),
                   if (pricing.coinsRedeemed > 0)
-                    _priceLine(context, 'Care Coins used',
+                    _priceLine(context, t.paymentCoinsUsed,
                         '-${Money.rupees(pricing.coinsRedeemed * 100)}',
                         color: context.care.success),
                 ],
@@ -680,8 +684,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Total',
-                        style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
+                    Text(t.paymentTotal,
+                        style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
                     Text(Money.rupees(grandTotalPaise),
                         style: CareType.mono(context.scheme.onSurface,
                             size: 18, w: FontWeight.w600)),
@@ -709,9 +713,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Use my Care Coins',
-                          style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
-                      Text('₹$coinsBalance available', style: context.type.bodySmall),
+                      Text(t.paymentUseCoins,
+                          style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+                      Text(t.paymentCoinsAvailable('$coinsBalance'), style: context.type.bodySmall),
                     ],
                   ),
                 ),
@@ -803,10 +807,13 @@ class ConfirmedScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(bookingsRefreshProvider);
     final booking = ref.watch(repositoryProvider).bookingById(bookingId);
+    final t = context.l10n;
     final summary = booking == null
-        ? 'A technician is being assigned now.'
-        : '${booking.title}${totalBooked > 1 ? ' + ${totalBooked - 1} more' : ''} at '
-            '${booking.addressLabel}.\nA technician is being assigned now.';
+        ? t.confirmedAssigning
+        : t.confirmedSummary(
+            '${booking.title}${totalBooked > 1 ? t.confirmedMoreSuffix(totalBooked - 1) : ''}',
+            booking.addressLabel,
+          );
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -825,7 +832,7 @@ class ConfirmedScreen extends ConsumerWidget {
                           child: Icon(Icons.check, size: 40, color: context.care.success),
                         ),
                         const SizedBox(height: 22),
-                        Text("You're booked", style: context.type.headlineMedium),
+                        Text(t.confirmedTitle, style: context.type.headlineMedium),
                         const SizedBox(height: 10),
                         Text(summary,
                             textAlign: TextAlign.center, style: context.type.bodyMedium),
@@ -841,13 +848,13 @@ class ConfirmedScreen extends ConsumerWidget {
               child: Row(children: [
                 Expanded(
                   child: OutlinedButton(
-                      onPressed: () => context.go('/'), child: const Text('Home')),
+                      onPressed: () => context.go('/'), child: Text(t.confirmedHome)),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: FilledButton(
                       onPressed: () => context.push('/booking/$bookingId/track'),
-                      child: const Text('Track visit')),
+                      child: Text(t.confirmedTrackVisit)),
                 ),
               ]),
             ),
