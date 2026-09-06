@@ -1190,6 +1190,14 @@ def verify_firebase_token(id_token):
         return {
             "uid": uid,
             "email": payload.get("email"),
+            # Only true once Firebase itself has confirmed this token's
+            # holder actually controls that email (a verification link
+            # click, or a provider like Google that verifies it upfront) —
+            # required before any bootstrap endpoint may fall back to
+            # matching an existing row by email, so a brand-new signup
+            # using someone else's known-but-unverified email can never
+            # attach itself to that person's real account.
+            "email_verified": bool(payload.get("email_verified")),
             "name": payload.get("name"),
             # Only ever set for a phone-OTP sign-in, and only once Firebase
             # has actually verified it — safe to trust over anything the
@@ -1411,7 +1419,7 @@ def bootstrap_staff():
 
     conn = get_db()
     row = conn.execute("SELECT * FROM staff WHERE firebase_uid = ?", (claims["uid"],)).fetchone()
-    if not row and claims.get("email"):
+    if not row and claims.get("email") and claims.get("email_verified"):
         row = conn.execute("SELECT * FROM staff WHERE email = ?", (claims["email"],)).fetchone()
     ts = now()
     if row:
@@ -1622,7 +1630,7 @@ def bootstrap_customer():
 
     conn = get_db()
     row = conn.execute("SELECT * FROM users WHERE firebase_uid = ?", (claims["uid"],)).fetchone()
-    if not row and claims.get("email"):
+    if not row and claims.get("email") and claims.get("email_verified"):
         row = conn.execute("SELECT * FROM users WHERE email = ?", (claims["email"],)).fetchone()
     ts = now()
     if row:
@@ -1633,10 +1641,16 @@ def bootstrap_customer():
         user_id = row["id"]
     else:
         user_id = new_uuid_id("USR")
+        # An unverified email can't be trusted as this new row's own email
+        # either — besides the same account-takeover concern as the
+        # lookup above, `users.email` is UNIQUE, so reusing an email
+        # already claimed by someone else's real account would otherwise
+        # crash this insert outright.
+        safe_email = claims.get("email") if claims.get("email_verified") else None
         conn.execute(
             "INSERT INTO users (id, email, password_hash, name, phone, created_at, firebase_uid) "
             "VALUES (?,?,?,?,?,?,?)",
-            (user_id, claims.get("email") or f"{claims['uid']}@firebase.local",
+            (user_id, safe_email or f"{claims['uid']}@firebase.local",
              "firebase-auth", name, phone, ts, claims["uid"]),
         )
     conn.commit()
@@ -3178,6 +3192,13 @@ def rate_booking(booking_id):
     if booking["user_id"] != request.user["id"]:
         conn.close()
         return jsonify({"error": "Forbidden"}), 403
+    # A booking's rating column is NULL until the first real call here —
+    # without this, a customer replaying the same request could roll the
+    # technician's aggregate rating into their average again and again,
+    # arbitrarily inflating or crashing it.
+    if booking["service_rating"] is not None or booking["tech_rating"] is not None:
+        conn.close()
+        return jsonify({"error": "This booking has already been rated"}), 400
 
     conn.execute(
         "UPDATE bookings SET service_rating = ?, tech_rating = ?, updated_at = ? WHERE id = ?",
@@ -3187,12 +3208,13 @@ def rate_booking(booking_id):
     tech = conn.execute(
         "SELECT * FROM technicians WHERE id = ?", (booking["technician_id"],)
     ).fetchone()
-    new_count = tech["rating_count"] + 1
-    new_rating = round(((tech["rating"] * tech["rating_count"]) + tech_rating) / new_count, 2)
-    conn.execute(
-        "UPDATE technicians SET rating = ?, rating_count = ? WHERE id = ?",
-        (new_rating, new_count, tech["id"]),
-    )
+    if tech:
+        new_count = tech["rating_count"] + 1
+        new_rating = round(((tech["rating"] * tech["rating_count"]) + tech_rating) / new_count, 2)
+        conn.execute(
+            "UPDATE technicians SET rating = ?, rating_count = ? WHERE id = ?",
+            (new_rating, new_count, tech["id"]),
+        )
 
     complaint = None
     if raise_complaint:
@@ -3388,7 +3410,7 @@ def bootstrap_technician():
     row = conn.execute(
         "SELECT * FROM technicians WHERE firebase_uid = ?", (claims["uid"],)
     ).fetchone()
-    if not row and claims.get("email"):
+    if not row and claims.get("email") and claims.get("email_verified"):
         row = conn.execute("SELECT * FROM technicians WHERE email = ?", (claims["email"],)).fetchone()
     if row:
         conn.execute(

@@ -57,3 +57,21 @@ def add_technician(conn, tid="tech1", category="RasoiSpark", area="Test Area"):
         (tid, "Test Technician", category, area),
     )
     conn.commit()
+
+
+def mock_firebase_claims(monkeypatch, *, uid, email=None, email_verified=False, name=None, phone_number=None):
+    """Makes every bootstrap/technician-auth endpoint in this test see a
+    fake, already-verified-signature Firebase ID token with these claims,
+    without needing a real Firebase project or network call. Any bearer
+    token value works for the request itself — only these claims matter."""
+    monkeypatch.setattr(
+        app_module,
+        "verify_firebase_token",
+        lambda token: {
+            "uid": uid,
+            "email": email,
+            "email_verified": email_verified,
+            "name": name,
+            "phone_number": phone_number,
+        },
+    )
