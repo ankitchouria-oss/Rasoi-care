@@ -31,6 +31,8 @@ import '../../core/config/maps_config.dart';
 import '../../core/theme/care_plus_theme.dart';
 import '../../core/widgets/care_widgets.dart';
 import '../../data/models.dart';
+import '../../l10n/app_localizations.dart';
+import '../../l10n/l10n_extensions.dart';
 import '../../state/firestore_providers.dart';
 
 /// Reverse-geocodes a point to a human-readable line — shared by
@@ -83,7 +85,7 @@ class AddressPickerScreen extends StatelessWidget {
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(
           leading: BackButton(onPressed: context.pop),
-          title: const Text('Add a new address'),
+          title: Text(context.l10n.addressPickerTitle),
         ),
         body: SafeArea(
           top: false,
@@ -127,45 +129,47 @@ class _ManualEntryBodyState extends State<_ManualEntryBody> {
   }
 
   @override
-  Widget build(BuildContext context) => Column(
-        children: [
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
-              children: [
-                Text(
-                  'Pinpoint map entry isn\'t set up yet on this build — add the address by hand for now.',
-                  style: context.type.bodyMedium,
+  Widget build(BuildContext context) {
+    final t = context.l10n;
+    return Column(
+      children: [
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+            children: [
+              Text(t.addressPickerManualIntro, style: context.type.bodyMedium),
+              const SizedBox(height: 20),
+              Form(
+                key: _formKey,
+                child: Column(
+                  children: [
+                    CareField(t.addressPickerLabelField,
+                        controller: _label,
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? t.addressPickerLabelRequired
+                            : null),
+                    const SizedBox(height: 14),
+                    CareField(t.addressPickerFullAddressField,
+                        controller: _line,
+                        maxLines: 3,
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? t.addressPickerFullAddressRequired
+                            : null),
+                  ],
                 ),
-                const SizedBox(height: 20),
-                Form(
-                  key: _formKey,
-                  child: Column(
-                    children: [
-                      CareField('Label — e.g. Home, Office',
-                          controller: _label,
-                          validator: (v) =>
-                              (v == null || v.trim().isEmpty) ? 'Give it a label' : null),
-                      const SizedBox(height: 14),
-                      CareField('Full address',
-                          controller: _line,
-                          maxLines: 3,
-                          validator: (v) =>
-                              (v == null || v.trim().isEmpty) ? 'Enter the address' : null),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-          Dock(
-            child: SizedBox(
-              width: double.infinity,
-              child: FilledButton(onPressed: _confirm, child: const Text('Save address')),
-            ),
+        ),
+        Dock(
+          child: SizedBox(
+            width: double.infinity,
+            child: FilledButton(onPressed: _confirm, child: Text(t.addressPickerSaveAddress)),
           ),
-        ],
-      );
+        ),
+      ],
+    );
+  }
 }
 
 // ============================================================ ADDRESS DETAILS
@@ -186,17 +190,28 @@ class AddressDetailsScreen extends ConsumerStatefulWidget {
 }
 
 class _AddressDetailsScreenState extends ConsumerState<AddressDetailsScreen> {
+  // Internal keys — never shown as-is; see _typeLabel for the real,
+  // localized display text. Kept in English so _glyphByType's lookup and
+  // the _type == t comparisons below stay simple and stable regardless of
+  // locale.
   static const _types = ['House', 'Office', 'Other'];
   static const _glyphByType = {'House': '🏠', 'Office': '💼', 'Other': '📍'};
+
+  String _typeLabel(String type, AppLocalizations t) => switch (type) {
+        'House' => t.addressDetailsTypeHouse,
+        'Office' => t.addressDetailsTypeOffice,
+        _ => t.addressDetailsTypeOther,
+      };
 
   final _formKey = GlobalKey<FormState>();
   final _building = TextEditingController();
   final _street = TextEditingController();
   final _pincode = TextEditingController();
-  late final _saveAs = TextEditingController(text: _type);
+  final _saveAs = TextEditingController();
   String _type = 'House';
   File? _photo;
   bool _saving = false;
+  bool _saveAsSeeded = false;
 
   @override
   void dispose() {
@@ -214,13 +229,14 @@ class _AddressDetailsScreenState extends ConsumerState<AddressDetailsScreen> {
 
   Future<void> _confirm() async {
     if (!_formKey.currentState!.validate()) return;
+    final t = context.l10n;
     setState(() => _saving = true);
     final line = [
       if (_building.text.trim().isNotEmpty) _building.text.trim(),
       if (_street.text.trim().isNotEmpty) _street.text.trim(),
       widget.resolvedArea,
     ].join(', ');
-    final label = _saveAs.text.trim().isEmpty ? _type : _saveAs.text.trim();
+    final label = _saveAs.text.trim().isEmpty ? _typeLabel(_type, t) : _saveAs.text.trim();
     final id = 'a_picked_${DateTime.now().millisecondsSinceEpoch}';
     final profileService = ref.read(userProfileServiceProvider);
     String? photoUrl;
@@ -237,10 +253,20 @@ class _AddressDetailsScreenState extends ConsumerState<AddressDetailsScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) {
+    final t = context.l10n;
+    // Seeds the "Save address as" field with the real, localized label for
+    // the default type — once only, same reasoning as ServiceDetailScreen's
+    // _seeded flag, so a person's own edit is never silently overwritten
+    // on a later rebuild.
+    if (!_saveAsSeeded) {
+      _saveAs.text = _typeLabel(_type, t);
+      _saveAsSeeded = true;
+    }
+    return Scaffold(
         appBar: AppBar(
           leading: BackButton(onPressed: () => Navigator.pop(context)),
-          title: const Text('Address details'),
+          title: Text(t.addressDetailsTitle),
         ),
         body: SafeArea(
           top: false,
@@ -249,20 +275,22 @@ class _AddressDetailsScreenState extends ConsumerState<AddressDetailsScreen> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
               children: [
-                const SectionHeader('Location type'),
+                SectionHeader(t.addressDetailsLocationType),
                 Row(children: [
-                  for (final t in _types) ...[
-                    ChoiceTag(t, selected: _type == t, onTap: () => setState(() => _type = t)),
+                  for (final type in _types) ...[
+                    ChoiceTag(_typeLabel(type, t),
+                        selected: _type == type, onTap: () => setState(() => _type = type)),
                     const SizedBox(width: 8),
                   ],
                 ]),
                 const SizedBox(height: 20),
-                CareField('Building / Floor',
+                CareField(t.addressDetailsBuildingField,
                     controller: _building,
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? 'Add the building or floor' : null),
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? t.addressDetailsBuildingRequired
+                        : null),
                 const SizedBox(height: 14),
-                CareField('Street (recommended)', controller: _street),
+                CareField(t.addressDetailsStreetField, controller: _street),
                 const SizedBox(height: 14),
                 CareCard(
                   child: Row(children: [
@@ -270,7 +298,7 @@ class _AddressDetailsScreenState extends ConsumerState<AddressDetailsScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Eyebrow('Area'),
+                          Eyebrow(t.addressDetailsAreaEyebrow),
                           const SizedBox(height: 4),
                           Text(widget.resolvedArea, style: context.type.bodyMedium),
                         ],
@@ -279,26 +307,26 @@ class _AddressDetailsScreenState extends ConsumerState<AddressDetailsScreen> {
                     TextButton.icon(
                       onPressed: () => Navigator.pop(context),
                       icon: const Icon(Icons.edit_location_alt_outlined, size: 16),
-                      label: const Text('Change'),
+                      label: Text(t.addressDetailsChange),
                     ),
                   ]),
                 ),
                 const SizedBox(height: 14),
-                CareField('Pin code (recommended)',
+                CareField(t.addressDetailsPincodeField,
                     controller: _pincode,
                     keyboardType: TextInputType.number,
                     validator: (v) => (v != null && v.trim().isNotEmpty && v.trim().length != 6)
-                        ? 'Enter a 6-digit pin code'
+                        ? t.addressDetailsPincodeInvalid
                         : null),
                 const SizedBox(height: 14),
-                CareField('Save address as',
+                CareField(t.addressDetailsSaveAsField,
                     controller: _saveAs,
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? 'Give this address a name' : null),
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? t.addressDetailsSaveAsRequired
+                        : null),
                 const SizedBox(height: 20),
-                const SectionHeader('Location photo (recommended)'),
-                Text('Helps the technician recognize the entrance.',
-                    style: context.type.bodySmall),
+                SectionHeader(t.addressDetailsPhotoHeader),
+                Text(t.addressDetailsPhotoHint, style: context.type.bodySmall),
                 const SizedBox(height: 10),
                 GestureDetector(
                   onTap: _pickPhoto,
@@ -318,7 +346,7 @@ class _AddressDetailsScreenState extends ConsumerState<AddressDetailsScreen> {
                                 Icon(Icons.add_a_photo_outlined,
                                     size: 22, color: context.care.inkFaint),
                                 const SizedBox(height: 6),
-                                Text('Add a photo', style: context.type.bodySmall),
+                                Text(t.addressDetailsAddPhoto, style: context.type.bodySmall),
                               ],
                             ),
                           )
@@ -357,11 +385,12 @@ class _AddressDetailsScreenState extends ConsumerState<AddressDetailsScreen> {
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('Save address'),
+                  : Text(t.addressPickerSaveAddress),
             ),
           ),
         ),
       );
+  }
 }
 
 // ============================================================ MAP PICKER
@@ -447,7 +476,7 @@ class _MapPickerBodyState extends State<_MapPickerBody> {
               if (mounted) {
                 setState(() {
                   _suggestions = [];
-                  _searchError = "Address search isn't working right now.";
+                  _searchError = context.l10n.mapPickerSearchError;
                 });
               }
               return;
@@ -534,8 +563,8 @@ class _MapPickerBodyState extends State<_MapPickerBody> {
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
         if (!silent && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('Location permission denied — pan the map to place the pin instead.')));
+          ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(context.l10n.mapPickerPermissionDenied)));
         }
         if (silent) await _reverseGeocode(_center);
         return;
@@ -543,8 +572,8 @@ class _MapPickerBodyState extends State<_MapPickerBody> {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         if (!silent && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('Turn on location services, or pan the map to place the pin.')));
+          ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(context.l10n.mapPickerServiceDisabled)));
         }
         if (silent) await _reverseGeocode(_center);
         return;
@@ -559,8 +588,8 @@ class _MapPickerBodyState extends State<_MapPickerBody> {
     } catch (_) {
       // Degrade to manual pin placement — never dead-end the flow.
       if (!silent && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Couldn\'t get your location — pan the map to place the pin instead.')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(context.l10n.mapPickerLocationError)));
       }
       if (silent) await _reverseGeocode(_center);
     } finally {
@@ -585,11 +614,13 @@ class _MapPickerBodyState extends State<_MapPickerBody> {
   }
 
   @override
-  Widget build(BuildContext context) => Column(
+  Widget build(BuildContext context) {
+    final t = context.l10n;
+    return Column(
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
-            child: CareField('Search for an area or landmark',
+            child: CareField(t.mapPickerSearchHint,
                 controller: _searchController,
                 prefix: const Icon(Icons.search),
                 suffix: _locating
@@ -599,7 +630,7 @@ class _MapPickerBodyState extends State<_MapPickerBody> {
                             width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)))
                     : IconButton(
                         icon: const Icon(Icons.my_location),
-                        tooltip: 'Use my current location',
+                        tooltip: t.mapPickerUseCurrentLocation,
                         onPressed: _locating ? null : _useCurrentLocation,
                       ),
                 onChanged: _search),
@@ -656,7 +687,7 @@ class _MapPickerBodyState extends State<_MapPickerBody> {
                   child: FloatingActionButton.small(
                     heroTag: 'address-picker-locate-me',
                     onPressed: _locating ? null : () => _useCurrentLocation(),
-                    tooltip: 'Use my current location',
+                    tooltip: t.mapPickerUseCurrentLocation,
                     child: _locating
                         ? const SizedBox(
                             width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
@@ -669,7 +700,7 @@ class _MapPickerBodyState extends State<_MapPickerBody> {
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
             child: Text(
-              'Pan the map to place the pin exactly on the entrance.',
+              t.mapPickerPanHint,
               style: context.type.bodySmall,
               textAlign: TextAlign.center,
             ),
@@ -681,7 +712,7 @@ class _MapPickerBodyState extends State<_MapPickerBody> {
                 if (_resolving)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
-                    child: Text('Finding the address…', style: context.type.bodySmall),
+                    child: Text(t.mapPickerFindingAddress, style: context.type.bodySmall),
                   )
                 else if (_resolvedLine != null)
                   Padding(
@@ -692,13 +723,14 @@ class _MapPickerBodyState extends State<_MapPickerBody> {
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton(
-                      onPressed: _confirm, child: const Text('Confirm this location')),
+                      onPressed: _confirm, child: Text(t.mapPickerConfirmLocation)),
                 ),
               ],
             ),
           ),
         ],
       );
+  }
 }
 
 class _PlaceSuggestion {
