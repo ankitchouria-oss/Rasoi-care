@@ -17,6 +17,14 @@ final authServiceProvider = Provider<AuthService>(
   (ref) => Firebase.apps.isEmpty ? MockAuthService() : FirebaseAuthService(),
 );
 
+/// Set once BiometricLockScreen successfully authenticates this session —
+/// plain (non-Riverpod) so router.dart's GoRouter, a bare top-level
+/// instance built before any ProviderScope exists, can still gate every
+/// route behind the app's own lock, not just SplashScreen's one-time
+/// check at cold start. Defaults to false (locked) and is reset there on
+/// sign-out so a fresh session starts locked again.
+bool biometricUnlockedThisSession = false;
+
 class AuthFlowState {
   const AuthFlowState({
     this.phone = '',
@@ -129,7 +137,10 @@ class AuthFlowVM extends Notifier<AuthFlowState> {
     }
   }
 
-  void reset() => state = const AuthFlowState();
+  void reset() {
+    state = const AuthFlowState();
+    biometricUnlockedThisSession = false;
+  }
 
   /// Best-effort POST to the backend right after any successful sign-in
   /// (register, email/password, Google, or phone OTP) so it has a matching

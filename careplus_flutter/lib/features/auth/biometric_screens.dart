@@ -126,6 +126,7 @@ class _BiometricLockScreenState extends ConsumerState<BiometricLockScreen> {
         .authenticate('Verify it\'s you to open Rasoi Care');
     if (!mounted) return;
     if (ok) {
+      biometricUnlockedThisSession = true;
       context.go('/');
     } else {
       setState(() {

@@ -1,7 +1,11 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../data/local/biometric_service.dart';
 import '../data/models.dart';
+import '../state/auth_providers.dart';
 import 'customer_shell.dart';
 import '../features/auth/auth_screens.dart';
 import '../features/auth/biometric_screens.dart';
@@ -16,6 +20,37 @@ import '../features/shop/shop_screen.dart';
 
 final _rootKey = GlobalKey<NavigatorState>();
 final _shellKey = GlobalKey<NavigatorState>();
+
+/// Routes reachable without being signed in and past the lock (if any) —
+/// the auth/onboarding flow itself, plus the lock screen, which obviously
+/// can't require itself to already be unlocked.
+const _publicPaths = {
+  '/splash',
+  '/onboarding',
+  '/login',
+  '/login/otp',
+  '/login/email',
+  '/register',
+  '/biometric-enroll',
+  '/lock',
+};
+
+/// SplashScreen only ever ran this check once, at cold start — any other
+/// way to reach an in-app route (a resumed deep link, a future one this
+/// app doesn't register today, or simply this router regaining control
+/// after a hot restart mid-session) skipped both the sign-in and the
+/// biometric-lock check entirely. This mirrors that same check on every
+/// navigation instead.
+Future<String?> _authRedirect(BuildContext context, GoRouterState state) async {
+  final path = state.matchedLocation;
+  if (_publicPaths.contains(path)) return null;
+  final signedIn = Firebase.apps.isEmpty || FirebaseAuth.instance.currentUser != null;
+  if (!signedIn) return '/onboarding';
+  if (!biometricUnlockedThisSession && await BiometricService().isEnabled()) {
+    return '/lock';
+  }
+  return null;
+}
 
 Appliance _appliance(String? name) => Appliance.values.firstWhere(
       (a) => a.name == name,
@@ -38,6 +73,7 @@ CustomTransitionPage<void> _slideUp(Widget child) => CustomTransitionPage(
 final router = GoRouter(
   navigatorKey: _rootKey,
   initialLocation: '/splash',
+  redirect: _authRedirect,
   routes: [
     GoRoute(path: '/splash', builder: (_, __) => const SplashScreen()),
     GoRoute(path: '/onboarding', builder: (_, __) => const OnboardingScreen()),
