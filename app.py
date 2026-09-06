@@ -17,7 +17,7 @@ import time
 import urllib.error
 import urllib.request
 import uuid
-from collections import defaultdict, deque
+from collections import OrderedDict, defaultdict, deque
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from threading import Lock
@@ -29,6 +29,19 @@ from database import get_db, init_db, next_id, now, new_uuid_id
 
 app = Flask(__name__)
 FRONTEND_DIR = os.path.dirname(os.path.abspath(__file__))
+# The largest legitimate request body is a base64 job photo (validate_json
+# caps dataBase64 at 12_000_000 chars there) — 16MB leaves headroom for the
+# JSON envelope around it. Without this, Flask buffers a request body of
+# any size in memory before validate_json ever gets a chance to reject it,
+# which on the single-worker deployment this runs on is a plausible
+# memory-exhaustion DoS from just a handful of oversized concurrent
+# requests.
+app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
+
+
+@app.errorhandler(413)
+def _request_too_large(_e):
+    return jsonify({"error": "Payload Too Large", "message": "Request body is too large."}), 413
 
 
 # ---------------------------------------------------------------- rate limiting
@@ -145,7 +158,36 @@ def _cancel_otp_verify(booking_id, submitted_code):
         return None
 
 
-_rate_buckets = defaultdict(deque)
+class _BoundedDefaultDict(OrderedDict):
+    """Same auto-vivifying convenience as collections.defaultdict, but
+    evicts the least-recently-touched key once there are more than
+    max_size of them. Both _rate_buckets and _backoff_state below are
+    keyed by attacker-controlled values (an IP, an email, a phone number)
+    with no natural cap on how many distinct ones exist — without this, a
+    scripted client cycling through many bogus identities grows these
+    dicts without bound. Worst case from evicting early is a stale key's
+    limit/backoff resetting a little sooner than it otherwise would —
+    never a memory leak."""
+
+    def __init__(self, default_factory, max_size=20_000):
+        super().__init__()
+        self.default_factory = default_factory
+        self.max_size = max_size
+
+    def __missing__(self, key):
+        if len(self) >= self.max_size:
+            self.popitem(last=False)
+        value = self.default_factory()
+        self[key] = value
+        return value
+
+    def __getitem__(self, key):
+        value = super().__getitem__(key)
+        self.move_to_end(key)
+        return value
+
+
+_rate_buckets = _BoundedDefaultDict(deque)
 _rate_lock = Lock()
 
 
@@ -164,7 +206,7 @@ def _rate_limited(key, max_calls, window_seconds):
         return False
 
 
-_backoff_state = defaultdict(lambda: {"failures": 0, "blocked_until": 0.0})
+_backoff_state = _BoundedDefaultDict(lambda: {"failures": 0, "blocked_until": 0.0})
 _backoff_lock = Lock()
 
 
@@ -1190,6 +1232,14 @@ def verify_firebase_token(id_token):
         return {
             "uid": uid,
             "email": payload.get("email"),
+            # Only true once Firebase itself has confirmed this token's
+            # holder actually controls that email (a verification link
+            # click, or a provider like Google that verifies it upfront) —
+            # required before any bootstrap endpoint may fall back to
+            # matching an existing row by email, so a brand-new signup
+            # using someone else's known-but-unverified email can never
+            # attach itself to that person's real account.
+            "email_verified": bool(payload.get("email_verified")),
             "name": payload.get("name"),
             # Only ever set for a phone-OTP sign-in, and only once Firebase
             # has actually verified it — safe to trust over anything the
@@ -1411,7 +1461,7 @@ def bootstrap_staff():
 
     conn = get_db()
     row = conn.execute("SELECT * FROM staff WHERE firebase_uid = ?", (claims["uid"],)).fetchone()
-    if not row and claims.get("email"):
+    if not row and claims.get("email") and claims.get("email_verified"):
         row = conn.execute("SELECT * FROM staff WHERE email = ?", (claims["email"],)).fetchone()
     ts = now()
     if row:
@@ -1622,7 +1672,7 @@ def bootstrap_customer():
 
     conn = get_db()
     row = conn.execute("SELECT * FROM users WHERE firebase_uid = ?", (claims["uid"],)).fetchone()
-    if not row and claims.get("email"):
+    if not row and claims.get("email") and claims.get("email_verified"):
         row = conn.execute("SELECT * FROM users WHERE email = ?", (claims["email"],)).fetchone()
     ts = now()
     if row:
@@ -1633,10 +1683,16 @@ def bootstrap_customer():
         user_id = row["id"]
     else:
         user_id = new_uuid_id("USR")
+        # An unverified email can't be trusted as this new row's own email
+        # either — besides the same account-takeover concern as the
+        # lookup above, `users.email` is UNIQUE, so reusing an email
+        # already claimed by someone else's real account would otherwise
+        # crash this insert outright.
+        safe_email = claims.get("email") if claims.get("email_verified") else None
         conn.execute(
             "INSERT INTO users (id, email, password_hash, name, phone, created_at, firebase_uid) "
             "VALUES (?,?,?,?,?,?,?)",
-            (user_id, claims.get("email") or f"{claims['uid']}@firebase.local",
+            (user_id, safe_email or f"{claims['uid']}@firebase.local",
              "firebase-auth", name, phone, ts, claims["uid"]),
         )
     conn.commit()
@@ -2454,7 +2510,7 @@ def advance_booking(booking_id):
         return jsonify({"error": "not found"}), 404
     if row["technician_id"] != request.technician["id"]:
         conn.close()
-        return jsonify({"error": "Forbidden", "message": "Not your job"}), 403
+        return jsonify({"error": "not found"}), 404
 
     idx = STATUS_ORDER.index(row["status"]) if row["status"] in STATUS_ORDER else 0
     if idx >= len(STATUS_ORDER) - 1:
@@ -2662,7 +2718,7 @@ def upload_job_photo(booking_id):
         return jsonify({"error": "not found"}), 404
     if row["technician_id"] != request.technician["id"]:
         conn.close()
-        return jsonify({"error": "Forbidden", "message": "Not your job"}), 403
+        return jsonify({"error": "not found"}), 404
     if kind == "before":
         conn.execute("UPDATE bookings SET before_photo_b64 = ? WHERE id = ?", (data_b64, booking_id))
     else:
@@ -2691,7 +2747,7 @@ def upload_job_signature(booking_id):
         return jsonify({"error": "not found"}), 404
     if row["technician_id"] != request.technician["id"]:
         conn.close()
-        return jsonify({"error": "Forbidden", "message": "Not your job"}), 403
+        return jsonify({"error": "not found"}), 404
     conn.execute("UPDATE bookings SET signature_b64 = ? WHERE id = ?", (data_b64, booking_id))
     conn.commit()
     conn.close()
@@ -2773,7 +2829,7 @@ def decline_booking(booking_id):
         return jsonify({"error": "not found"}), 404
     if row["technician_id"] != request.technician["id"]:
         conn.close()
-        return jsonify({"error": "Forbidden", "message": "Not your job"}), 403
+        return jsonify({"error": "not found"}), 404
     if row["status"] != "Accepted":
         conn.close()
         return jsonify({"error": f"Cannot back out of a {row['status'].lower()} job"}), 400
@@ -2813,7 +2869,7 @@ def set_booking_payment(booking_id):
         return jsonify({"error": "not found"}), 404
     if row["technician_id"] != request.technician["id"]:
         conn.close()
-        return jsonify({"error": "Forbidden", "message": "Not your job"}), 403
+        return jsonify({"error": "not found"}), 404
     conn.execute(
         "UPDATE bookings SET payment_method = ?, updated_at = ? WHERE id = ?",
         (method, now(), booking_id),
@@ -3178,6 +3234,13 @@ def rate_booking(booking_id):
     if booking["user_id"] != request.user["id"]:
         conn.close()
         return jsonify({"error": "Forbidden"}), 403
+    # A booking's rating column is NULL until the first real call here —
+    # without this, a customer replaying the same request could roll the
+    # technician's aggregate rating into their average again and again,
+    # arbitrarily inflating or crashing it.
+    if booking["service_rating"] is not None or booking["tech_rating"] is not None:
+        conn.close()
+        return jsonify({"error": "This booking has already been rated"}), 400
 
     conn.execute(
         "UPDATE bookings SET service_rating = ?, tech_rating = ?, updated_at = ? WHERE id = ?",
@@ -3187,12 +3250,13 @@ def rate_booking(booking_id):
     tech = conn.execute(
         "SELECT * FROM technicians WHERE id = ?", (booking["technician_id"],)
     ).fetchone()
-    new_count = tech["rating_count"] + 1
-    new_rating = round(((tech["rating"] * tech["rating_count"]) + tech_rating) / new_count, 2)
-    conn.execute(
-        "UPDATE technicians SET rating = ?, rating_count = ? WHERE id = ?",
-        (new_rating, new_count, tech["id"]),
-    )
+    if tech:
+        new_count = tech["rating_count"] + 1
+        new_rating = round(((tech["rating"] * tech["rating_count"]) + tech_rating) / new_count, 2)
+        conn.execute(
+            "UPDATE technicians SET rating = ?, rating_count = ? WHERE id = ?",
+            (new_rating, new_count, tech["id"]),
+        )
 
     complaint = None
     if raise_complaint:
@@ -3388,7 +3452,7 @@ def bootstrap_technician():
     row = conn.execute(
         "SELECT * FROM technicians WHERE firebase_uid = ?", (claims["uid"],)
     ).fetchone()
-    if not row and claims.get("email"):
+    if not row and claims.get("email") and claims.get("email_verified"):
         row = conn.execute("SELECT * FROM technicians WHERE email = ?", (claims["email"],)).fetchone()
     if row:
         conn.execute(
@@ -3588,7 +3652,7 @@ def update_booking_appliance(booking_id):
         return jsonify({"error": "not found"}), 404
     if row["technician_id"] != request.technician["id"]:
         conn.close()
-        return jsonify({"error": "Forbidden", "message": "Not your job"}), 403
+        return jsonify({"error": "not found"}), 404
     if "brand" in data:
         conn.execute("UPDATE bookings SET brand = ? WHERE id = ?", (data["brand"].strip(), booking_id))
     if "modelNumber" in data:
@@ -3629,7 +3693,7 @@ def update_booking_service(booking_id):
         return jsonify({"error": "not found"}), 404
     if row["technician_id"] != request.technician["id"]:
         conn.close()
-        return jsonify({"error": "Forbidden", "message": "Not your job"}), 403
+        return jsonify({"error": "not found"}), 404
     if row["status"] in ("Completed", "Cancelled"):
         conn.close()
         return jsonify({
@@ -3689,7 +3753,7 @@ def add_booking_part(booking_id):
         return jsonify({"error": "not found"}), 404
     if row["technician_id"] != request.technician["id"]:
         conn.close()
-        return jsonify({"error": "Forbidden", "message": "Not your job"}), 403
+        return jsonify({"error": "not found"}), 404
     part_id = new_uuid_id("PART")
     conn.execute(
         "INSERT INTO booking_parts (id, booking_id, name, sku, qty, price_paise, status, created_at) "
@@ -3717,7 +3781,7 @@ def delete_booking_part(booking_id, part_id):
         return jsonify({"error": "not found"}), 404
     if booking["technician_id"] != request.technician["id"]:
         conn.close()
-        return jsonify({"error": "Forbidden", "message": "Not your job"}), 403
+        return jsonify({"error": "not found"}), 404
     part = conn.execute(
         "SELECT * FROM booking_parts WHERE id = ? AND booking_id = ?", (part_id, booking_id)
     ).fetchone()

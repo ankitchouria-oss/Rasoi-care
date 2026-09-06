@@ -37,4 +37,26 @@ class TechnicianLocationService {
       // The timeout above turns a silent hang into a catchable error here.
     }
   }
+
+  /// Removes this technician's live-location document once there's no
+  /// active job left to track (see [TechnicianLocationReporter._stop]) —
+  /// without this the last real fix sat in Firestore indefinitely, so
+  /// whether a customer could keep reading a stale "live" location after
+  /// their job ended came down entirely to Firestore security rules
+  /// rather than anything this app itself guaranteed. Same best-effort
+  /// rule as [pushLocation] — a failed delete never blocks the workflow.
+  Future<void> clearLocation() async {
+    if (Firebase.apps.isEmpty) return;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      await FirebaseFirestore.instance
+          .collection('technician_locations')
+          .doc(uid)
+          .delete()
+          .timeout(const Duration(seconds: 8));
+    } catch (_) {
+      // Best-effort — see pushLocation's own catch.
+    }
+  }
 }

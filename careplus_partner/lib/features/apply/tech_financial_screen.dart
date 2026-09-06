@@ -29,6 +29,20 @@ class TechFinancialScreen extends ConsumerWidget {
       return (v?.isNotEmpty ?? false) ? v! : '—';
     }
 
+    // Aadhaar and bank account numbers are sensitive enough that this
+    // screen shouldn't show them in full to anyone glancing at the
+    // technician's phone — masked to the last 4 digits, matching UIDAI's
+    // own masked-Aadhaar guidance. Non-digit characters (spaces in a
+    // formatted Aadhaar, say) are preserved so the grouping still reads
+    // naturally.
+    String masked(String key) {
+      final raw = val(key);
+      if (raw == '—' || raw.length <= 4) return raw;
+      final tail = raw.substring(raw.length - 4);
+      final head = raw.substring(0, raw.length - 4).replaceAll(RegExp(r'[^\s]'), '•');
+      return '$head$tail';
+    }
+
     final phone = FirebaseAuth.instance.currentUser?.phoneNumber;
 
     return Scaffold(
@@ -59,7 +73,7 @@ class TechFinancialScreen extends ConsumerWidget {
               child: Column(
                 children: [
                   _row(context, t.financialAccountHolder, val('bankAccountName')),
-                  _row(context, t.financialAccountNumber, val('bankAccountNumber')),
+                  _row(context, t.financialAccountNumber, masked('bankAccountNumber')),
                   _row(context, t.financialIfsc, val('bankIfsc')),
                   _row(context, t.financialUpiId, val('upiId'), last: true),
                 ],
@@ -72,7 +86,7 @@ class TechFinancialScreen extends ConsumerWidget {
               child: Column(
                 children: [
                   _row(context, t.financialDob, val('dateOfBirth')),
-                  _row(context, t.financialAadhaarNumber, val('aadharNumber')),
+                  _row(context, t.financialAadhaarNumber, masked('aadharNumber')),
                   _row(context, t.financialEmail, val('email')),
                   _row(context, t.financialName, (me?['name'] as String?)?.isNotEmpty == true
                       ? me!['name'] as String

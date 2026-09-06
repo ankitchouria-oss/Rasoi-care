@@ -65,6 +65,17 @@ class AuthFlowState {
   );
 }
 
+/// Mirrors the signed-in role outside Riverpod so router.dart's GoRouter
+/// — a bare top-level instance built before any ProviderScope exists, so
+/// its `redirect` can't ref.read/watch — can still keep a staff account
+/// off the owner-only Staff & Access screen. Matches AuthFlowState's own
+/// default so the router's gate and the account screen's nav-tile gate
+/// never disagree during the same not-yet-synced window. The backend is
+/// the real enforcement point regardless (POST/PATCH /api/staff both
+/// require @require_owner) — this only keeps the UI honest about what a
+/// staff account can actually do.
+AdminRole latestKnownAdminRole = AdminRole.owner;
+
 final authFlowProvider = NotifierProvider<AuthFlowVM, AuthFlowState>(
   AuthFlowVM.new,
 );
@@ -77,7 +88,10 @@ class AuthFlowVM extends Notifier<AuthFlowState> {
   /// whether to show the simulated SMS auto-fill (mock only).
   bool get isMock => !ref.read(authServiceProvider).isLive;
 
-  void setRole(AdminRole role) => state = state.copyWith(role: role);
+  void setRole(AdminRole role) {
+    state = state.copyWith(role: role);
+    latestKnownAdminRole = role;
+  }
 
   Future<bool> sendOtp(String tenDigitPhone) async {
     state = state.copyWith(
@@ -181,10 +195,16 @@ class AuthFlowVM extends Notifier<AuthFlowState> {
   /// first fetch is in flight.
   Future<void> bootstrapAndSyncRole() async {
     final real = await ref.read(staffBootstrapServiceProvider).bootstrap(role: state.role);
-    if (real != null) state = state.copyWith(role: real);
+    if (real != null) {
+      state = state.copyWith(role: real);
+      latestKnownAdminRole = real;
+    }
   }
 
-  void reset() => state = const AuthFlowState();
+  void reset() {
+    state = const AuthFlowState();
+    latestKnownAdminRole = AdminRole.owner;
+  }
 }
 
 /// The signed-in role, valid once auth completes. Screens gate owner-only

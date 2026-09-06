@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../data/models.dart';
 import '../features/auth/auth_screens.dart';
 import '../features/auth/biometric_screens.dart';
 import '../features/dashboard/overview_screen.dart';
@@ -10,6 +11,7 @@ import '../features/dashboard/team_screen.dart';
 import '../features/dashboard/stock_screen.dart';
 import '../features/dashboard/account_screen.dart';
 import '../features/dashboard/staff_access_screen.dart';
+import '../state/auth_providers.dart';
 import 'admin_shell.dart';
 
 final _rootKey = GlobalKey<NavigatorState>();
@@ -17,6 +19,18 @@ final _rootKey = GlobalKey<NavigatorState>();
 final router = GoRouter(
   navigatorKey: _rootKey,
   initialLocation: '/splash',
+  // Staff & Access can invite/suspend accounts — including minting a new
+  // owner — so it's the one route in this app that must never be reachable
+  // by a plain staff account, not just hidden from the nav. The backend
+  // independently enforces this too (@require_owner on POST/PATCH
+  // /api/staff in app.py); this only keeps a staff account from landing on
+  // a screen full of actions it can't actually perform.
+  redirect: (context, state) {
+    if (state.matchedLocation == '/staff' && latestKnownAdminRole != AdminRole.owner) {
+      return '/dashboard';
+    }
+    return null;
+  },
   routes: [
     GoRoute(path: '/splash', builder: (_, __) => const SplashScreen()),
     GoRoute(
