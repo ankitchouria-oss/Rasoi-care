@@ -323,10 +323,22 @@ AMC_PLANS_SEED = [
 
 from werkzeug.security import generate_password_hash
 
+# The demo owner/staff logins seed_staff() creates on first boot.
+# STAFF_SEED_OWNER_PIN/STAFF_SEED_STAFF_PIN let a real deployment set its
+# own PINs via environment config instead of shipping with the same
+# well-known "1234" every clone of this repo starts with — the phone
+# numbers and default PIN are public (they're right here in source
+# control), so anyone who hasn't rotated them has a fully-known owner
+# login. Set these before the first boot that creates the staff table;
+# seed_staff never touches an existing row, so changing them later has no
+# effect on an already-seeded deployment.
+_SEED_OWNER_PIN = os.environ.get("STAFF_SEED_OWNER_PIN", "1234")
+_SEED_STAFF_PIN = os.environ.get("STAFF_SEED_STAFF_PIN", "1234")
+
 STAFF_SEED = [
     # (id, name, phone, pin, role)
-    ("staff_owner", "Priya Deshmukh", "9822000001", "1234", "owner"),
-    ("staff_ops", "Rahul Jadhav", "9822000002", "1234", "staff"),
+    ("staff_owner", "Priya Deshmukh", "9822000001", _SEED_OWNER_PIN, "owner"),
+    ("staff_ops", "Rahul Jadhav", "9822000002", _SEED_STAFF_PIN, "staff"),
 ]
 
 
@@ -812,6 +824,14 @@ def seed_staff(conn):
     row = conn.execute("SELECT COUNT(*) AS n FROM staff").fetchone()
     if row["n"] > 0:
         return
+    if _SEED_OWNER_PIN == "1234" or _SEED_STAFF_PIN == "1234":
+        print(
+            "WARNING: seeding the owner/staff accounts with the default PIN "
+            "'1234' — this and the seeded phone numbers are public (they're "
+            "in source control). Set STAFF_SEED_OWNER_PIN/STAFF_SEED_STAFF_PIN "
+            "to real secrets before the first boot of any deployment "
+            "reachable outside a trusted network."
+        )
     ts = now()
     for sid, name, phone, pin, role in STAFF_SEED:
         conn.execute(
