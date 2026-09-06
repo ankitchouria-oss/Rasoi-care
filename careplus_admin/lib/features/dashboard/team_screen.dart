@@ -211,6 +211,31 @@ class _TechnicianDetailSheetState extends ConsumerState<_TechnicianDetailSheet> 
   Future<void> _verify() async {
     final id = widget.member.id;
     if (id == null) return;
+    // Irreversible in practice — see verify_technician's own comment
+    // ("there's no unverify") — and it puts someone straight into real
+    // customer routing, so a single accidental tap while scrolling a
+    // review queue shouldn't be enough to do it.
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Verify this technician?'),
+        content: Text(
+          'They will immediately start receiving real bookings and appear '
+          'as verified in the Partner app. This cannot be undone from here.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Verify'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
     setState(() => _verifying = true);
     final ok = await ref.read(repositoryProvider).verifyTechnician(id);
     if (!mounted) return;

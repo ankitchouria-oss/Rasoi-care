@@ -54,6 +54,29 @@ class _StaffBody extends ConsumerWidget {
 
   Future<void> _toggleSuspend(BuildContext context, WidgetRef ref, StaffAccount s) async {
     final nextActive = s.status == StaffStatus.suspended;
+    if (!nextActive) {
+      // Suspending (not reinstating) locks someone out immediately — a
+      // single accidental tap while scanning this list shouldn't be
+      // enough to do that to a colleague's account.
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text('Suspend ${s.name}?'),
+          content: const Text('They will immediately lose access to the Admin app.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Suspend'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !context.mounted) return;
+    }
     final ok = await ref.read(repositoryProvider).setStaffActive(s.id, nextActive);
     if (!context.mounted) return;
     if (!ok) {
