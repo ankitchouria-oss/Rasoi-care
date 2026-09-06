@@ -267,5 +267,22 @@
   "mapPickerLocationError": "Couldn't get your location — pan the map to place the pin instead.",
   "mapPickerPanHint": "Pan the map to place the pin exactly on the entrance.",
   "mapPickerFindingAddress": "Finding the address…",
-  "mapPickerConfirmLocation": "Confirm this location"
+  "mapPickerConfirmLocation": "Confirm this location",
+
+  "selectLocationTitle": "Select your location",
+  "selectLocationSearchHint": "Search an area or address",
+  "selectLocationUseCurrentLocation": "Use Current\nLocation",
+  "selectLocationAddNewAddress": "Add New\nAddress",
+  "selectLocationEmptyState": "You haven't saved an address yet — use one of the options above to add one.",
+  "selectLocationSavedAddresses": "Saved addresses",
+  "selectLocationSelectedChip": "SELECTED",
+  "selectLocationRemoveTitle": "Remove this address?",
+  "selectLocationRemoveBody": "\"{label}\" will no longer show up in your saved addresses.",
+  "@selectLocationRemoveBody": {"placeholders": {"label": {"type": "String"}}},
+  "selectLocationCancel": "Cancel",
+  "selectLocationRemove": "Remove",
+  "selectLocationRemoveFailed": "Could not remove — check your connection.",
+  "selectLocationPermissionDenied": "Location permission denied — try \"Add new address\" instead.",
+  "selectLocationServiceDisabled": "Turn on location services and try again.",
+  "selectLocationLocationError": "Couldn't get your location — try \"Add new address\" instead."
 }

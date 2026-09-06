@@ -243,5 +243,22 @@
   "mapPickerLocationError": "आपका स्थान नहीं मिल सका — इसके बजाय पिन लगाने के लिए मैप को खिसकाएं।",
   "mapPickerPanHint": "पिन को ठीक प्रवेश द्वार पर लगाने के लिए मैप को खिसकाएं।",
   "mapPickerFindingAddress": "पता ढूंढा जा रहा है…",
-  "mapPickerConfirmLocation": "यह स्थान पुष्ट करें"
+  "mapPickerConfirmLocation": "यह स्थान पुष्ट करें",
+
+  "selectLocationTitle": "अपना स्थान चुनें",
+  "selectLocationSearchHint": "कोई क्षेत्र या पता खोजें",
+  "selectLocationUseCurrentLocation": "वर्तमान स्थान\nइस्तेमाल करें",
+  "selectLocationAddNewAddress": "नया पता\nजोड़ें",
+  "selectLocationEmptyState": "आपने अभी तक कोई पता सहेजा नहीं है — एक जोड़ने के लिए ऊपर दिए विकल्पों में से किसी का उपयोग करें।",
+  "selectLocationSavedAddresses": "सहेजे गए पते",
+  "selectLocationSelectedChip": "चयनित",
+  "selectLocationRemoveTitle": "यह पता हटाएं?",
+  "selectLocationRemoveBody": "\"{label}\" अब आपके सहेजे गए पतों में दिखाई नहीं देगा।",
+  "@selectLocationRemoveBody": {"placeholders": {"label": {"type": "String"}}},
+  "selectLocationCancel": "रद्द करें",
+  "selectLocationRemove": "हटाएं",
+  "selectLocationRemoveFailed": "हटाया नहीं जा सका — अपना कनेक्शन जांचें।",
+  "selectLocationPermissionDenied": "स्थान की अनुमति अस्वीकृत — इसके बजाय \"नया पता जोड़ें\" आज़माएं।",
+  "selectLocationServiceDisabled": "लोकेशन सेवाएं चालू करें और फिर से कोशिश करें।",
+  "selectLocationLocationError": "आपका स्थान नहीं मिल सका — इसके बजाय \"नया पता जोड़ें\" आज़माएं।"
 }

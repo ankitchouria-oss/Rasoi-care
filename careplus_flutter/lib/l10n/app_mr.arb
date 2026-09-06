@@ -243,5 +243,22 @@
   "mapPickerLocationError": "तुमचे स्थान मिळू शकले नाही — त्याऐवजी पिन ठेवण्यासाठी नकाशा हलवा.",
   "mapPickerPanHint": "पिन बरोबर प्रवेशद्वारावर ठेवण्यासाठी नकाशा हलवा.",
   "mapPickerFindingAddress": "पत्ता शोधला जात आहे…",
-  "mapPickerConfirmLocation": "हे स्थान निश्चित करा"
+  "mapPickerConfirmLocation": "हे स्थान निश्चित करा",
+
+  "selectLocationTitle": "तुमचे स्थान निवडा",
+  "selectLocationSearchHint": "एखादे क्षेत्र किंवा पत्ता शोधा",
+  "selectLocationUseCurrentLocation": "सध्याचे स्थान\nवापरा",
+  "selectLocationAddNewAddress": "नवीन पत्ता\nजोडा",
+  "selectLocationEmptyState": "तुम्ही अजून कोणताही पत्ता जतन केलेला नाही — एक जोडण्यासाठी वरील पर्यायांपैकी एक वापरा.",
+  "selectLocationSavedAddresses": "जतन केलेले पत्ते",
+  "selectLocationSelectedChip": "निवडलेले",
+  "selectLocationRemoveTitle": "हा पत्ता काढायचा?",
+  "selectLocationRemoveBody": "\"{label}\" यापुढे तुमच्या जतन केलेल्या पत्त्यांमध्ये दिसणार नाही.",
+  "@selectLocationRemoveBody": {"placeholders": {"label": {"type": "String"}}},
+  "selectLocationCancel": "रद्द करा",
+  "selectLocationRemove": "काढा",
+  "selectLocationRemoveFailed": "काढता आले नाही — तुमचे कनेक्शन तपासा.",
+  "selectLocationPermissionDenied": "स्थानाची परवानगी नाकारली — त्याऐवजी \"नवीन पत्ता जोडा\" वापरून पहा.",
+  "selectLocationServiceDisabled": "लोकेशन सेवा सुरू करा आणि पुन्हा प्रयत्न करा.",
+  "selectLocationLocationError": "तुमचे स्थान मिळू शकले नाही — त्याऐवजी \"नवीन पत्ता जोडा\" वापरून पहा."
 }
