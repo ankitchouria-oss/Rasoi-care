@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
 import '../../data/models.dart';
+import '../../l10n/l10n_extensions.dart';
 
 /// Opens a bottom sheet listing every cancellation-fee tier, highlighting
 /// the one that applies right now if [booking] is given (e.g. from the
@@ -19,47 +20,52 @@ Future<void> showCancellationPolicySheet(BuildContext context, {Booking? booking
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    builder: (_) => Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 30),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Cancellation policy', style: context.type.titleMedium),
-          const SizedBox(height: 4),
-          Text('The closer to your scheduled time, the higher the fee.',
-              style: context.type.bodySmall),
-          const SizedBox(height: 16),
-          for (final tier in CancellationPolicy.tiers) ...[
-            _PolicyRow(
-              label: tier.label,
-              feePaise: tier.feePaise,
-              current: currentFeePaise == tier.feePaise,
-            ),
-            if (tier != CancellationPolicy.tiers.last) const Divider(height: 20),
-          ],
-          const SizedBox(height: 16),
-          CareCard(
-            color: context.scheme.secondaryContainer,
-            borderColor: Colors.transparent,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.handshake_outlined, color: context.scheme.onSecondaryContainer, size: 20),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'This fee goes to your technician, not Rasoi Care — their time was reserved for your job and they can\'t take another one in that slot.',
-                    style: context.type.bodySmall!
-                        .copyWith(color: context.scheme.onSecondaryContainer),
+    builder: (sheetContext) {
+      final t = sheetContext.l10n;
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 30),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(t.cancellationPolicyTitle, style: sheetContext.type.titleMedium),
+            const SizedBox(height: 4),
+            Text(t.cancellationPolicyBody, style: sheetContext.type.bodySmall),
+            const SizedBox(height: 16),
+            for (final tier in CancellationPolicy.tiers) ...[
+              _PolicyRow(
+                label: tier.isFree
+                    ? t.cancellationTierFree(tier.hoursThreshold)
+                    : t.cancellationTierWithin(tier.hoursThreshold),
+                feePaise: tier.feePaise,
+                current: currentFeePaise == tier.feePaise,
+              ),
+              if (tier != CancellationPolicy.tiers.last) const Divider(height: 20),
+            ],
+            const SizedBox(height: 16),
+            CareCard(
+              color: sheetContext.scheme.secondaryContainer,
+              borderColor: Colors.transparent,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.handshake_outlined,
+                      color: sheetContext.scheme.onSecondaryContainer, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      t.cancellationPolicyDisclaimer,
+                      style: sheetContext.type.bodySmall!
+                          .copyWith(color: sheetContext.scheme.onSecondaryContainer),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
-      ),
-    ),
+          ],
+        ),
+      );
+    },
   );
 }
 
@@ -71,7 +77,8 @@ class _PolicyRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final feeLabel = feePaise == 0 ? 'Free' : Money.rupees(feePaise);
+    final t = context.l10n;
+    final feeLabel = feePaise == 0 ? t.cancellationFree : Money.rupees(feePaise);
     return Row(
       children: [
         Expanded(
@@ -82,7 +89,7 @@ class _PolicyRow extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         if (current) ...[
-          const StatusChip('Applies now', tone: ChipTone.selected, height: 26),
+          StatusChip(t.cancellationAppliesNow, tone: ChipTone.selected, height: 26),
           const SizedBox(width: 8),
         ],
         Text(feeLabel,

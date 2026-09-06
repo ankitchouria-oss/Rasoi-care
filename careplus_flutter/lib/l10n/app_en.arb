@@ -150,5 +150,15 @@
   "rateWordFine": "Fine",
   "rateWordGood": "Good",
   "rateWordExcellent": "Excellent",
-  "rateSubmitButton": "Submit rating"
+  "rateSubmitButton": "Submit rating",
+
+  "cancellationPolicyTitle": "Cancellation policy",
+  "cancellationPolicyBody": "The closer to your scheduled time, the higher the fee.",
+  "cancellationPolicyDisclaimer": "This fee goes to your technician, not Rasoi Care — their time was reserved for your job and they can't take another one in that slot.",
+  "cancellationTierFree": "More than {hours} hrs before the service",
+  "@cancellationTierFree": {"placeholders": {"hours": {"type": "int"}}},
+  "cancellationTierWithin": "Within {hours} hrs of the service",
+  "@cancellationTierWithin": {"placeholders": {"hours": {"type": "int"}}},
+  "cancellationFree": "Free",
+  "cancellationAppliesNow": "Applies now"
 }

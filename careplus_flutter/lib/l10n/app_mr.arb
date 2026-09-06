@@ -134,5 +134,13 @@
   "rateWordFine": "ठीक आहे",
   "rateWordGood": "चांगले",
   "rateWordExcellent": "उत्कृष्ट",
-  "rateSubmitButton": "रेटिंग सबमिट करा"
+  "rateSubmitButton": "रेटिंग सबमिट करा",
+
+  "cancellationPolicyTitle": "रद्द करण्याचे धोरण",
+  "cancellationPolicyBody": "तुमच्या ठरलेल्या वेळेच्या जितके जवळ, शुल्क तितके जास्त.",
+  "cancellationPolicyDisclaimer": "हे शुल्क Rasoi Care ला नाही, तर तुमच्या तंत्रज्ञाला जाते — त्यांची वेळ तुमच्या कामासाठी राखीव होती आणि ते त्या वेळेत दुसरे काम घेऊ शकत नाहीत.",
+  "cancellationTierFree": "सेवेच्या {hours} तासांपेक्षा जास्त आधी",
+  "cancellationTierWithin": "सेवेच्या {hours} तासांच्या आत",
+  "cancellationFree": "मोफत",
+  "cancellationAppliesNow": "आता लागू"
 }

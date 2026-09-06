@@ -390,11 +390,13 @@ abstract final class CancellationPolicy {
   static const nearFeePaise = 20000;
 
   /// One row per tier, in display order, for the Cancellation Policy
-  /// screen/sheet.
+  /// screen/sheet. `hoursThreshold`/`isFree` describe the tier structurally
+  /// rather than storing an English label — cancellation_policy_sheet.dart
+  /// builds the real, localized label from these at render time.
   static const tiers = [
-    (label: 'More than $farHours hrs before the service', feePaise: 0),
-    (label: 'Within $farHours hrs of the service', feePaise: farFeePaise),
-    (label: 'Within $nearHours hrs of the service', feePaise: nearFeePaise),
+    (hoursThreshold: farHours, isFree: true, feePaise: 0),
+    (hoursThreshold: farHours, isFree: false, feePaise: farFeePaise),
+    (hoursThreshold: nearHours, isFree: false, feePaise: nearFeePaise),
   ];
 
   /// What cancelling [booking] right now would cost, or null if it can't
