@@ -319,7 +319,7 @@
     try{
       const booking = await api("/api/hs/bookings", {
         method: "POST",
-        body: JSON.stringify({ serviceId: pendingBooking.id, serviceName: pendingBooking.name, price: pendingBooking.price, date })
+        body: JSON.stringify({ serviceId: pendingBooking.id, date })
       });
       bookings.unshift(toClientBooking(booking));
       closeModal("bookingModal");

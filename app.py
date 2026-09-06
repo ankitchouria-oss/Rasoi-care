@@ -94,6 +94,28 @@ def _env_float(name, default):
         return default
 
 
+LIST_PAGE_DEFAULT_LIMIT = _env_int("LIST_PAGE_DEFAULT_LIMIT", 500)
+LIST_PAGE_MAX_LIMIT = _env_int("LIST_PAGE_MAX_LIMIT", 2000)
+
+
+def _pagination_args():
+    """(limit, offset) for a staff-only list endpoint, from optional
+    `?limit=&offset=` query params — bounded so a client can't force an
+    unbounded SELECT * by asking for everything at once. Malformed values
+    fall back to the default rather than erroring, since these are just an
+    optional refinement on an otherwise-working request."""
+    try:
+        limit = int(request.args.get("limit", LIST_PAGE_DEFAULT_LIMIT))
+    except (TypeError, ValueError):
+        limit = LIST_PAGE_DEFAULT_LIMIT
+    limit = max(1, min(limit, LIST_PAGE_MAX_LIMIT))
+    try:
+        offset = int(request.args.get("offset", 0))
+    except (TypeError, ValueError):
+        offset = 0
+    return limit, max(0, offset)
+
+
 RATE_LIMIT_GLOBAL_MAX_CALLS = _env_int("RATE_LIMIT_GLOBAL_MAX_CALLS", 180)
 RATE_LIMIT_GLOBAL_WINDOW_SECONDS = _env_int("RATE_LIMIT_GLOBAL_WINDOW_SECONDS", 60)
 
@@ -868,9 +890,11 @@ def fetch_booking_service_changes_bulk(conn, booking_ids):
     return by_booking
 
 
-def booking_row_to_dict(row, *, include_start_code=False, parts=None, service_changes=None):
+def booking_row_to_dict(
+    row, *, include_start_code=False, parts=None, service_changes=None, redact_customer_contact=False
+):
     keys = row.keys()
-    return {
+    d = {
         "id": row["id"],
         "category": row["category"],
         "service": row["service"],
@@ -959,6 +983,16 @@ def booking_row_to_dict(row, *, include_start_code=False, parts=None, service_ch
         "afterPhotoReady": bool(row["after_photo_b64"]) if "after_photo_b64" in keys else False,
         "signatureReady": bool(row["signature_b64"]) if "signature_b64" in keys else False,
     }
+    if redact_customer_contact:
+        # The broadcast "available requests" feed goes out to every
+        # matching technician before any of them is assigned — see
+        # technician_available_bookings. The privacy policy promises the
+        # customer's exact address/coordinates/phone aren't shared with a
+        # Partner until they're actually assigned to the booking, so those
+        # fields never leave the server here, whoever ends up claiming it.
+        for field in ("addressLine", "lat", "lng", "directions", "notes", "customerPhone"):
+            d[field] = None
+    return d
 
 
 def complaint_row_to_dict(row):
@@ -1795,17 +1829,20 @@ def redeem_coins():
         return jsonify({"error": "amount must be positive"}), 400
 
     conn = get_db()
-    row = conn.execute(
-        "SELECT coins_balance FROM users WHERE id = ?", (request.user["id"],)
-    ).fetchone()
-    if row["coins_balance"] < amount:
-        conn.close()
-        return jsonify({"error": "Not enough Care Coins"}), 400
-    conn.execute(
-        "UPDATE users SET coins_balance = coins_balance - ? WHERE id = ?",
-        (amount, request.user["id"]),
+    # The balance check and the decrement happen in one atomic statement —
+    # a plain SELECT-then-UPDATE would let two concurrent requests both
+    # read the same starting balance, both pass the check, and both
+    # deduct, driving coins_balance negative (double-spending the same
+    # coins). The WHERE clause makes the decrement itself conditional, so
+    # only one of two racing requests can ever succeed.
+    cur = conn.execute(
+        "UPDATE users SET coins_balance = coins_balance - ? WHERE id = ? AND coins_balance >= ?",
+        (amount, request.user["id"], amount),
     )
     conn.commit()
+    if cur.rowcount == 0:
+        conn.close()
+        return jsonify({"error": "Not enough Care Coins"}), 400
     row = conn.execute("SELECT * FROM users WHERE id = ?", (request.user["id"],)).fetchone()
     conn.close()
     return jsonify(user_row_to_dict(row))
@@ -2009,8 +2046,11 @@ def update_booking_health(booking_id):
         conn.close()
         return jsonify({"error": "not found"}), 404
     if booking["technician_id"] != request.technician["id"]:
+        # 404, not 403 — booking ids are sequential, so a 403 here would
+        # confirm the id exists and belongs to someone else, the same
+        # enumeration every other booking-scoped route avoids.
         conn.close()
-        return jsonify({"error": "Forbidden"}), 403
+        return jsonify({"error": "not found"}), 404
     if not booking["user_id"]:
         conn.close()
         return jsonify({"error": "This booking has no associated user account"}), 400
@@ -2073,7 +2113,10 @@ def list_bookings():
             BOOKING_SELECT + " WHERE user_id = ? ORDER BY created_at DESC", (user["id"],)
         ).fetchall()
     else:
-        rows = conn.execute(BOOKING_SELECT + " ORDER BY created_at DESC").fetchall()
+        limit, offset = _pagination_args()
+        rows = conn.execute(
+            BOOKING_SELECT + " ORDER BY created_at DESC LIMIT ? OFFSET ?", (limit, offset)
+        ).fetchall()
     parts_by_booking = fetch_booking_parts_bulk(conn, [r["id"] for r in rows])
     service_changes_by_booking = fetch_booking_service_changes_bulk(conn, [r["id"] for r in rows])
     conn.close()
@@ -2338,16 +2381,31 @@ def create_booking_cart():
     before_coins = after_coupon + gst
 
     coins_redeemed = 0
-    if use_coins:
-        user_row = conn.execute(
-            "SELECT coins_balance FROM users WHERE id = ?", (request.user["id"],)
-        ).fetchone()
-        coins_redeemed = min(user_row["coins_balance"], before_coins)
-        if coins_redeemed > 0:
-            conn.execute(
-                "UPDATE users SET coins_balance = coins_balance - ? WHERE id = ?",
-                (coins_redeemed, request.user["id"]),
+    if use_coins and before_coins > 0:
+        # A plain SELECT-then-UPDATE here would let two concurrent
+        # checkouts both read the same starting balance and both redeem
+        # from it, driving coins_balance negative (same class of bug fixed
+        # in redeem_coins above). Compare-and-swap instead: the UPDATE's
+        # own WHERE re-checks the balance hasn't moved since we read it —
+        # same guard technique claim_booking uses for its race — so a
+        # losing request notices instead of overwriting silently, and
+        # simply retries against the fresh balance.
+        for _ in range(5):
+            user_row = conn.execute(
+                "SELECT coins_balance FROM users WHERE id = ?", (request.user["id"],)
+            ).fetchone()
+            coins_redeemed = min(user_row["coins_balance"], before_coins)
+            if coins_redeemed <= 0:
+                break
+            cur = conn.execute(
+                "UPDATE users SET coins_balance = coins_balance - ? WHERE id = ? AND coins_balance = ?",
+                (coins_redeemed, request.user["id"], user_row["coins_balance"]),
             )
+            if cur.rowcount == 1:
+                break
+        else:
+            conn.close()
+            return jsonify({"error": "Could not redeem Care Coins — try again."}), 409
 
     grand_total = before_coins - coins_redeemed
 
@@ -2447,7 +2505,7 @@ def technician_available_bookings():
         r for r in rows
         if r["category"] in my_categories and (not r["area"] or r["area"] == tech["area"])
     ]
-    return jsonify([booking_row_to_dict(r) for r in matching])
+    return jsonify([booking_row_to_dict(r, redact_customer_contact=True) for r in matching])
 
 
 @app.route("/api/bookings/<booking_id>/claim", methods=["PATCH"])
@@ -2459,7 +2517,20 @@ def claim_booking(booking_id):
     at the same instant, only one UPDATE can possibly match a row,
     whichever the database happens to process first. The loser gets a
     clear "someone else already took this" instead of silently
-    overwriting the winner's claim or the two of them somehow sharing it."""
+    overwriting the winner's claim or the two of them somehow sharing it.
+
+    Verification is checked here, not just in the /available feed above —
+    that feed is only what the Partner app happens to call first, not an
+    access control boundary. Without this, a technician who's done nothing
+    but sign up (bootstrap_technician leaves them unverified/offline) could
+    call this endpoint directly with a guessed booking id and be assigned
+    to, and complete, a real customer's job before ever going through
+    admin verification."""
+    if not request.technician["verified"]:
+        return jsonify({
+            "error": "Forbidden",
+            "message": "Your account needs to be verified before you can accept jobs.",
+        }), 403
     conn = get_db()
     ts = now()
     cur = conn.execute(
@@ -3096,7 +3167,9 @@ def request_cancel_otp(booking_id):
     if not row:
         return jsonify({"error": "not found"}), 404
     if row["user_id"] != request.user["id"]:
-        return jsonify({"error": "Forbidden"}), 403
+        # 404, not 403 — see get_booking's comment: booking ids are
+        # sequential, so a 403 would confirm the id exists.
+        return jsonify({"error": "not found"}), 404
     if row["status"] not in CANCELLABLE_STATUSES:
         return jsonify({"error": f"Cannot cancel a {row['status'].lower()} booking"}), 400
     if not request.user["phone"]:
@@ -3142,8 +3215,10 @@ def cancel_booking(booking_id):
         conn.close()
         return jsonify({"error": "not found"}), 404
     if row["user_id"] != request.user["id"]:
+        # 404, not 403 — see get_booking's comment: booking ids are
+        # sequential, so a 403 would confirm the id exists.
         conn.close()
-        return jsonify({"error": "Forbidden"}), 403
+        return jsonify({"error": "not found"}), 404
     if row["status"] not in CANCELLABLE_STATUSES:
         conn.close()
         return jsonify({"error": f"Cannot cancel a {row['status'].lower()} booking"}), 400
@@ -3188,10 +3263,25 @@ def assign_technician(booking_id):
     if not booking:
         conn.close()
         return jsonify({"error": "not found"}), 404
+    # Once a job is Completed or Cancelled there's nothing left to route —
+    # allowing a reassignment here would silently move commission
+    # attribution (technician_earnings_payload prices strictly off whoever
+    # currently sits in technician_id on a Completed row) away from
+    # whoever actually did the work, with no record a change happened.
+    if booking["status"] in ("Completed", "Cancelled"):
+        conn.close()
+        return jsonify({"error": f"Cannot reassign a {booking['status'].lower()} booking"}), 400
     tech = conn.execute("SELECT * FROM technicians WHERE id = ?", (technician_id,)).fetchone()
     if not tech:
         conn.close()
         return jsonify({"error": "Unknown technician_id"}), 400
+    # The Admin app's own picker only offers verified technicians (see
+    # assign_technician_sheet.dart) — enforced here too, since that's a
+    # client-side filter, not an access boundary, and this is the same
+    # trust-and-safety gate claim_booking enforces for self-service claims.
+    if not tech["verified"]:
+        conn.close()
+        return jsonify({"error": "This technician hasn't been verified yet"}), 400
 
     new_status = "Accepted" if booking["status"] == "Requested" else booking["status"]
     conn.execute(
@@ -3232,8 +3322,10 @@ def rate_booking(booking_id):
         conn.close()
         return jsonify({"error": "not found"}), 404
     if booking["user_id"] != request.user["id"]:
+        # 404, not 403 — see get_booking's comment: booking ids are
+        # sequential, so a 403 would confirm the id exists.
         conn.close()
-        return jsonify({"error": "Forbidden"}), 403
+        return jsonify({"error": "not found"}), 404
     # A booking's rating column is NULL until the first real call here —
     # without this, a customer replaying the same request could roll the
     # technician's aggregate rating into their average again and again,
@@ -3282,8 +3374,11 @@ def rate_booking(booking_id):
 def list_complaints():
     """Staff-only — a complaint can contain a customer's own words about a
     bad experience, not something to leave world-readable."""
+    limit, offset = _pagination_args()
     conn = get_db()
-    rows = conn.execute("SELECT * FROM complaints ORDER BY created_at DESC").fetchall()
+    rows = conn.execute(
+        "SELECT * FROM complaints ORDER BY created_at DESC LIMIT ? OFFSET ?", (limit, offset)
+    ).fetchall()
     conn.close()
     return jsonify([complaint_row_to_dict(r) for r in rows])
 
@@ -3330,8 +3425,11 @@ def update_complaint(complaint_id):
 @app.route("/api/technicians", methods=["GET"])
 @require_staff_auth
 def list_technicians():
+    limit, offset = _pagination_args()
     conn = get_db()
-    rows = conn.execute("SELECT * FROM technicians ORDER BY name").fetchall()
+    rows = conn.execute(
+        "SELECT * FROM technicians ORDER BY name LIMIT ? OFFSET ?", (limit, offset)
+    ).fetchall()
     conn.close()
     return jsonify([technician_row_to_dict(r) for r in rows])
 
@@ -4067,6 +4165,24 @@ def reset():
 # login (@require_auth, same as /api/bookings etc.) rather than having
 # its own account system; every row is scoped to request.user["id"].
 # ==================================================================
+# Mirrors homeservices.html's own SERVICES list. hs_create_booking prices
+# a booking from here rather than trusting the client's price/serviceName
+# fields — without this, a request could claim any price up to the
+# validator's 10,000,000 ceiling, and hs_advance_booking pays 5% of it
+# straight into the wallet on completion with no technician or payment
+# ever involved, i.e. self-serve, unlimited point creation from a
+# fabricated number.
+HS_SERVICES = {
+    "water-purifier": ("Water Purifier", 399),
+    "otg": ("OTG", 449),
+    "hob": ("Hob & Cooktop", 499),
+    "microwave": ("Microwave", 549),
+    "chimney": ("Chimney", 599),
+    "fridge": ("Refrigerator", 649),
+    "dishwasher": ("Dishwasher", 699),
+}
+
+
 def hs_booking_row_to_dict(row):
     return {
         "id": row["id"],
@@ -4134,16 +4250,16 @@ def hs_state():
 @require_auth
 @validate_json({
     "serviceId": Field(str, required=True, min_len=1, max_len=50),
-    "serviceName": Field(str, required=True, min_len=1, max_len=200),
-    "price": Field(NUMBER, required=True, min_val=0, max_val=10_000_000),
     "date": Field(str, required=True, min_len=1, max_len=50),
 })
 def hs_create_booking():
     data = request.get_json(force=True, silent=True) or {}
     service_id = data["serviceId"]
-    service_name = data["serviceName"]
-    price = data["price"]
     date = data["date"]
+    catalog_entry = HS_SERVICES.get(service_id)
+    if not catalog_entry:
+        return jsonify({"error": f"Unknown serviceId: {service_id}"}), 400
+    service_name, price = catalog_entry
 
     conn = get_db()
     hs_ensure_wallet_and_profile(conn, request.user["id"], request.user["name"])
