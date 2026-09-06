@@ -160,5 +160,25 @@
   "cancellationTierWithin": "Within {hours} hrs of the service",
   "@cancellationTierWithin": {"placeholders": {"hours": {"type": "int"}}},
   "cancellationFree": "Free",
-  "cancellationAppliesNow": "Applies now"
+  "cancellationAppliesNow": "Applies now",
+
+  "trackingTitle": "Live tracking",
+  "trackingStatusEyebrow": "Status",
+  "trackingStatusCancelled": "Cancelled",
+  "trackingStatusRequested": "Requested",
+  "trackingStatusAccepted": "Accepted",
+  "trackingStatusOnTheWay": "On the way",
+  "trackingStatusInProgress": "In Progress",
+  "trackingStatusCompleted": "Completed",
+  "trackingTechAssigned": "A technician has been assigned to your job.",
+  "trackingFindingTech": "We're finding a technician for you.",
+  "trackingGiveCode": "Give this code to your technician",
+  "trackingCancellationPolicy": "Cancellation policy",
+  "trackingProgressHeader": "Progress",
+  "trackingLoadingBooking": "Loading your booking…",
+  "trackingBookingCancelledStep": "Booking cancelled",
+  "trackingBookingConfirmedStep": "Booking confirmed",
+  "trackingTechAssignedStep": "Technician assigned",
+  "trackingMarkerTechnician": "Your technician",
+  "trackingMarkerAddress": "Your address"
 }

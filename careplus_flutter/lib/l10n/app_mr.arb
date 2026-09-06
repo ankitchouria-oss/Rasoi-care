@@ -142,5 +142,25 @@
   "cancellationTierFree": "सेवेच्या {hours} तासांपेक्षा जास्त आधी",
   "cancellationTierWithin": "सेवेच्या {hours} तासांच्या आत",
   "cancellationFree": "मोफत",
-  "cancellationAppliesNow": "आता लागू"
+  "cancellationAppliesNow": "आता लागू",
+
+  "trackingTitle": "लाइव्ह ट्रॅकिंग",
+  "trackingStatusEyebrow": "स्थिती",
+  "trackingStatusCancelled": "रद्द",
+  "trackingStatusRequested": "विनंती केली",
+  "trackingStatusAccepted": "स्वीकारले",
+  "trackingStatusOnTheWay": "मार्गावर",
+  "trackingStatusInProgress": "सुरू आहे",
+  "trackingStatusCompleted": "पूर्ण",
+  "trackingTechAssigned": "तुमच्या कामासाठी एक तंत्रज्ञ नेमला गेला आहे.",
+  "trackingFindingTech": "आम्ही तुमच्यासाठी तंत्रज्ञ शोधत आहोत.",
+  "trackingGiveCode": "हा कोड तुमच्या तंत्रज्ञाला द्या",
+  "trackingCancellationPolicy": "रद्द करण्याचे धोरण",
+  "trackingProgressHeader": "प्रगती",
+  "trackingLoadingBooking": "तुमची बुकिंग लोड होत आहे…",
+  "trackingBookingCancelledStep": "बुकिंग रद्द केली",
+  "trackingBookingConfirmedStep": "बुकिंगची पुष्टी झाली",
+  "trackingTechAssignedStep": "तंत्रज्ञ नेमला",
+  "trackingMarkerTechnician": "तुमचा तंत्रज्ञ",
+  "trackingMarkerAddress": "तुमचा पत्ता"
 }

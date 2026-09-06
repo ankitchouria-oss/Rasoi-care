@@ -142,5 +142,25 @@
   "cancellationTierFree": "सेवा से {hours} घंटे से अधिक पहले",
   "cancellationTierWithin": "सेवा के {hours} घंटे के भीतर",
   "cancellationFree": "मुफ़्त",
-  "cancellationAppliesNow": "अभी लागू"
+  "cancellationAppliesNow": "अभी लागू",
+
+  "trackingTitle": "लाइव ट्रैकिंग",
+  "trackingStatusEyebrow": "स्थिति",
+  "trackingStatusCancelled": "रद्द",
+  "trackingStatusRequested": "अनुरोधित",
+  "trackingStatusAccepted": "स्वीकृत",
+  "trackingStatusOnTheWay": "रास्ते में",
+  "trackingStatusInProgress": "प्रगति पर",
+  "trackingStatusCompleted": "पूर्ण",
+  "trackingTechAssigned": "आपके काम के लिए एक तकनीशियन असाइन कर दिया गया है।",
+  "trackingFindingTech": "हम आपके लिए एक तकनीशियन ढूंढ रहे हैं।",
+  "trackingGiveCode": "यह कोड अपने तकनीशियन को दें",
+  "trackingCancellationPolicy": "रद्दीकरण नीति",
+  "trackingProgressHeader": "प्रगति",
+  "trackingLoadingBooking": "आपकी बुकिंग लोड हो रही है…",
+  "trackingBookingCancelledStep": "बुकिंग रद्द की गई",
+  "trackingBookingConfirmedStep": "बुकिंग की पुष्टि हुई",
+  "trackingTechAssignedStep": "तकनीशियन असाइन किया गया",
+  "trackingMarkerTechnician": "आपका तकनीशियन",
+  "trackingMarkerAddress": "आपका पता"
 }
