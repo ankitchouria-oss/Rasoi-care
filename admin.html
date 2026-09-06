@@ -450,7 +450,6 @@ const STATE = { bookings: [], complaints: [], technicians: [], inventory: [], st
 
 async function apiGet(path){ const r = await fetch(API_BASE+path); if(!r.ok) throw new Error('GET '+path+' '+r.status); return r.json(); }
 async function apiPost(path, body){ const r = await fetch(API_BASE+path, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{}) }); if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.error||('POST '+path+' '+r.status)); } return r.json(); }
-async function apiPatch(path, body){ const r = await fetch(API_BASE+path, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{}) }); if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.error||('PATCH '+path+' '+r.status)); } return r.json(); }
 
 function authHeaders(){ const t = localStorage.getItem('adminToken'); return t ? {'Authorization':'Bearer '+t} : {}; }
 async function apiGetAuth(path){
@@ -665,14 +664,17 @@ async function verifyTechnician(id){
   }catch(e){ toast('Could not verify technician'); }
 }
 
-/* ---------------- booking detail — assign technician / advance status ---------------- */
-const STATUS_ORDER=['Requested','Accepted','On the way','In Progress','Completed'];
+/* ---------------- booking detail — assign technician ---------------- */
+// Advancing a booking's own status (Accepted -> On the way -> In Progress
+// -> Completed) is deliberately technician-only now — see advance_booking
+// in app.py: In Progress requires the customer's start code and
+// Completed requires real before/after photos and a signature, none of
+// which staff have. There is no staff-safe way to do this step, so it's
+// not offered here at all rather than as a button that always 401s.
 function openBooking(id){
   const b = STATE.bookings.find(x=>x.id===id);
   if(!b) return;
   window._sheetBookingId = id;
-  const idx = STATUS_ORDER.indexOf(b.status);
-  const nextStatus = idx>=0 && idx<STATUS_ORDER.length-1 ? STATUS_ORDER[idx+1] : null;
   document.getElementById('sheetBookingBody').innerHTML = `
     <div class="between"><b class="mono">${b.id}</b><span class="chip ${b.status==='Completed'?'chip-grow':(b.status==='Requested'?'chip-signal':'chip-brass')}" style="height:24px;font-size:10.5px">${b.status}</span></div>
     <b class="display" style="font-size:19px;display:block;margin-top:10px">${esc(b.service)}</b>
@@ -683,8 +685,6 @@ function openBooking(id){
       ${techOptionsHtml(b.technicianId, b.area)}
     </select>
     <button class="btn btn-p btn-block" style="margin-top:12px" onclick="assignTechnician()">Assign</button>
-    <div class="divider"></div>
-    ${nextStatus ? `<p class="eyebrow">Move to next stage</p><button class="btn btn-o btn-block" style="margin-top:8px" onclick="advanceBooking()">Advance to ${nextStatus}</button>` : '<p class="tiny muted">This job is complete.</p>'}
   `;
   openSheet('sheetBooking');
 }
@@ -698,17 +698,6 @@ async function assignTechnician(){
     await loadBookings();
   }catch(e){ toast('Could not assign technician'); }
 }
-async function advanceBooking(){
-  const id = window._sheetBookingId;
-  try{
-    await apiPatch('/api/bookings/'+id+'/advance', {});
-    toast('Status advanced');
-    closeSheet();
-    await loadBookings();
-    await loadOverview();
-  }catch(e){ toast('Could not advance status'); }
-}
-
 /* ---------------- complaint detail — respond / resolve ---------------- */
 function openComplaint(id){
   const c = STATE.complaints.find(x=>x.id===id);
