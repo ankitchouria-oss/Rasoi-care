@@ -257,6 +257,101 @@ def _backoff_record_success(key):
         _backoff_state.pop(key, None)
 
 
+class _BoundedStore:
+    """Like _BoundedDefaultDict, but for state that's always set
+    explicitly (never auto-vivified) — a plain dict assignment bypasses
+    _BoundedDefaultDict's only eviction point (__missing__), so it can't
+    be reused here. Same bound-by-eviction reasoning: keyed by phone
+    numbers submitted to the web OTP endpoints below, with no natural cap
+    on how many distinct ones a scripted client could submit."""
+
+    def __init__(self, max_size=20_000):
+        self._data = OrderedDict()
+        self.max_size = max_size
+
+    def set(self, key, value):
+        self._data[key] = value
+        self._data.move_to_end(key)
+        while len(self._data) > self.max_size:
+            self._data.popitem(last=False)
+
+    def get(self, key):
+        if key not in self._data:
+            return None
+        self._data.move_to_end(key)
+        return self._data[key]
+
+    def pop(self, key, default=None):
+        return self._data.pop(key, default)
+
+
+# Real, server-verified OTP for the Customer web app's phone sign-in —
+# see /api/auth/phone/send-otp and friends below. Previously customer.html
+# faked this entirely: a hardcoded, animated "OTP" with no server check,
+# backing a login whose password was deterministically derivable from the
+# phone number alone (`'rc-' + phone`) — anyone who knew a customer's
+# phone number could log into their real account with one POST. Codes
+# live only in memory: short-lived by design, and losing them on a
+# restart just means a customer requests a fresh one.
+WEB_PHONE_OTP_TTL_SECONDS = _env_int("WEB_PHONE_OTP_TTL_SECONDS", 300)
+WEB_PHONE_OTP_MAX_ATTEMPTS = _env_int("WEB_PHONE_OTP_MAX_ATTEMPTS", 5)
+# How long a just-verified phone with no existing account has to finish
+# /api/auth/phone/register before needing to re-verify — long enough to
+# type a name, short enough that a stale "verified" flag isn't sitting
+# around indefinitely.
+WEB_PHONE_VERIFIED_TTL_SECONDS = _env_int("WEB_PHONE_VERIFIED_TTL_SECONDS", 600)
+_web_phone_otp_state = _BoundedStore()
+_web_phone_otp_lock = Lock()
+_web_phone_verified_state = _BoundedStore()
+_web_phone_verified_lock = Lock()
+
+
+def _web_phone_otp_request(phone):
+    code = f"{secrets.randbelow(10000):04d}"
+    with _web_phone_otp_lock:
+        _web_phone_otp_state.set(phone, {
+            "code": code,
+            "expires_at": time.time() + WEB_PHONE_OTP_TTL_SECONDS,
+            "attempts": 0,
+        })
+    return code
+
+
+def _web_phone_otp_verify(phone, submitted_code):
+    """Returns None on a correct, still-valid code (and marks the phone
+    verified for WEB_PHONE_VERIFIED_TTL_SECONDS — see
+    _web_phone_take_verified — so a brand-new account can finish signing
+    up without re-proving phone ownership a second time), or an error
+    message otherwise."""
+    with _web_phone_otp_lock:
+        entry = _web_phone_otp_state.get(phone)
+        if not entry:
+            return "Request a code first."
+        if time.time() > entry["expires_at"]:
+            _web_phone_otp_state.pop(phone)
+            return "That code expired — request a new one."
+        if entry["attempts"] >= WEB_PHONE_OTP_MAX_ATTEMPTS:
+            _web_phone_otp_state.pop(phone)
+            return "Too many incorrect attempts — request a new code."
+        if submitted_code != entry["code"]:
+            entry["attempts"] += 1
+            return "Incorrect code."
+        _web_phone_otp_state.pop(phone)
+    with _web_phone_verified_lock:
+        _web_phone_verified_state.set(phone, time.time() + WEB_PHONE_VERIFIED_TTL_SECONDS)
+    return None
+
+
+def _web_phone_take_verified(phone):
+    """True (and consumes the flag) if this phone passed OTP verification
+    recently and hasn't already been used to register an account; False
+    otherwise. One-time — a second call for the same phone returns False
+    until it verifies again."""
+    with _web_phone_verified_lock:
+        expires_at = _web_phone_verified_state.pop(phone)
+        return expires_at is not None and time.time() <= expires_at
+
+
 def _client_ip():
     forwarded = request.headers.get("X-Forwarded-For", "")
     if forwarded:
@@ -1691,6 +1786,119 @@ def auth_login():
         return jsonify({"error": "Invalid email or password"}), 401
 
     return jsonify({"token": generate_token(row["id"]), "user": user_row_to_dict(row)})
+
+
+@app.route("/api/auth/phone/send-otp", methods=["POST"])
+@validate_json({
+    "phone": Field(str, required=True, pattern=PHONE_RE),
+})
+def auth_phone_send_otp():
+    """Starts the Customer web app's phone sign-in. AUTH tier — gated per
+    phone number and per IP, same as staff_login, since this is exactly
+    the kind of endpoint a scripted client would hammer to enumerate
+    working phone numbers or exhaust the SMS budget."""
+    data = request.get_json(force=True, silent=True) or {}
+    phone = data["phone"]
+    gated = _auth_gate(f"webphone:{phone}")
+    if gated:
+        return gated
+    code = _web_phone_otp_request(phone)
+    sent = send_sms(
+        f"+91{phone}",
+        f"Rasoi Care: your sign-in code is {code}. It expires in "
+        f"{WEB_PHONE_OTP_TTL_SECONDS // 60} minutes.",
+        request_id=f"webphone-{phone}",
+    )
+    # Every call here counts toward the gate regardless of outcome — same
+    # reasoning as auth_register: there's no legitimate reason for one
+    # phone/IP to be hitting this repeatedly in a short window.
+    _auth_gate_record(f"webphone:{phone}", True)
+    if not sent:
+        return jsonify({
+            "sent": False,
+            "message": "We couldn't text you a code just now — try again in a moment.",
+        })
+    return jsonify({"sent": True})
+
+
+@app.route("/api/auth/phone/verify-otp", methods=["POST"])
+@validate_json({
+    "phone": Field(str, required=True, pattern=PHONE_RE),
+    "otp": Field(str, required=True, pattern=CODE_RE, strip=False),
+})
+def auth_phone_verify_otp():
+    """Verifies the code from send-otp above. An existing account with
+    this phone logs straight in; a phone with no account yet is instead
+    marked verified (see _web_phone_take_verified) so
+    /api/auth/phone/register can finish creating one without asking for
+    the code a second time."""
+    data = request.get_json(force=True, silent=True) or {}
+    phone = data["phone"]
+    otp = data["otp"]
+    gated = _auth_gate(f"webphone:{phone}")
+    if gated:
+        return gated
+    error = _web_phone_otp_verify(phone, otp)
+    _auth_gate_record(f"webphone:{phone}", error is None)
+    if error:
+        return jsonify({"error": "Invalid code", "message": error}), 400
+    conn = get_db()
+    row = conn.execute("SELECT * FROM users WHERE phone = ?", (phone,)).fetchone()
+    conn.close()
+    if row:
+        return jsonify({"token": generate_token(row["id"]), "user": user_row_to_dict(row)})
+    return jsonify({"needsRegistration": True})
+
+
+@app.route("/api/auth/phone/register", methods=["POST"])
+@validate_json({
+    "phone": Field(str, required=True, pattern=PHONE_RE),
+    "name": Field(str, required=True, min_len=1, max_len=100),
+    "email": Field(str, max_len=254, pattern=EMAIL_RE),
+})
+def auth_phone_register():
+    """Finishes sign-up for a phone that just passed OTP verification
+    above and has no existing account yet. The new account's password is
+    a random secret that's never disclosed anywhere — sign-in for it only
+    ever happens through the phone-OTP flow again, so there's nothing to
+    derive or guess (unlike the old `'rc-' + phone` scheme this replaces)."""
+    data = request.get_json(force=True, silent=True) or {}
+    phone = data["phone"]
+    name = data["name"].strip()
+    email = (data.get("email") or "").strip().lower() or f"{phone}@rasoicare.demo"
+
+    if not _web_phone_take_verified(phone):
+        return jsonify({
+            "error": "Phone not verified",
+            "message": "Verify your phone with a fresh code first.",
+        }), 400
+
+    conn = get_db()
+    # Normally verify-otp already logs a phone with an existing account
+    # straight in and never sends the client here — but the phone genuinely
+    # did just prove ownership via a real code, so if this endpoint gets
+    # called anyway (e.g. a stale client, a retried request), log into the
+    # existing account rather than erroring.
+    existing_phone = conn.execute("SELECT * FROM users WHERE phone = ?", (phone,)).fetchone()
+    if existing_phone:
+        conn.close()
+        return jsonify({
+            "token": generate_token(existing_phone["id"]),
+            "user": user_row_to_dict(existing_phone),
+        })
+    if conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone():
+        conn.close()
+        return jsonify({"error": "Email already registered"}), 409
+
+    user_id = new_uuid_id("USR")
+    conn.execute(
+        "INSERT INTO users (id, email, password_hash, name, phone, created_at) VALUES (?,?,?,?,?,?)",
+        (user_id, email, generate_password_hash(secrets.token_urlsafe(32)), name, phone, now()),
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    conn.close()
+    return jsonify({"token": generate_token(user_id), "user": user_row_to_dict(row)}), 201
 
 
 @app.route("/api/auth/me", methods=["GET"])
