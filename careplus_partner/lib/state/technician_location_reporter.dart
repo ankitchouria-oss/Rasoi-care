@@ -115,5 +115,6 @@ class TechnicianLocationReporterVM extends Notifier<bool> {
     _timer?.cancel();
     _timer = null;
     state = false;
+    unawaited(_service.clearLocation());
   }
 }
