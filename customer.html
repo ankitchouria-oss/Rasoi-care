@@ -1487,6 +1487,12 @@ body{
 
 /* ================= real backend wiring ================= */
 const API_BASE = window.location.origin;
+// admin.html/technician.html already escape every backend-supplied string
+// before innerHTML insertion — this file didn't have the same helper,
+// and one field it renders unescaped (a booking's `service` name, which
+// the legacy free-text booking path lets a customer set to anything up
+// to 200 chars) is a real, reachable self-XSS otherwise.
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 const STATE = { token: localStorage.getItem('rc_token'), user: JSON.parse(localStorage.getItem('rc_user')||'null'),
   appliances: [], services: [], amcPlans: [], amcSub: null, bookings: [], currentBooking: null };
 
@@ -1612,17 +1618,15 @@ function logout(){
   updateIdentity();
   go('login');
 }
-async function googleLogin(){
-  const demo = { name:'Amit Sharma', email:'amit.sharma@gmail.com', phone:'9876500000' };
-  try{
-    const resp = await apiPost('/api/auth/login', { email: demo.email, password: 'google-oauth-demo' });
-    finishAuth(resp, demo.phone);
-  }catch(e){
-    try{
-      const resp = await apiPost('/api/auth/register', { email: demo.email, password:'google-oauth-demo', name: demo.name, phone: demo.phone });
-      finishAuth(resp, demo.phone);
-    }catch(e2){ toast('Google sign-in failed.'); }
-  }
+function googleLogin(){
+  // No real Google OAuth is wired up in this static shell (that needs a
+  // real client ID and a redirect/ID-token flow) — this used to sign
+  // every visitor who tapped it into the same shared demo account with a
+  // password sitting in this file's source, which is worse than not
+  // offering it at all. Matches "Continue with Apple" below: an honest
+  // "not in this build" toast rather than fake, all-visitors-share-one-
+  // account access.
+  toast('Google sign-in — Firebase Auth');
 }
 
 /* ---------------- home categories ---------------- */
@@ -1743,11 +1747,11 @@ function openSvc(id){
     <div class="card card-p">
       <div class="between" style="align-items:flex-start">
         <div style="flex:1">${i===0?'<span class="chip chip-brass" style="height:22px;font-size:10px">Most booked</span>':''}
-          <b style="display:block;margin-top:${i===0?'8px':'0'};font-size:14.5px">${s.name}</b>
+          <b style="display:block;margin-top:${i===0?'8px':'0'};font-size:14.5px">${esc(s.name)}</b>
           <p class="tiny muted" style="margin:5px 0 0;line-height:1.5">${s.quick_fix?'Quick fix visit':'Full service visit'}</p>
           <div class="row" style="gap:8px;margin-top:9px"><span class="price" style="font-size:15px">₹${s.price}</span></div>
         </div>
-        <button class="chip${window._selectedService===s.id?' on':''}" style="height:32px" onclick="selectService('${s.id}',this)">${window._selectedService===s.id?'Selected ✓':'Select'}</button>
+        <button class="chip${window._selectedService===s.id?' on':''}" style="height:32px" onclick='selectService(${JSON.stringify(s.id)},this)'>${window._selectedService===s.id?'Selected ✓':'Select'}</button>
       </div>
     </div>`).join('') : '<p class="sub" style="padding:20px 0">No services listed yet for this appliance.</p>';
 
@@ -1905,8 +1909,8 @@ function renderBookings(){
   const active = STATE.bookings.filter(b => b.status !== 'Completed');
   const done = STATE.bookings.filter(b => b.status === 'Completed');
   const card = (b) => `<div class="card card-p tap" onclick='openBookingFromList(${JSON.stringify(b.id)})'>
-      <div class="between"><span class="chip ${b.status==='Completed'?'chip-grow':(b.status==='Requested'?'':'chip-brass')}" style="height:24px;font-size:10.5px">${b.status}</span><span class="mono muted">${b.id}</span></div>
-      <b style="display:block;margin-top:11px;font-size:14.5px">${b.service}</b>
+      <div class="between"><span class="chip ${b.status==='Completed'?'chip-grow':(b.status==='Requested'?'':'chip-brass')}" style="height:24px;font-size:10.5px">${esc(b.status)}</span><span class="mono muted">${esc(b.id)}</span></div>
+      <b style="display:block;margin-top:11px;font-size:14.5px">${esc(b.service)}</b>
       <p class="tiny muted" style="margin:4px 0 0">₹${b.total_amount||b.price}${b.ratings?' · ★'+b.ratings.service:''}</p>
     </div>`;
   document.getElementById('bkUpcoming').innerHTML = active.length ? active.map(card).join('') : '<p class="sub" style="padding:20px 0">No upcoming bookings.</p>';
@@ -1932,9 +1936,9 @@ async function renderAmc(){
     document.getElementById('amcRenews').textContent = sub.subscription.end_date;
   }
   document.getElementById('amcPlanList').innerHTML = STATE.amcPlans.map(p => `
-    <div class="card card-p tap" onclick="subscribeAmc('${p.id}')">
-      <div class="between"><b style="font-size:14.5px">${p.name}</b><span class="price" style="font-size:15px">₹${p.price}<span class="tiny muted">/yr</span></span></div>
-      <p class="tiny muted" style="margin:6px 0 0">${p.benefits.join(' · ')}</p>
+    <div class="card card-p tap" onclick='subscribeAmc(${JSON.stringify(p.id)})'>
+      <div class="between"><b style="font-size:14.5px">${esc(p.name)}</b><span class="price" style="font-size:15px">₹${p.price}<span class="tiny muted">/yr</span></span></div>
+      <p class="tiny muted" style="margin:6px 0 0">${p.benefits.map(esc).join(' · ')}</p>
     </div>`).join('');
 }
 async function subscribeAmc(planId){
