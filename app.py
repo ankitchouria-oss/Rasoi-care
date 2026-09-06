@@ -17,7 +17,7 @@ import time
 import urllib.error
 import urllib.request
 import uuid
-from collections import defaultdict, deque
+from collections import OrderedDict, defaultdict, deque
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from threading import Lock
@@ -29,6 +29,19 @@ from database import get_db, init_db, next_id, now, new_uuid_id
 
 app = Flask(__name__)
 FRONTEND_DIR = os.path.dirname(os.path.abspath(__file__))
+# The largest legitimate request body is a base64 job photo (validate_json
+# caps dataBase64 at 12_000_000 chars there) — 16MB leaves headroom for the
+# JSON envelope around it. Without this, Flask buffers a request body of
+# any size in memory before validate_json ever gets a chance to reject it,
+# which on the single-worker deployment this runs on is a plausible
+# memory-exhaustion DoS from just a handful of oversized concurrent
+# requests.
+app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
+
+
+@app.errorhandler(413)
+def _request_too_large(_e):
+    return jsonify({"error": "Payload Too Large", "message": "Request body is too large."}), 413
 
 
 # ---------------------------------------------------------------- rate limiting
@@ -145,7 +158,36 @@ def _cancel_otp_verify(booking_id, submitted_code):
         return None
 
 
-_rate_buckets = defaultdict(deque)
+class _BoundedDefaultDict(OrderedDict):
+    """Same auto-vivifying convenience as collections.defaultdict, but
+    evicts the least-recently-touched key once there are more than
+    max_size of them. Both _rate_buckets and _backoff_state below are
+    keyed by attacker-controlled values (an IP, an email, a phone number)
+    with no natural cap on how many distinct ones exist — without this, a
+    scripted client cycling through many bogus identities grows these
+    dicts without bound. Worst case from evicting early is a stale key's
+    limit/backoff resetting a little sooner than it otherwise would —
+    never a memory leak."""
+
+    def __init__(self, default_factory, max_size=20_000):
+        super().__init__()
+        self.default_factory = default_factory
+        self.max_size = max_size
+
+    def __missing__(self, key):
+        if len(self) >= self.max_size:
+            self.popitem(last=False)
+        value = self.default_factory()
+        self[key] = value
+        return value
+
+    def __getitem__(self, key):
+        value = super().__getitem__(key)
+        self.move_to_end(key)
+        return value
+
+
+_rate_buckets = _BoundedDefaultDict(deque)
 _rate_lock = Lock()
 
 
@@ -164,7 +206,7 @@ def _rate_limited(key, max_calls, window_seconds):
         return False
 
 
-_backoff_state = defaultdict(lambda: {"failures": 0, "blocked_until": 0.0})
+_backoff_state = _BoundedDefaultDict(lambda: {"failures": 0, "blocked_until": 0.0})
 _backoff_lock = Lock()
 
 
@@ -2468,7 +2510,7 @@ def advance_booking(booking_id):
         return jsonify({"error": "not found"}), 404
     if row["technician_id"] != request.technician["id"]:
         conn.close()
-        return jsonify({"error": "Forbidden", "message": "Not your job"}), 403
+        return jsonify({"error": "not found"}), 404
 
     idx = STATUS_ORDER.index(row["status"]) if row["status"] in STATUS_ORDER else 0
     if idx >= len(STATUS_ORDER) - 1:
@@ -2676,7 +2718,7 @@ def upload_job_photo(booking_id):
         return jsonify({"error": "not found"}), 404
     if row["technician_id"] != request.technician["id"]:
         conn.close()
-        return jsonify({"error": "Forbidden", "message": "Not your job"}), 403
+        return jsonify({"error": "not found"}), 404
     if kind == "before":
         conn.execute("UPDATE bookings SET before_photo_b64 = ? WHERE id = ?", (data_b64, booking_id))
     else:
@@ -2705,7 +2747,7 @@ def upload_job_signature(booking_id):
         return jsonify({"error": "not found"}), 404
     if row["technician_id"] != request.technician["id"]:
         conn.close()
-        return jsonify({"error": "Forbidden", "message": "Not your job"}), 403
+        return jsonify({"error": "not found"}), 404
     conn.execute("UPDATE bookings SET signature_b64 = ? WHERE id = ?", (data_b64, booking_id))
     conn.commit()
     conn.close()
@@ -2787,7 +2829,7 @@ def decline_booking(booking_id):
         return jsonify({"error": "not found"}), 404
     if row["technician_id"] != request.technician["id"]:
         conn.close()
-        return jsonify({"error": "Forbidden", "message": "Not your job"}), 403
+        return jsonify({"error": "not found"}), 404
     if row["status"] != "Accepted":
         conn.close()
         return jsonify({"error": f"Cannot back out of a {row['status'].lower()} job"}), 400
@@ -2827,7 +2869,7 @@ def set_booking_payment(booking_id):
         return jsonify({"error": "not found"}), 404
     if row["technician_id"] != request.technician["id"]:
         conn.close()
-        return jsonify({"error": "Forbidden", "message": "Not your job"}), 403
+        return jsonify({"error": "not found"}), 404
     conn.execute(
         "UPDATE bookings SET payment_method = ?, updated_at = ? WHERE id = ?",
         (method, now(), booking_id),
@@ -3610,7 +3652,7 @@ def update_booking_appliance(booking_id):
         return jsonify({"error": "not found"}), 404
     if row["technician_id"] != request.technician["id"]:
         conn.close()
-        return jsonify({"error": "Forbidden", "message": "Not your job"}), 403
+        return jsonify({"error": "not found"}), 404
     if "brand" in data:
         conn.execute("UPDATE bookings SET brand = ? WHERE id = ?", (data["brand"].strip(), booking_id))
     if "modelNumber" in data:
@@ -3651,7 +3693,7 @@ def update_booking_service(booking_id):
         return jsonify({"error": "not found"}), 404
     if row["technician_id"] != request.technician["id"]:
         conn.close()
-        return jsonify({"error": "Forbidden", "message": "Not your job"}), 403
+        return jsonify({"error": "not found"}), 404
     if row["status"] in ("Completed", "Cancelled"):
         conn.close()
         return jsonify({
@@ -3711,7 +3753,7 @@ def add_booking_part(booking_id):
         return jsonify({"error": "not found"}), 404
     if row["technician_id"] != request.technician["id"]:
         conn.close()
-        return jsonify({"error": "Forbidden", "message": "Not your job"}), 403
+        return jsonify({"error": "not found"}), 404
     part_id = new_uuid_id("PART")
     conn.execute(
         "INSERT INTO booking_parts (id, booking_id, name, sku, qty, price_paise, status, created_at) "
@@ -3739,7 +3781,7 @@ def delete_booking_part(booking_id, part_id):
         return jsonify({"error": "not found"}), 404
     if booking["technician_id"] != request.technician["id"]:
         conn.close()
-        return jsonify({"error": "Forbidden", "message": "Not your job"}), 403
+        return jsonify({"error": "not found"}), 404
     part = conn.execute(
         "SELECT * FROM booking_parts WHERE id = ? AND booking_id = ?", (part_id, booking_id)
     ).fetchone()
