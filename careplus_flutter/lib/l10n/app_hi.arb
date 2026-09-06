@@ -260,5 +260,23 @@
   "selectLocationRemoveFailed": "हटाया नहीं जा सका — अपना कनेक्शन जांचें।",
   "selectLocationPermissionDenied": "स्थान की अनुमति अस्वीकृत — इसके बजाय \"नया पता जोड़ें\" आज़माएं।",
   "selectLocationServiceDisabled": "लोकेशन सेवाएं चालू करें और फिर से कोशिश करें।",
-  "selectLocationLocationError": "आपका स्थान नहीं मिल सका — इसके बजाय \"नया पता जोड़ें\" आज़माएं।"
+  "selectLocationLocationError": "आपका स्थान नहीं मिल सका — इसके बजाय \"नया पता जोड़ें\" आज़माएं।",
+
+  "legalDocLoadError": "यह दस्तावेज़ लोड नहीं हो सका — अपना कनेक्शन जांचें और फिर से कोशिश करें।",
+  "legalDocRetry": "फिर से कोशिश करें",
+  "legalDocLastUpdated": "अंतिम बार अपडेट किया गया {date}",
+  "@legalDocLastUpdated": {"placeholders": {"date": {"type": "String"}}},
+
+  "biometricEnrollTitle": "एक स्पर्श या नज़र से अनलॉक करें",
+  "biometricEnrollBody": "बायोमेट्रिक लॉगिन चालू करें ताकि आप हर बार OTP की जगह अपने फिंगरप्रिंट या चेहरे से Rasoi Care में वापस आ सकें।",
+  "biometricEnrollButton": "बायोमेट्रिक लॉगिन चालू करें",
+  "biometricEnrollSkip": "अभी नहीं",
+  "biometricEnrollAuthReason": "बायोमेट्रिक लॉगिन चालू करने के लिए अपना फिंगरप्रिंट या चेहरा सत्यापित करें",
+  "biometricEnrollError": "सत्यापित नहीं हो सका — आप इसे बाद में सेटिंग्स में जाकर चालू कर सकते हैं।",
+  "biometricLockAppName": "Rasoi Care",
+  "biometricLockSubtitleFailed": "पहचाना नहीं गया — फिर से कोशिश करें",
+  "biometricLockSubtitleDefault": "जारी रखने के लिए सत्यापित करें",
+  "biometricLockAuthReason": "Rasoi Care खोलने के लिए स्वयं को सत्यापित करें",
+  "biometricLockRetry": "फिर कोशिश करें",
+  "biometricLockSignOut": "इसके बजाय साइन आउट करें"
 }

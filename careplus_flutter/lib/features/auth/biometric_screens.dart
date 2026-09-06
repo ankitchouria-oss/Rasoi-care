@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/theme/care_plus_theme.dart';
+import '../../l10n/l10n_extensions.dart';
 import '../../state/auth_providers.dart';
 import '../../state/providers.dart';
 
@@ -32,9 +33,9 @@ class _BiometricEnrollScreenState extends ConsumerState<BiometricEnrollScreen> {
 
   Future<void> _enable() async {
     setState(() => _working = true);
-    final ok = await ref
-        .read(biometricServiceProvider)
-        .authenticate('Confirm your fingerprint or face to turn on biometric login');
+    final t = context.l10n;
+    final ok =
+        await ref.read(biometricServiceProvider).authenticate(t.biometricEnrollAuthReason);
     if (!mounted) return;
     if (ok) {
       await ref.read(biometricEnabledProvider.notifier).set(true);
@@ -43,13 +44,14 @@ class _BiometricEnrollScreenState extends ConsumerState<BiometricEnrollScreen> {
     } else {
       setState(() => _working = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Couldn't verify — you can turn this on later in settings.")),
+        SnackBar(content: Text(t.biometricEnrollError)),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final t = context.l10n;
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -59,12 +61,11 @@ class _BiometricEnrollScreenState extends ConsumerState<BiometricEnrollScreen> {
             children: [
               Icon(Icons.fingerprint, size: 64, color: context.scheme.primary),
               const SizedBox(height: 24),
-              Text('Unlock with a touch or a glance',
+              Text(t.biometricEnrollTitle,
                   style: CareType.display(context.scheme.onSurface, size: 26)),
               const SizedBox(height: 12),
               Text(
-                'Turn on biometric login so you can get back into Rasoi Care '
-                'with your fingerprint or face instead of an OTP every time.',
+                t.biometricEnrollBody,
                 style: context.type.bodyMedium!.copyWith(color: context.care.inkMuted),
               ),
               const Spacer(),
@@ -77,7 +78,7 @@ class _BiometricEnrollScreenState extends ConsumerState<BiometricEnrollScreen> {
                           width: 18,
                           height: 18,
                           child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Turn on biometric login'),
+                      : Text(t.biometricEnrollButton),
                 ),
               ),
               const SizedBox(height: 10),
@@ -85,7 +86,7 @@ class _BiometricEnrollScreenState extends ConsumerState<BiometricEnrollScreen> {
                 width: double.infinity,
                 child: TextButton(
                   onPressed: _working ? null : () => context.go(widget.nextRoute),
-                  child: const Text('Not now'),
+                  child: Text(t.biometricEnrollSkip),
                 ),
               ),
             ],
@@ -123,7 +124,7 @@ class _BiometricLockScreenState extends ConsumerState<BiometricLockScreen> {
     });
     final ok = await ref
         .read(biometricServiceProvider)
-        .authenticate('Verify it\'s you to open Rasoi Care');
+        .authenticate(context.l10n.biometricLockAuthReason);
     if (!mounted) return;
     if (ok) {
       biometricUnlockedThisSession = true;
@@ -145,6 +146,7 @@ class _BiometricLockScreenState extends ConsumerState<BiometricLockScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.l10n;
     return Scaffold(
       backgroundColor: CareColors.pine,
       body: Center(
@@ -153,10 +155,10 @@ class _BiometricLockScreenState extends ConsumerState<BiometricLockScreen> {
           children: [
             Icon(Icons.fingerprint, size: 72, color: CareColors.porcelain),
             const SizedBox(height: 20),
-            Text('Rasoi Care', style: CareType.display(CareColors.porcelain, size: 26)),
+            Text(t.biometricLockAppName, style: CareType.display(CareColors.porcelain, size: 26)),
             const SizedBox(height: 8),
             Text(
-              _failed ? 'Not recognised — try again' : 'Verify to continue',
+              _failed ? t.biometricLockSubtitleFailed : t.biometricLockSubtitleDefault,
               style: CareType.mono(CareColors.brass, size: 11).copyWith(letterSpacing: 1.2),
             ),
             const SizedBox(height: 28),
@@ -165,12 +167,12 @@ class _BiometricLockScreenState extends ConsumerState<BiometricLockScreen> {
             else
               FilledButton(
                 onPressed: _unlock,
-                child: const Text('Try again'),
+                child: Text(t.biometricLockRetry),
               ),
             const SizedBox(height: 16),
             TextButton(
               onPressed: _working ? null : _signOut,
-              child: const Text('Sign out instead', style: TextStyle(color: CareColors.porcelain)),
+              child: Text(t.biometricLockSignOut, style: const TextStyle(color: CareColors.porcelain)),
             ),
           ],
         ),
