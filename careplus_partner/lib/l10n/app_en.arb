@@ -419,5 +419,25 @@
   "languagePickerTitle": "Change language",
   "languageEnglish": "English",
   "languageHindi": "हिन्दी (Hindi)",
-  "languageNote": "This changes text throughout the app. Job details that came from the server — like a customer's name or address — stay in the language they were entered in."
+  "languageNote": "This changes text throughout the app. Job details that came from the server — like a customer's name or address — stay in the language they were entered in.",
+
+  "biometricEnrollTitle": "Unlock with a touch or a glance",
+  "biometricEnrollBody": "Turn on biometric login so you can get back into your job feed with your fingerprint or face instead of an OTP every time.",
+  "biometricEnrollButton": "Turn on biometric login",
+  "biometricEnrollSkip": "Not now",
+  "biometricEnrollAuthReason": "Confirm your fingerprint or face to turn on biometric login",
+  "biometricEnrollError": "Couldn't verify — you can turn this on later in More.",
+  "biometricLockSubtitleFailed": "Not recognised — try again",
+  "biometricLockSubtitleDefault": "Verify to continue",
+  "biometricLockAuthReason": "Verify it's you to open Rasoi Care Partner",
+  "biometricLockRetry": "Try again",
+  "biometricLockSignOut": "Sign out instead",
+
+  "legalDocLoadError": "Couldn't load this document — check your connection and try again.",
+  "legalDocRetry": "Retry",
+  "legalDocLastUpdated": "Last updated {date}",
+  "@legalDocLastUpdated": {"placeholders": {"date": {"type": "String"}}},
+
+  "jobsPayoutLabel": "payout {amount}",
+  "@jobsPayoutLabel": {"placeholders": {"amount": {"type": "String"}}}
 }

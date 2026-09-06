@@ -400,5 +400,23 @@
   "languagePickerTitle": "भाषा बदलें",
   "languageEnglish": "English",
   "languageHindi": "हिन्दी (Hindi)",
-  "languageNote": "इससे पूरे ऐप का टेक्स्ट बदल जाता है। सर्वर से आई जॉब जानकारी — जैसे ग्राहक का नाम या पता — जिस भाषा में दर्ज हुई थी, उसी में रहती है।"
+  "languageNote": "इससे पूरे ऐप का टेक्स्ट बदल जाता है। सर्वर से आई जॉब जानकारी — जैसे ग्राहक का नाम या पता — जिस भाषा में दर्ज हुई थी, उसी में रहती है।",
+
+  "biometricEnrollTitle": "एक स्पर्श या नज़र से अनलॉक करें",
+  "biometricEnrollBody": "बायोमेट्रिक लॉगिन चालू करें ताकि आप हर बार OTP की जगह अपने फिंगरप्रिंट या चेहरे से अपनी जॉब फ़ीड में वापस आ सकें।",
+  "biometricEnrollButton": "बायोमेट्रिक लॉगिन चालू करें",
+  "biometricEnrollSkip": "अभी नहीं",
+  "biometricEnrollAuthReason": "बायोमेट्रिक लॉगिन चालू करने के लिए अपना फिंगरप्रिंट या चेहरा सत्यापित करें",
+  "biometricEnrollError": "सत्यापित नहीं हो सका — आप इसे बाद में 'और' में जाकर चालू कर सकते हैं।",
+  "biometricLockSubtitleFailed": "पहचाना नहीं गया — फिर से कोशिश करें",
+  "biometricLockSubtitleDefault": "जारी रखने के लिए सत्यापित करें",
+  "biometricLockAuthReason": "Rasoi Care Partner खोलने के लिए स्वयं को सत्यापित करें",
+  "biometricLockRetry": "फिर कोशिश करें",
+  "biometricLockSignOut": "इसके बजाय साइन आउट करें",
+
+  "legalDocLoadError": "यह दस्तावेज़ लोड नहीं हो सका — अपना कनेक्शन जांचें और फिर से कोशिश करें।",
+  "legalDocRetry": "फिर से कोशिश करें",
+  "legalDocLastUpdated": "अंतिम बार अपडेट किया गया {date}",
+
+  "jobsPayoutLabel": "भुगतान {amount}"
 }
