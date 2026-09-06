@@ -15,6 +15,7 @@ import secrets
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 from collections import OrderedDict, defaultdict, deque
@@ -1023,9 +1024,9 @@ def technician_categories(row):
     return [row["category"]] if row["category"] else []
 
 
-def technician_row_to_dict(row):
+def technician_row_to_dict(row, *, redact_documents=False):
     keys = row.keys()
-    return {
+    d = {
         "id": row["id"],
         "name": row["name"],
         "category": row["category"],
@@ -1071,6 +1072,26 @@ def technician_row_to_dict(row):
         # completed jobs.
         "employmentType": row["employment_type"] if "employment_type" in keys else "outsourced",
     }
+    # aadharDocumentReady/panDocumentReady/bankPassbookReady tell a caller
+    # whether a document was ever uploaded without needing the raw URL —
+    # always present so the Admin app's "missing document" chips keep
+    # working even when the URLs themselves are redacted below.
+    d["aadharDocumentReady"] = bool(d["aadharDocumentUrl"])
+    d["aadharDocumentBackReady"] = bool(d["aadharDocumentBackUrl"])
+    d["panDocumentReady"] = bool(d["panDocumentUrl"])
+    d["bankPassbookReady"] = bool(d["bankPassbookUrl"])
+    if redact_documents:
+        # These are long-lived, non-expiring Firebase Storage URLs whose
+        # only "auth" is an unguessable token in the query string — handing
+        # them to the Admin app's staff-scoped listing means anyone who
+        # ever sees that response (a log, a proxy, a shared screenshot) can
+        # view a technician's Aadhaar/PAN/bank passbook indefinitely with
+        # no session at all. Staff views the actual image through
+        # GET /api/technicians/<id>/document/<kind> instead, which requires
+        # a live staff token on every fetch — see technician_document.
+        for field in ("aadharDocumentUrl", "aadharDocumentBackUrl", "panDocumentUrl", "bankPassbookUrl"):
+            d[field] = None
+    return d
 
 
 def user_row_to_dict(row):
@@ -3431,7 +3452,56 @@ def list_technicians():
         "SELECT * FROM technicians ORDER BY name LIMIT ? OFFSET ?", (limit, offset)
     ).fetchall()
     conn.close()
-    return jsonify([technician_row_to_dict(r) for r in rows])
+    return jsonify([technician_row_to_dict(r, redact_documents=True) for r in rows])
+
+
+# Only Firebase Storage's own download-URL hosts — see technician_document.
+# The URLs this fetches from come from a technician's own PATCH
+# /api/technician/me (aadharDocumentUrl etc.), validated only as "looks
+# like a URL", so without a host allowlist a technician could point one at
+# an arbitrary address and have the backend fetch it server-side (SSRF) the
+# next time staff opens that document.
+_DOCUMENT_PROXY_ALLOWED_HOSTS = ("firebasestorage.googleapis.com", "storage.googleapis.com")
+
+_DOCUMENT_PROXY_FIELD_BY_KIND = {
+    "aadhar-front": "aadhar_document_url",
+    "aadhar-back": "aadhar_document_back_url",
+    "pan": "pan_document_url",
+    "bank-passbook": "bank_passbook_url",
+}
+
+
+@app.route("/api/technicians/<technician_id>/document/<kind>", methods=["GET"])
+@require_staff_auth
+def technician_document(technician_id, kind):
+    """Proxies a technician's KYC document (Aadhaar/PAN/bank passbook)
+    through a staff-authenticated request instead of handing the Admin app
+    the raw, non-expiring Firebase Storage URL — see get_job_photo for the
+    same pattern already used for booking photos. Without this, the URLs
+    returned by GET /api/technicians could view a person's identity
+    documents indefinitely, with no session, if they ever leaked (a log, a
+    proxy, a shared screenshot)."""
+    field = _DOCUMENT_PROXY_FIELD_BY_KIND.get(kind)
+    if not field:
+        return jsonify({"error": "kind must be one of: " + ", ".join(_DOCUMENT_PROXY_FIELD_BY_KIND)}), 400
+    conn = get_db()
+    row = conn.execute("SELECT * FROM technicians WHERE id = ?", (technician_id,)).fetchone()
+    conn.close()
+    if not row:
+        return jsonify({"error": "not found"}), 404
+    url = row[field] if field in row.keys() else None
+    if not url:
+        return jsonify({"error": "not found"}), 404
+    host = urllib.parse.urlparse(url).hostname
+    if host not in _DOCUMENT_PROXY_ALLOWED_HOSTS:
+        return jsonify({"error": "Document URL is not from a trusted host"}), 502
+    try:
+        with urllib.request.urlopen(url, timeout=10) as resp:
+            data = resp.read()
+            content_type = resp.headers.get("Content-Type", "application/octet-stream")
+    except Exception:
+        return jsonify({"error": "Could not fetch this document right now"}), 502
+    return Response(data, mimetype=content_type)
 
 
 @app.route("/api/technicians", methods=["POST"])
@@ -3460,7 +3530,7 @@ def create_technician():
     conn.commit()
     row = conn.execute("SELECT * FROM technicians WHERE id = ?", (tech_id,)).fetchone()
     conn.close()
-    return jsonify(technician_row_to_dict(row)), 201
+    return jsonify(technician_row_to_dict(row, redact_documents=True)), 201
 
 
 # Excludes 0/O and 1/I — easy to confuse when a technician reads their code
@@ -3503,7 +3573,7 @@ def verify_technician(technician_id):
     conn.commit()
     row = conn.execute("SELECT * FROM technicians WHERE id = ?", (technician_id,)).fetchone()
     conn.close()
-    return jsonify(technician_row_to_dict(row))
+    return jsonify(technician_row_to_dict(row, redact_documents=True))
 
 
 @app.route("/api/technicians/<technician_id>/earnings", methods=["GET"])
