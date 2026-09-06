@@ -63,6 +63,12 @@ class ApiRepository implements PartnerRepository {
   double? _rating;
   int? _jobsCompletedTotal;
 
+  /// Null until the first successful [fetchEarnings] — [techStats] uses
+  /// this real, commission-based figure for "today's earnings" instead of
+  /// the customer's full invoice total (see the doc comment on
+  /// earnings_dto.dart's EarningsJob for why those two numbers differ).
+  TechEarningsSummary? _earningsSummary;
+
   // ---------------------------------------------------------------- auth
 
   Future<String?> _idToken() async {
@@ -164,7 +170,7 @@ class ApiRepository implements PartnerRepository {
   /// state together — call once after sign-in / whenever the job feed
   /// wants a fresh look at the server.
   Future<void> refreshAll() =>
-      Future.wait([refreshBookings(), refreshAvailableBookings(), refreshMe()]);
+      Future.wait([refreshBookings(), refreshAvailableBookings(), refreshMe(), fetchEarnings()]);
 
   // -------------------------------------------------------------- actions
 
@@ -469,8 +475,17 @@ class ApiRepository implements PartnerRepository {
     final completedToday =
         _bookings.where((b) => b.status == 'Completed' && isToday(b.updatedAt));
     final touchedToday = _bookings.where((b) => isToday(b.createdAt) || isToday(b.updatedAt));
-    final earningsTodayPaise =
-        completedToday.fold<int>(0, (sum, b) => sum + b.totalAmountPaise);
+    // The technician's real, commission-based pay for jobs completed today
+    // — never the customer's full invoice total, which is only ever a
+    // fraction of what's actually earned (see compute_commission_paise in
+    // app.py). Falls back to the invoice-total sum only until the first
+    // real earnings fetch lands, so the dashboard isn't blank before that.
+    final earningsSummary = _earningsSummary;
+    final earningsTodayPaise = earningsSummary != null
+        ? earningsSummary.jobs
+            .where((j) => isToday(j.completedAt))
+            .fold<int>(0, (sum, j) => sum + j.commissionPaise)
+        : completedToday.fold<int>(0, (sum, b) => sum + b.totalAmountPaise);
     return TechStats(
       earningsTodayPaise: earningsTodayPaise,
       jobsDone: completedToday.length,
@@ -522,7 +537,10 @@ class ApiRepository implements PartnerRepository {
   /// Real, itemized earnings for the signed-in technician — see
   /// app.py's /api/technician/earnings. Null on any failure (network,
   /// unauthenticated); the caller shows a loading/error state rather than
-  /// falling back to a fabricated total.
+  /// falling back to a fabricated total. Caches the result on success (see
+  /// [_earningsSummary]) so [techStats] can use it too — refreshAll calls
+  /// this alongside the booking fetches specifically so the dashboard has
+  /// it without the technician needing to first open the Earnings tab.
   Future<TechEarningsSummary?> fetchEarnings() async {
     try {
       final token = await _idToken();
@@ -536,7 +554,9 @@ class ApiRepository implements PartnerRepository {
       if (res.statusCode != 200) return null;
       final data = jsonDecode(res.body);
       if (data is! Map<String, dynamic>) return null;
-      return TechEarningsSummary.fromJson(data);
+      final summary = TechEarningsSummary.fromJson(data);
+      _earningsSummary = summary;
+      return summary;
     } catch (_) {
       return null;
     }

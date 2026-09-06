@@ -317,10 +317,32 @@ class _BookingCard extends StatelessWidget {
 }
 
 // ============================================================ ACCOUNT
-class AccountScreen extends ConsumerWidget {
+class AccountScreen extends ConsumerStatefulWidget {
   const AccountScreen({super.key});
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AccountScreen> createState() => _AccountScreenState();
+}
+
+class _AccountScreenState extends ConsumerState<AccountScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Care Coins are earned server-side (2% cashback once a booking
+    // completes) and can also change from a checkout on another device —
+    // without this, this screen kept showing whatever balance happened to
+    // be cached at cold start until something else incidentally refreshed
+    // it, same stale-cache bug already fixed for InvoiceScreen.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final repo = ref.read(repositoryProvider);
+      if (repo is ApiRepository) {
+        repo.refreshCoins();
+        repo.refreshBookings();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final mode = ref.watch(themeModeProvider);
     final profile = ref.watch(userProfileStreamProvider).valueOrNull;
     final isMock = ref.read(authFlowProvider.notifier).isMock;

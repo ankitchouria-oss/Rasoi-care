@@ -283,6 +283,10 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
       final result = await repo.advanceJob(widget.jobId,
           suctionBefore: suctionBefore, suctionAfter: suctionAfter, startCode: startCode);
       if (result.ok) {
+        // A completed job changes this technician's real, commission-based
+        // earnings — refetch so the Jobs dashboard's "Today's earnings"
+        // reflects it right away rather than only after the next poll.
+        unawaited(repo.fetchEarnings());
         ref.read(jobsFeedTickProvider.notifier).bump();
       } else if (mounted) {
         _toast(context, result.error ?? context.l10n.jobDetailStatusError);
