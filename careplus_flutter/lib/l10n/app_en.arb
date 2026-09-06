@@ -180,5 +180,24 @@
   "trackingBookingConfirmedStep": "Booking confirmed",
   "trackingTechAssignedStep": "Technician assigned",
   "trackingMarkerTechnician": "Your technician",
-  "trackingMarkerAddress": "Your address"
+  "trackingMarkerAddress": "Your address",
+
+  "shopTitle": "Rasoi Care Shop",
+  "shopIntro": "Pre-measured, one-time-use cleaning kits for your appliances — the same products our technicians carry. Add them to your cart and they're billed together with any service you book.",
+  "shopKitsHeader": "Cleaning kits",
+  "shopCheckout": "{count, plural, =1{Checkout · 1 item · {amount}} other{Checkout · {count} items · {amount}}}",
+  "@shopCheckout": {"placeholders": {"count": {"type": "int"}, "amount": {"type": "String"}}},
+  "shopMrp": "MRP {amount}",
+  "@shopMrp": {"placeholders": {"amount": {"type": "String"}}},
+  "shopAdd": "Add",
+  "shopChimneyKitName": "Chimney Cleaning Kit",
+  "shopChimneyKitContents": "Degreaser concentrate, rinse & shine solution, microfiber cloth, nitrile gloves — one-time use, one chimney.",
+  "shopCooktopKitName": "Cooktop & Hob Cleaning Kit",
+  "shopCooktopKitContents": "Hob cleaner concentrate, rinse & shine solution, microfiber cloth, nitrile gloves — safe on glass, ceramic, steel and aluminium.",
+  "shopDishwasherKitName": "Dishwasher Cleaning Kit",
+  "shopDishwasherKitContents": "Dishwasher cleaner, rinse aid, scrub pad, gloves.",
+  "shopMicrowaveKitName": "Microwave Cleaning Kit",
+  "shopMicrowaveKitContents": "Microwave cleaner, deodorizer solution, sponge, microfiber cloth, gloves.",
+  "shopFridgeKitName": "Refrigerator Cleaning Kit",
+  "shopFridgeKitContents": "Fridge cleaner, deodorizer gel, microfiber cloth, gloves — food-safe formula."
 }

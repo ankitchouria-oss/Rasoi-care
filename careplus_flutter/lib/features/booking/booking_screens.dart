@@ -12,7 +12,7 @@ import '../../core/theme/care_plus_theme.dart';
 import '../../data/models.dart';
 import '../../l10n/l10n_extensions.dart';
 import '../../state/providers.dart';
-import '../shop/shop_screen.dart' show shopProducts;
+import '../shop/shop_screen.dart' show productName, shopProducts;
 import 'select_location_screen.dart';
 
 // A thin frame every booking step shares: progress bar + dock.
@@ -656,7 +656,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Expanded(
-                        child: Text('${product.name} × $qty',
+                        child: Text('${productName(product.id, t)} × $qty',
                             style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
                       ),
                       Text(Money.rupees(product.mrpPaise * qty),

@@ -162,5 +162,22 @@
   "trackingBookingConfirmedStep": "बुकिंगची पुष्टी झाली",
   "trackingTechAssignedStep": "तंत्रज्ञ नेमला",
   "trackingMarkerTechnician": "तुमचा तंत्रज्ञ",
-  "trackingMarkerAddress": "तुमचा पत्ता"
+  "trackingMarkerAddress": "तुमचा पत्ता",
+
+  "shopTitle": "Rasoi Care शॉप",
+  "shopIntro": "तुमच्या उपकरणांसाठी आधीच मोजलेल्या, एकदा वापरण्याच्या स्वच्छता किट — तेच उत्पादन जे आमचे तंत्रज्ञ सोबत ठेवतात. त्या तुमच्या कार्टमध्ये जोडा आणि त्या तुम्ही बुक केलेल्या कोणत्याही सेवेसोबत बिल केल्या जातील.",
+  "shopKitsHeader": "स्वच्छता किट",
+  "shopCheckout": "{count, plural, =1{चेकआउट · 1 वस्तू · {amount}} other{चेकआउट · {count} वस्तू · {amount}}}",
+  "shopMrp": "एमआरपी {amount}",
+  "shopAdd": "जोडा",
+  "shopChimneyKitName": "चिमणी स्वच्छता किट",
+  "shopChimneyKitContents": "डीग्रीझर कॉन्सन्ट्रेट, रिन्स अँड शाइन सोल्यूशन, मायक्रोफायबर कापड, नायट्राइल हातमोजे — एकदा वापरण्यासाठी, एका चिमणीसाठी.",
+  "shopCooktopKitName": "कुकटॉप आणि हॉब स्वच्छता किट",
+  "shopCooktopKitContents": "हॉब क्लीनर कॉन्सन्ट्रेट, रिन्स अँड शाइन सोल्यूशन, मायक्रोफायबर कापड, नायट्राइल हातमोजे — काच, सिरॅमिक, स्टील आणि अ‍ॅल्युमिनियमवर सुरक्षित.",
+  "shopDishwasherKitName": "डिशवॉशर स्वच्छता किट",
+  "shopDishwasherKitContents": "डिशवॉशर क्लीनर, रिन्स एड, स्क्रब पॅड, हातमोजे.",
+  "shopMicrowaveKitName": "मायक्रोवेव्ह स्वच्छता किट",
+  "shopMicrowaveKitContents": "मायक्रोवेव्ह क्लीनर, डिओडोरायझर सोल्यूशन, स्पंज, मायक्रोफायबर कापड, हातमोजे.",
+  "shopFridgeKitName": "रेफ्रिजरेटर स्वच्छता किट",
+  "shopFridgeKitContents": "फ्रिज क्लीनर, डिओडोरायझर जेल, मायक्रोफायबर कापड, हातमोजे — फूड-सेफ फॉर्म्युला."
 }

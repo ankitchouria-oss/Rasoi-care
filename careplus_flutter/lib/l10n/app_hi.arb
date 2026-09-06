@@ -162,5 +162,22 @@
   "trackingBookingConfirmedStep": "बुकिंग की पुष्टि हुई",
   "trackingTechAssignedStep": "तकनीशियन असाइन किया गया",
   "trackingMarkerTechnician": "आपका तकनीशियन",
-  "trackingMarkerAddress": "आपका पता"
+  "trackingMarkerAddress": "आपका पता",
+
+  "shopTitle": "Rasoi Care शॉप",
+  "shopIntro": "आपके उपकरणों के लिए पहले से मापी गई, एक बार इस्तेमाल होने वाली सफाई किट — वही उत्पाद जो हमारे तकनीशियन साथ रखते हैं। इन्हें अपनी कार्ट में जोड़ें और ये आपकी बुक की गई किसी भी सेवा के साथ बिल किए जाएंगे।",
+  "shopKitsHeader": "सफाई किट",
+  "shopCheckout": "{count, plural, =1{चेकआउट · 1 आइटम · {amount}} other{चेकआउट · {count} आइटम · {amount}}}",
+  "shopMrp": "एमआरपी {amount}",
+  "shopAdd": "जोड़ें",
+  "shopChimneyKitName": "चिमनी सफाई किट",
+  "shopChimneyKitContents": "डीग्रीज़र कॉन्सन्ट्रेट, रिंस एंड शाइन सॉल्यूशन, माइक्रोफ़ाइबर कपड़ा, नाइट्राइल दस्ताने — एक बार इस्तेमाल, एक चिमनी के लिए।",
+  "shopCooktopKitName": "कुकटॉप और हॉब सफाई किट",
+  "shopCooktopKitContents": "हॉब क्लीनर कॉन्सन्ट्रेट, रिंस एंड शाइन सॉल्यूशन, माइक्रोफ़ाइबर कपड़ा, नाइट्राइल दस्ताने — कांच, सिरेमिक, स्टील और एल्युमिनियम पर सुरक्षित।",
+  "shopDishwasherKitName": "डिशवॉशर सफाई किट",
+  "shopDishwasherKitContents": "डिशवॉशर क्लीनर, रिंस एड, स्क्रब पैड, दस्ताने।",
+  "shopMicrowaveKitName": "माइक्रोवेव सफाई किट",
+  "shopMicrowaveKitContents": "माइक्रोवेव क्लीनर, डिओडोराइज़र सॉल्यूशन, स्पंज, माइक्रोफ़ाइबर कपड़ा, दस्ताने।",
+  "shopFridgeKitName": "रेफ्रिजरेटर सफाई किट",
+  "shopFridgeKitContents": "फ्रिज क्लीनर, डिओडोराइज़र जेल, माइक्रोफ़ाइबर कपड़ा, दस्ताने — फ़ूड-सेफ फॉर्मूला।"
 }
