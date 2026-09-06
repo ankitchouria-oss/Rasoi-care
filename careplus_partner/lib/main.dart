@@ -5,6 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 
 import 'core/theme/care_plus_theme.dart';
 import 'l10n/app_localizations.dart';
+import 'state/auth_providers.dart';
 import 'state/providers.dart';
 import 'app/router.dart';
 import 'firebase_options.dart';
@@ -22,11 +23,57 @@ Future<void> main() async {
   runApp(const ProviderScope(child: RasoiCarePartnerApp()));
 }
 
-class RasoiCarePartnerApp extends ConsumerWidget {
+class RasoiCarePartnerApp extends ConsumerStatefulWidget {
   const RasoiCarePartnerApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<RasoiCarePartnerApp> createState() => _RasoiCarePartnerAppState();
+}
+
+class _RasoiCarePartnerAppState extends ConsumerState<RasoiCarePartnerApp>
+    with WidgetsBindingObserver {
+  AppLifecycleState? _lastState;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Biometric login was only ever re-checked at process cold start
+    // (SplashScreen), so leaving the app backgrounded and switching back
+    // — without the process being killed — skipped the lock entirely.
+    // Re-lock on the paused-to-resumed transition specifically, not any
+    // resumed event, since some platforms fire an initial `resumed`
+    // during normal startup with no real backgrounding involved.
+    if (_lastState == AppLifecycleState.paused && state == AppLifecycleState.resumed) {
+      _maybeRelock();
+    }
+    _lastState = state;
+  }
+
+  Future<void> _maybeRelock() async {
+    if (!ref.read(authServiceProvider).isSignedIn) return;
+    final tech = await fetchTechnicianMe();
+    final stage = stageFromTechnicianJson(tech);
+    // Same gate as SplashScreen's cold-start check — only a fully
+    // onboarded, verified technician's session is worth locking; someone
+    // still mid-application has nothing sensitive to protect yet.
+    if (stage == TechnicianStage.jobs && await ref.read(biometricServiceProvider).isEnabled()) {
+      router.go('/lock');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final mode = ref.watch(themeModeProvider);
     final locale = ref.watch(localeProvider);
     return MaterialApp.router(

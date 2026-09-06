@@ -43,6 +43,11 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
   Timer? _t;
   bool _advancing = false;
   bool _unclaiming = false;
+  // Guards add-part/remove-part/change-service — none of these disabled
+  // their trigger button while the request was in flight, so a double-tap
+  // on a slow connection could fire the same mutation twice (e.g. raising
+  // the same part/quote for the customer to approve two times over).
+  bool _mutatingParts = false;
 
   // ---- job-tracking map (only ever used when MapsConfig.isConfigured) ----
   GoogleMapController? _mapController;
@@ -429,6 +434,7 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
   /// change is server-computed, never typed in by the technician, so it
   /// can't drift from what the customer's invoice actually shows.
   Future<void> _showChangeService() async {
+    if (_mutatingParts) return;
     final repo = ref.read(repositoryProvider);
     if (repo is! ApiRepository) return;
     final t = context.l10n;
@@ -489,8 +495,10 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
       ),
     );
     if (confirmed != true || !mounted) return;
+    setState(() => _mutatingParts = true);
     final result = await repo.changeService(widget.jobId, selected.id);
     if (!mounted) return;
+    setState(() => _mutatingParts = false);
     if (result.ok) {
       ref.read(jobsFeedTickProvider.notifier).bump();
     } else {
@@ -501,6 +509,7 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
   // ------------------------------------------------------------- parts/quotes
 
   Future<void> _showAddPart() async {
+    if (_mutatingParts) return;
     final t = context.l10n;
     final nameCtrl = TextEditingController();
     final skuCtrl = TextEditingController();
@@ -567,6 +576,7 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
     if (confirmed != true || !mounted) return;
     final repo = ref.read(repositoryProvider);
     if (repo is! ApiRepository) return;
+    setState(() => _mutatingParts = true);
     final ok = await repo.addPart(
       widget.jobId,
       name: nameCtrl.text.trim(),
@@ -575,6 +585,7 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
       pricePaise: (double.parse(priceCtrl.text) * 100).round(),
     );
     if (!mounted) return;
+    setState(() => _mutatingParts = false);
     if (ok) {
       ref.read(jobsFeedTickProvider.notifier).bump();
     } else {
@@ -583,10 +594,13 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
   }
 
   Future<void> _removePart(String partId) async {
+    if (_mutatingParts) return;
     final repo = ref.read(repositoryProvider);
     if (repo is! ApiRepository) return;
+    setState(() => _mutatingParts = true);
     final ok = await repo.removePart(widget.jobId, partId);
     if (!mounted) return;
+    setState(() => _mutatingParts = false);
     if (ok) {
       ref.read(jobsFeedTickProvider.notifier).bump();
     } else {
@@ -738,7 +752,8 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
                         // job's invoice is final, so offering this at all
                         // just invites a confusing "couldn't change"
                         // failure instead of never showing the option.
-                        onPressed: job.category.trim().isEmpty ||
+                        onPressed: _mutatingParts ||
+                                job.category.trim().isEmpty ||
                                 liveStatus == 'Completed' ||
                                 liveStatus == 'Cancelled'
                             ? null
@@ -856,7 +871,7 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
                   ),
                   SectionHeader(t.jobDetailPartsUsed,
                       trailing: TextButton(
-                        onPressed: _showAddPart,
+                        onPressed: _mutatingParts ? null : _showAddPart,
                         child: Text(t.jobDetailAddPart),
                       )),
                   if (job.parts.isEmpty)
@@ -908,7 +923,7 @@ class _TechJobScreenState extends ConsumerState<TechJobScreen> {
                               ),
                               if (part.status == PartStatus.pending)
                                 TextButton(
-                                  onPressed: () => _removePart(part.id),
+                                  onPressed: _mutatingParts ? null : () => _removePart(part.id),
                                   child: Text(t.jobDetailRemove),
                                 ),
                             ],

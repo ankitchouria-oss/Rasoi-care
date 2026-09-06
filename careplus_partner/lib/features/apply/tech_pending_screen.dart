@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/widgets/care_widgets.dart';
 import '../../l10n/l10n_extensions.dart';
 import '../../state/auth_providers.dart';
+import '../../state/providers.dart';
 
 /// Shown once the application's submitted but an admin hasn't verified the
 /// technician yet — mirrors Urban Company's "we're reviewing your profile"
@@ -95,6 +96,8 @@ class _TechPendingScreenState extends ConsumerState<TechPendingScreen> {
                   onPressed: () async {
                     await ref.read(authServiceProvider).signOut();
                     ref.read(authFlowProvider.notifier).reset();
+                    ref.invalidate(repositoryProvider);
+                    ref.invalidate(technicianMeProvider);
                     if (context.mounted) context.go('/login');
                   },
                   child: Text(t.commonSignOut),

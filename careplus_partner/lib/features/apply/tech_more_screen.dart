@@ -197,6 +197,13 @@ class _TechMoreScreenState extends ConsumerState<TechMoreScreen> {
                       onPressed: () async {
                         await ref.read(authServiceProvider).signOut();
                         ref.read(authFlowProvider.notifier).reset();
+                        // Without this, a second technician signing in on
+                        // the same device would briefly see whatever the
+                        // previous one's cached repository/profile still
+                        // held — jobs, ratings, financial details — until
+                        // the next fetch overwrote it.
+                        ref.invalidate(repositoryProvider);
+                        ref.invalidate(technicianMeProvider);
                         if (context.mounted) context.go('/login');
                       },
                       child: Text(t.commonSignOut),

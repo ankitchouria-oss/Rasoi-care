@@ -259,7 +259,10 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       // convenience that didn't fire this time (e.g. the sender is saved
       // as a contact, which Android's User Consent API deliberately
       // ignores, or the OS-level "Allow?" prompt was dismissed).
-      debugPrint('OtpScreen: SMS auto-read found no usable code (result: $result)');
+      // Logs only that auto-read came up empty, never `result` itself —
+      // that's the raw SmsCodeResult, which can carry a partially- or
+      // incorrectly-parsed digit run pulled straight out of the SMS body.
+      debugPrint('OtpScreen: SMS auto-read found no usable code');
       return;
     }
     setState(() => _codeCtrl.text = code);
