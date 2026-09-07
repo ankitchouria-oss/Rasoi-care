@@ -123,7 +123,12 @@ class FirebaseAuthService implements AuthService {
         'wrong-password' || 'invalid-credential' => 'Incorrect email or password.',
         'account-exists-with-different-credential' =>
           'That email is already linked to a different sign-in method.',
-        _ => e.message ?? 'Something went wrong. Try again.',
+        // Never fall back to e.message — that's Firebase's own internal
+        // English text, not a curated, localized message, and leaks SDK
+        // implementation detail for any error code not explicitly handled
+        // above (a future SDK version's new code, network-request-failed,
+        // internal-error, ...).
+        _ => 'Something went wrong. Try again.',
       };
     }
     return 'Something went wrong. Try again.';

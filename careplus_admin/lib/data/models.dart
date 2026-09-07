@@ -132,6 +132,10 @@ class AdminTeamMember {
     this.aadharDocumentBackUrl,
     this.panDocumentUrl,
     this.bankPassbookUrl,
+    this.aadharDocumentReady = false,
+    this.aadharDocumentBackReady = false,
+    this.panDocumentReady = false,
+    this.bankPassbookReady = false,
     this.partnerCode,
     this.employmentType,
   });
@@ -156,6 +160,14 @@ class AdminTeamMember {
   final String? aadharDocumentBackUrl;
   final String? panDocumentUrl;
   final String? bankPassbookUrl;
+  // Whether a document was ever uploaded, independent of whether the raw
+  // URL above is present — the staff-scoped GET /api/technicians response
+  // redacts the URLs themselves (see technician_row_to_dict), so these are
+  // what "missing document" warnings actually check now.
+  final bool aadharDocumentReady;
+  final bool aadharDocumentBackReady;
+  final bool panDocumentReady;
+  final bool bankPassbookReady;
   final String? partnerCode;
 
   /// 'payroll' or 'outsourced' — self-declared once by the technician at

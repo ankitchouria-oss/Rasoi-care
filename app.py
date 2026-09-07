@@ -15,6 +15,7 @@ import secrets
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 from collections import OrderedDict, defaultdict, deque
@@ -92,6 +93,28 @@ def _env_float(name, default):
         return float(os.environ.get(name, default))
     except (TypeError, ValueError):
         return default
+
+
+LIST_PAGE_DEFAULT_LIMIT = _env_int("LIST_PAGE_DEFAULT_LIMIT", 500)
+LIST_PAGE_MAX_LIMIT = _env_int("LIST_PAGE_MAX_LIMIT", 2000)
+
+
+def _pagination_args():
+    """(limit, offset) for a staff-only list endpoint, from optional
+    `?limit=&offset=` query params — bounded so a client can't force an
+    unbounded SELECT * by asking for everything at once. Malformed values
+    fall back to the default rather than erroring, since these are just an
+    optional refinement on an otherwise-working request."""
+    try:
+        limit = int(request.args.get("limit", LIST_PAGE_DEFAULT_LIMIT))
+    except (TypeError, ValueError):
+        limit = LIST_PAGE_DEFAULT_LIMIT
+    limit = max(1, min(limit, LIST_PAGE_MAX_LIMIT))
+    try:
+        offset = int(request.args.get("offset", 0))
+    except (TypeError, ValueError):
+        offset = 0
+    return limit, max(0, offset)
 
 
 RATE_LIMIT_GLOBAL_MAX_CALLS = _env_int("RATE_LIMIT_GLOBAL_MAX_CALLS", 180)
@@ -232,6 +255,101 @@ def _backoff_record_failure(key, free_attempts, base_seconds, max_seconds):
 def _backoff_record_success(key):
     with _backoff_lock:
         _backoff_state.pop(key, None)
+
+
+class _BoundedStore:
+    """Like _BoundedDefaultDict, but for state that's always set
+    explicitly (never auto-vivified) — a plain dict assignment bypasses
+    _BoundedDefaultDict's only eviction point (__missing__), so it can't
+    be reused here. Same bound-by-eviction reasoning: keyed by phone
+    numbers submitted to the web OTP endpoints below, with no natural cap
+    on how many distinct ones a scripted client could submit."""
+
+    def __init__(self, max_size=20_000):
+        self._data = OrderedDict()
+        self.max_size = max_size
+
+    def set(self, key, value):
+        self._data[key] = value
+        self._data.move_to_end(key)
+        while len(self._data) > self.max_size:
+            self._data.popitem(last=False)
+
+    def get(self, key):
+        if key not in self._data:
+            return None
+        self._data.move_to_end(key)
+        return self._data[key]
+
+    def pop(self, key, default=None):
+        return self._data.pop(key, default)
+
+
+# Real, server-verified OTP for the Customer web app's phone sign-in —
+# see /api/auth/phone/send-otp and friends below. Previously customer.html
+# faked this entirely: a hardcoded, animated "OTP" with no server check,
+# backing a login whose password was deterministically derivable from the
+# phone number alone (`'rc-' + phone`) — anyone who knew a customer's
+# phone number could log into their real account with one POST. Codes
+# live only in memory: short-lived by design, and losing them on a
+# restart just means a customer requests a fresh one.
+WEB_PHONE_OTP_TTL_SECONDS = _env_int("WEB_PHONE_OTP_TTL_SECONDS", 300)
+WEB_PHONE_OTP_MAX_ATTEMPTS = _env_int("WEB_PHONE_OTP_MAX_ATTEMPTS", 5)
+# How long a just-verified phone with no existing account has to finish
+# /api/auth/phone/register before needing to re-verify — long enough to
+# type a name, short enough that a stale "verified" flag isn't sitting
+# around indefinitely.
+WEB_PHONE_VERIFIED_TTL_SECONDS = _env_int("WEB_PHONE_VERIFIED_TTL_SECONDS", 600)
+_web_phone_otp_state = _BoundedStore()
+_web_phone_otp_lock = Lock()
+_web_phone_verified_state = _BoundedStore()
+_web_phone_verified_lock = Lock()
+
+
+def _web_phone_otp_request(phone):
+    code = f"{secrets.randbelow(10000):04d}"
+    with _web_phone_otp_lock:
+        _web_phone_otp_state.set(phone, {
+            "code": code,
+            "expires_at": time.time() + WEB_PHONE_OTP_TTL_SECONDS,
+            "attempts": 0,
+        })
+    return code
+
+
+def _web_phone_otp_verify(phone, submitted_code):
+    """Returns None on a correct, still-valid code (and marks the phone
+    verified for WEB_PHONE_VERIFIED_TTL_SECONDS — see
+    _web_phone_take_verified — so a brand-new account can finish signing
+    up without re-proving phone ownership a second time), or an error
+    message otherwise."""
+    with _web_phone_otp_lock:
+        entry = _web_phone_otp_state.get(phone)
+        if not entry:
+            return "Request a code first."
+        if time.time() > entry["expires_at"]:
+            _web_phone_otp_state.pop(phone)
+            return "That code expired — request a new one."
+        if entry["attempts"] >= WEB_PHONE_OTP_MAX_ATTEMPTS:
+            _web_phone_otp_state.pop(phone)
+            return "Too many incorrect attempts — request a new code."
+        if submitted_code != entry["code"]:
+            entry["attempts"] += 1
+            return "Incorrect code."
+        _web_phone_otp_state.pop(phone)
+    with _web_phone_verified_lock:
+        _web_phone_verified_state.set(phone, time.time() + WEB_PHONE_VERIFIED_TTL_SECONDS)
+    return None
+
+
+def _web_phone_take_verified(phone):
+    """True (and consumes the flag) if this phone passed OTP verification
+    recently and hasn't already been used to register an account; False
+    otherwise. One-time — a second call for the same phone returns False
+    until it verifies again."""
+    with _web_phone_verified_lock:
+        expires_at = _web_phone_verified_state.pop(phone)
+        return expires_at is not None and time.time() <= expires_at
 
 
 def _client_ip():
@@ -868,9 +986,11 @@ def fetch_booking_service_changes_bulk(conn, booking_ids):
     return by_booking
 
 
-def booking_row_to_dict(row, *, include_start_code=False, parts=None, service_changes=None):
+def booking_row_to_dict(
+    row, *, include_start_code=False, parts=None, service_changes=None, redact_customer_contact=False
+):
     keys = row.keys()
-    return {
+    d = {
         "id": row["id"],
         "category": row["category"],
         "service": row["service"],
@@ -959,6 +1079,16 @@ def booking_row_to_dict(row, *, include_start_code=False, parts=None, service_ch
         "afterPhotoReady": bool(row["after_photo_b64"]) if "after_photo_b64" in keys else False,
         "signatureReady": bool(row["signature_b64"]) if "signature_b64" in keys else False,
     }
+    if redact_customer_contact:
+        # The broadcast "available requests" feed goes out to every
+        # matching technician before any of them is assigned — see
+        # technician_available_bookings. The privacy policy promises the
+        # customer's exact address/coordinates/phone aren't shared with a
+        # Partner until they're actually assigned to the booking, so those
+        # fields never leave the server here, whoever ends up claiming it.
+        for field in ("addressLine", "lat", "lng", "directions", "notes", "customerPhone"):
+            d[field] = None
+    return d
 
 
 def complaint_row_to_dict(row):
@@ -989,9 +1119,9 @@ def technician_categories(row):
     return [row["category"]] if row["category"] else []
 
 
-def technician_row_to_dict(row):
+def technician_row_to_dict(row, *, redact_documents=False):
     keys = row.keys()
-    return {
+    d = {
         "id": row["id"],
         "name": row["name"],
         "category": row["category"],
@@ -1037,6 +1167,26 @@ def technician_row_to_dict(row):
         # completed jobs.
         "employmentType": row["employment_type"] if "employment_type" in keys else "outsourced",
     }
+    # aadharDocumentReady/panDocumentReady/bankPassbookReady tell a caller
+    # whether a document was ever uploaded without needing the raw URL —
+    # always present so the Admin app's "missing document" chips keep
+    # working even when the URLs themselves are redacted below.
+    d["aadharDocumentReady"] = bool(d["aadharDocumentUrl"])
+    d["aadharDocumentBackReady"] = bool(d["aadharDocumentBackUrl"])
+    d["panDocumentReady"] = bool(d["panDocumentUrl"])
+    d["bankPassbookReady"] = bool(d["bankPassbookUrl"])
+    if redact_documents:
+        # These are long-lived, non-expiring Firebase Storage URLs whose
+        # only "auth" is an unguessable token in the query string — handing
+        # them to the Admin app's staff-scoped listing means anyone who
+        # ever sees that response (a log, a proxy, a shared screenshot) can
+        # view a technician's Aadhaar/PAN/bank passbook indefinitely with
+        # no session at all. Staff views the actual image through
+        # GET /api/technicians/<id>/document/<kind> instead, which requires
+        # a live staff token on every fetch — see technician_document.
+        for field in ("aadharDocumentUrl", "aadharDocumentBackUrl", "panDocumentUrl", "bankPassbookUrl"):
+            d[field] = None
+    return d
 
 
 def user_row_to_dict(row):
@@ -1638,6 +1788,119 @@ def auth_login():
     return jsonify({"token": generate_token(row["id"]), "user": user_row_to_dict(row)})
 
 
+@app.route("/api/auth/phone/send-otp", methods=["POST"])
+@validate_json({
+    "phone": Field(str, required=True, pattern=PHONE_RE),
+})
+def auth_phone_send_otp():
+    """Starts the Customer web app's phone sign-in. AUTH tier — gated per
+    phone number and per IP, same as staff_login, since this is exactly
+    the kind of endpoint a scripted client would hammer to enumerate
+    working phone numbers or exhaust the SMS budget."""
+    data = request.get_json(force=True, silent=True) or {}
+    phone = data["phone"]
+    gated = _auth_gate(f"webphone:{phone}")
+    if gated:
+        return gated
+    code = _web_phone_otp_request(phone)
+    sent = send_sms(
+        f"+91{phone}",
+        f"Rasoi Care: your sign-in code is {code}. It expires in "
+        f"{WEB_PHONE_OTP_TTL_SECONDS // 60} minutes.",
+        request_id=f"webphone-{phone}",
+    )
+    # Every call here counts toward the gate regardless of outcome — same
+    # reasoning as auth_register: there's no legitimate reason for one
+    # phone/IP to be hitting this repeatedly in a short window.
+    _auth_gate_record(f"webphone:{phone}", True)
+    if not sent:
+        return jsonify({
+            "sent": False,
+            "message": "We couldn't text you a code just now — try again in a moment.",
+        })
+    return jsonify({"sent": True})
+
+
+@app.route("/api/auth/phone/verify-otp", methods=["POST"])
+@validate_json({
+    "phone": Field(str, required=True, pattern=PHONE_RE),
+    "otp": Field(str, required=True, pattern=CODE_RE, strip=False),
+})
+def auth_phone_verify_otp():
+    """Verifies the code from send-otp above. An existing account with
+    this phone logs straight in; a phone with no account yet is instead
+    marked verified (see _web_phone_take_verified) so
+    /api/auth/phone/register can finish creating one without asking for
+    the code a second time."""
+    data = request.get_json(force=True, silent=True) or {}
+    phone = data["phone"]
+    otp = data["otp"]
+    gated = _auth_gate(f"webphone:{phone}")
+    if gated:
+        return gated
+    error = _web_phone_otp_verify(phone, otp)
+    _auth_gate_record(f"webphone:{phone}", error is None)
+    if error:
+        return jsonify({"error": "Invalid code", "message": error}), 400
+    conn = get_db()
+    row = conn.execute("SELECT * FROM users WHERE phone = ?", (phone,)).fetchone()
+    conn.close()
+    if row:
+        return jsonify({"token": generate_token(row["id"]), "user": user_row_to_dict(row)})
+    return jsonify({"needsRegistration": True})
+
+
+@app.route("/api/auth/phone/register", methods=["POST"])
+@validate_json({
+    "phone": Field(str, required=True, pattern=PHONE_RE),
+    "name": Field(str, required=True, min_len=1, max_len=100),
+    "email": Field(str, max_len=254, pattern=EMAIL_RE),
+})
+def auth_phone_register():
+    """Finishes sign-up for a phone that just passed OTP verification
+    above and has no existing account yet. The new account's password is
+    a random secret that's never disclosed anywhere — sign-in for it only
+    ever happens through the phone-OTP flow again, so there's nothing to
+    derive or guess (unlike the old `'rc-' + phone` scheme this replaces)."""
+    data = request.get_json(force=True, silent=True) or {}
+    phone = data["phone"]
+    name = data["name"].strip()
+    email = (data.get("email") or "").strip().lower() or f"{phone}@rasoicare.demo"
+
+    if not _web_phone_take_verified(phone):
+        return jsonify({
+            "error": "Phone not verified",
+            "message": "Verify your phone with a fresh code first.",
+        }), 400
+
+    conn = get_db()
+    # Normally verify-otp already logs a phone with an existing account
+    # straight in and never sends the client here — but the phone genuinely
+    # did just prove ownership via a real code, so if this endpoint gets
+    # called anyway (e.g. a stale client, a retried request), log into the
+    # existing account rather than erroring.
+    existing_phone = conn.execute("SELECT * FROM users WHERE phone = ?", (phone,)).fetchone()
+    if existing_phone:
+        conn.close()
+        return jsonify({
+            "token": generate_token(existing_phone["id"]),
+            "user": user_row_to_dict(existing_phone),
+        })
+    if conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone():
+        conn.close()
+        return jsonify({"error": "Email already registered"}), 409
+
+    user_id = new_uuid_id("USR")
+    conn.execute(
+        "INSERT INTO users (id, email, password_hash, name, phone, created_at) VALUES (?,?,?,?,?,?)",
+        (user_id, email, generate_password_hash(secrets.token_urlsafe(32)), name, phone, now()),
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    conn.close()
+    return jsonify({"token": generate_token(user_id), "user": user_row_to_dict(row)}), 201
+
+
 @app.route("/api/auth/me", methods=["GET"])
 @require_auth
 def auth_me():
@@ -1795,17 +2058,20 @@ def redeem_coins():
         return jsonify({"error": "amount must be positive"}), 400
 
     conn = get_db()
-    row = conn.execute(
-        "SELECT coins_balance FROM users WHERE id = ?", (request.user["id"],)
-    ).fetchone()
-    if row["coins_balance"] < amount:
-        conn.close()
-        return jsonify({"error": "Not enough Care Coins"}), 400
-    conn.execute(
-        "UPDATE users SET coins_balance = coins_balance - ? WHERE id = ?",
-        (amount, request.user["id"]),
+    # The balance check and the decrement happen in one atomic statement —
+    # a plain SELECT-then-UPDATE would let two concurrent requests both
+    # read the same starting balance, both pass the check, and both
+    # deduct, driving coins_balance negative (double-spending the same
+    # coins). The WHERE clause makes the decrement itself conditional, so
+    # only one of two racing requests can ever succeed.
+    cur = conn.execute(
+        "UPDATE users SET coins_balance = coins_balance - ? WHERE id = ? AND coins_balance >= ?",
+        (amount, request.user["id"], amount),
     )
     conn.commit()
+    if cur.rowcount == 0:
+        conn.close()
+        return jsonify({"error": "Not enough Care Coins"}), 400
     row = conn.execute("SELECT * FROM users WHERE id = ?", (request.user["id"],)).fetchone()
     conn.close()
     return jsonify(user_row_to_dict(row))
@@ -2009,8 +2275,11 @@ def update_booking_health(booking_id):
         conn.close()
         return jsonify({"error": "not found"}), 404
     if booking["technician_id"] != request.technician["id"]:
+        # 404, not 403 — booking ids are sequential, so a 403 here would
+        # confirm the id exists and belongs to someone else, the same
+        # enumeration every other booking-scoped route avoids.
         conn.close()
-        return jsonify({"error": "Forbidden"}), 403
+        return jsonify({"error": "not found"}), 404
     if not booking["user_id"]:
         conn.close()
         return jsonify({"error": "This booking has no associated user account"}), 400
@@ -2073,7 +2342,10 @@ def list_bookings():
             BOOKING_SELECT + " WHERE user_id = ? ORDER BY created_at DESC", (user["id"],)
         ).fetchall()
     else:
-        rows = conn.execute(BOOKING_SELECT + " ORDER BY created_at DESC").fetchall()
+        limit, offset = _pagination_args()
+        rows = conn.execute(
+            BOOKING_SELECT + " ORDER BY created_at DESC LIMIT ? OFFSET ?", (limit, offset)
+        ).fetchall()
     parts_by_booking = fetch_booking_parts_bulk(conn, [r["id"] for r in rows])
     service_changes_by_booking = fetch_booking_service_changes_bulk(conn, [r["id"] for r in rows])
     conn.close()
@@ -2338,16 +2610,31 @@ def create_booking_cart():
     before_coins = after_coupon + gst
 
     coins_redeemed = 0
-    if use_coins:
-        user_row = conn.execute(
-            "SELECT coins_balance FROM users WHERE id = ?", (request.user["id"],)
-        ).fetchone()
-        coins_redeemed = min(user_row["coins_balance"], before_coins)
-        if coins_redeemed > 0:
-            conn.execute(
-                "UPDATE users SET coins_balance = coins_balance - ? WHERE id = ?",
-                (coins_redeemed, request.user["id"]),
+    if use_coins and before_coins > 0:
+        # A plain SELECT-then-UPDATE here would let two concurrent
+        # checkouts both read the same starting balance and both redeem
+        # from it, driving coins_balance negative (same class of bug fixed
+        # in redeem_coins above). Compare-and-swap instead: the UPDATE's
+        # own WHERE re-checks the balance hasn't moved since we read it —
+        # same guard technique claim_booking uses for its race — so a
+        # losing request notices instead of overwriting silently, and
+        # simply retries against the fresh balance.
+        for _ in range(5):
+            user_row = conn.execute(
+                "SELECT coins_balance FROM users WHERE id = ?", (request.user["id"],)
+            ).fetchone()
+            coins_redeemed = min(user_row["coins_balance"], before_coins)
+            if coins_redeemed <= 0:
+                break
+            cur = conn.execute(
+                "UPDATE users SET coins_balance = coins_balance - ? WHERE id = ? AND coins_balance = ?",
+                (coins_redeemed, request.user["id"], user_row["coins_balance"]),
             )
+            if cur.rowcount == 1:
+                break
+        else:
+            conn.close()
+            return jsonify({"error": "Could not redeem Care Coins — try again."}), 409
 
     grand_total = before_coins - coins_redeemed
 
@@ -2447,7 +2734,7 @@ def technician_available_bookings():
         r for r in rows
         if r["category"] in my_categories and (not r["area"] or r["area"] == tech["area"])
     ]
-    return jsonify([booking_row_to_dict(r) for r in matching])
+    return jsonify([booking_row_to_dict(r, redact_customer_contact=True) for r in matching])
 
 
 @app.route("/api/bookings/<booking_id>/claim", methods=["PATCH"])
@@ -2459,7 +2746,20 @@ def claim_booking(booking_id):
     at the same instant, only one UPDATE can possibly match a row,
     whichever the database happens to process first. The loser gets a
     clear "someone else already took this" instead of silently
-    overwriting the winner's claim or the two of them somehow sharing it."""
+    overwriting the winner's claim or the two of them somehow sharing it.
+
+    Verification is checked here, not just in the /available feed above —
+    that feed is only what the Partner app happens to call first, not an
+    access control boundary. Without this, a technician who's done nothing
+    but sign up (bootstrap_technician leaves them unverified/offline) could
+    call this endpoint directly with a guessed booking id and be assigned
+    to, and complete, a real customer's job before ever going through
+    admin verification."""
+    if not request.technician["verified"]:
+        return jsonify({
+            "error": "Forbidden",
+            "message": "Your account needs to be verified before you can accept jobs.",
+        }), 403
     conn = get_db()
     ts = now()
     cur = conn.execute(
@@ -3096,7 +3396,9 @@ def request_cancel_otp(booking_id):
     if not row:
         return jsonify({"error": "not found"}), 404
     if row["user_id"] != request.user["id"]:
-        return jsonify({"error": "Forbidden"}), 403
+        # 404, not 403 — see get_booking's comment: booking ids are
+        # sequential, so a 403 would confirm the id exists.
+        return jsonify({"error": "not found"}), 404
     if row["status"] not in CANCELLABLE_STATUSES:
         return jsonify({"error": f"Cannot cancel a {row['status'].lower()} booking"}), 400
     if not request.user["phone"]:
@@ -3142,8 +3444,10 @@ def cancel_booking(booking_id):
         conn.close()
         return jsonify({"error": "not found"}), 404
     if row["user_id"] != request.user["id"]:
+        # 404, not 403 — see get_booking's comment: booking ids are
+        # sequential, so a 403 would confirm the id exists.
         conn.close()
-        return jsonify({"error": "Forbidden"}), 403
+        return jsonify({"error": "not found"}), 404
     if row["status"] not in CANCELLABLE_STATUSES:
         conn.close()
         return jsonify({"error": f"Cannot cancel a {row['status'].lower()} booking"}), 400
@@ -3188,10 +3492,25 @@ def assign_technician(booking_id):
     if not booking:
         conn.close()
         return jsonify({"error": "not found"}), 404
+    # Once a job is Completed or Cancelled there's nothing left to route —
+    # allowing a reassignment here would silently move commission
+    # attribution (technician_earnings_payload prices strictly off whoever
+    # currently sits in technician_id on a Completed row) away from
+    # whoever actually did the work, with no record a change happened.
+    if booking["status"] in ("Completed", "Cancelled"):
+        conn.close()
+        return jsonify({"error": f"Cannot reassign a {booking['status'].lower()} booking"}), 400
     tech = conn.execute("SELECT * FROM technicians WHERE id = ?", (technician_id,)).fetchone()
     if not tech:
         conn.close()
         return jsonify({"error": "Unknown technician_id"}), 400
+    # The Admin app's own picker only offers verified technicians (see
+    # assign_technician_sheet.dart) — enforced here too, since that's a
+    # client-side filter, not an access boundary, and this is the same
+    # trust-and-safety gate claim_booking enforces for self-service claims.
+    if not tech["verified"]:
+        conn.close()
+        return jsonify({"error": "This technician hasn't been verified yet"}), 400
 
     new_status = "Accepted" if booking["status"] == "Requested" else booking["status"]
     conn.execute(
@@ -3232,8 +3551,10 @@ def rate_booking(booking_id):
         conn.close()
         return jsonify({"error": "not found"}), 404
     if booking["user_id"] != request.user["id"]:
+        # 404, not 403 — see get_booking's comment: booking ids are
+        # sequential, so a 403 would confirm the id exists.
         conn.close()
-        return jsonify({"error": "Forbidden"}), 403
+        return jsonify({"error": "not found"}), 404
     # A booking's rating column is NULL until the first real call here —
     # without this, a customer replaying the same request could roll the
     # technician's aggregate rating into their average again and again,
@@ -3282,8 +3603,11 @@ def rate_booking(booking_id):
 def list_complaints():
     """Staff-only — a complaint can contain a customer's own words about a
     bad experience, not something to leave world-readable."""
+    limit, offset = _pagination_args()
     conn = get_db()
-    rows = conn.execute("SELECT * FROM complaints ORDER BY created_at DESC").fetchall()
+    rows = conn.execute(
+        "SELECT * FROM complaints ORDER BY created_at DESC LIMIT ? OFFSET ?", (limit, offset)
+    ).fetchall()
     conn.close()
     return jsonify([complaint_row_to_dict(r) for r in rows])
 
@@ -3330,10 +3654,62 @@ def update_complaint(complaint_id):
 @app.route("/api/technicians", methods=["GET"])
 @require_staff_auth
 def list_technicians():
+    limit, offset = _pagination_args()
     conn = get_db()
-    rows = conn.execute("SELECT * FROM technicians ORDER BY name").fetchall()
+    rows = conn.execute(
+        "SELECT * FROM technicians ORDER BY name LIMIT ? OFFSET ?", (limit, offset)
+    ).fetchall()
     conn.close()
-    return jsonify([technician_row_to_dict(r) for r in rows])
+    return jsonify([technician_row_to_dict(r, redact_documents=True) for r in rows])
+
+
+# Only Firebase Storage's own download-URL hosts — see technician_document.
+# The URLs this fetches from come from a technician's own PATCH
+# /api/technician/me (aadharDocumentUrl etc.), validated only as "looks
+# like a URL", so without a host allowlist a technician could point one at
+# an arbitrary address and have the backend fetch it server-side (SSRF) the
+# next time staff opens that document.
+_DOCUMENT_PROXY_ALLOWED_HOSTS = ("firebasestorage.googleapis.com", "storage.googleapis.com")
+
+_DOCUMENT_PROXY_FIELD_BY_KIND = {
+    "aadhar-front": "aadhar_document_url",
+    "aadhar-back": "aadhar_document_back_url",
+    "pan": "pan_document_url",
+    "bank-passbook": "bank_passbook_url",
+}
+
+
+@app.route("/api/technicians/<technician_id>/document/<kind>", methods=["GET"])
+@require_staff_auth
+def technician_document(technician_id, kind):
+    """Proxies a technician's KYC document (Aadhaar/PAN/bank passbook)
+    through a staff-authenticated request instead of handing the Admin app
+    the raw, non-expiring Firebase Storage URL — see get_job_photo for the
+    same pattern already used for booking photos. Without this, the URLs
+    returned by GET /api/technicians could view a person's identity
+    documents indefinitely, with no session, if they ever leaked (a log, a
+    proxy, a shared screenshot)."""
+    field = _DOCUMENT_PROXY_FIELD_BY_KIND.get(kind)
+    if not field:
+        return jsonify({"error": "kind must be one of: " + ", ".join(_DOCUMENT_PROXY_FIELD_BY_KIND)}), 400
+    conn = get_db()
+    row = conn.execute("SELECT * FROM technicians WHERE id = ?", (technician_id,)).fetchone()
+    conn.close()
+    if not row:
+        return jsonify({"error": "not found"}), 404
+    url = row[field] if field in row.keys() else None
+    if not url:
+        return jsonify({"error": "not found"}), 404
+    host = urllib.parse.urlparse(url).hostname
+    if host not in _DOCUMENT_PROXY_ALLOWED_HOSTS:
+        return jsonify({"error": "Document URL is not from a trusted host"}), 502
+    try:
+        with urllib.request.urlopen(url, timeout=10) as resp:
+            data = resp.read()
+            content_type = resp.headers.get("Content-Type", "application/octet-stream")
+    except Exception:
+        return jsonify({"error": "Could not fetch this document right now"}), 502
+    return Response(data, mimetype=content_type)
 
 
 @app.route("/api/technicians", methods=["POST"])
@@ -3362,7 +3738,7 @@ def create_technician():
     conn.commit()
     row = conn.execute("SELECT * FROM technicians WHERE id = ?", (tech_id,)).fetchone()
     conn.close()
-    return jsonify(technician_row_to_dict(row)), 201
+    return jsonify(technician_row_to_dict(row, redact_documents=True)), 201
 
 
 # Excludes 0/O and 1/I — easy to confuse when a technician reads their code
@@ -3405,7 +3781,7 @@ def verify_technician(technician_id):
     conn.commit()
     row = conn.execute("SELECT * FROM technicians WHERE id = ?", (technician_id,)).fetchone()
     conn.close()
-    return jsonify(technician_row_to_dict(row))
+    return jsonify(technician_row_to_dict(row, redact_documents=True))
 
 
 @app.route("/api/technicians/<technician_id>/earnings", methods=["GET"])
@@ -4067,6 +4443,24 @@ def reset():
 # login (@require_auth, same as /api/bookings etc.) rather than having
 # its own account system; every row is scoped to request.user["id"].
 # ==================================================================
+# Mirrors homeservices.html's own SERVICES list. hs_create_booking prices
+# a booking from here rather than trusting the client's price/serviceName
+# fields — without this, a request could claim any price up to the
+# validator's 10,000,000 ceiling, and hs_advance_booking pays 5% of it
+# straight into the wallet on completion with no technician or payment
+# ever involved, i.e. self-serve, unlimited point creation from a
+# fabricated number.
+HS_SERVICES = {
+    "water-purifier": ("Water Purifier", 399),
+    "otg": ("OTG", 449),
+    "hob": ("Hob & Cooktop", 499),
+    "microwave": ("Microwave", 549),
+    "chimney": ("Chimney", 599),
+    "fridge": ("Refrigerator", 649),
+    "dishwasher": ("Dishwasher", 699),
+}
+
+
 def hs_booking_row_to_dict(row):
     return {
         "id": row["id"],
@@ -4134,16 +4528,16 @@ def hs_state():
 @require_auth
 @validate_json({
     "serviceId": Field(str, required=True, min_len=1, max_len=50),
-    "serviceName": Field(str, required=True, min_len=1, max_len=200),
-    "price": Field(NUMBER, required=True, min_val=0, max_val=10_000_000),
     "date": Field(str, required=True, min_len=1, max_len=50),
 })
 def hs_create_booking():
     data = request.get_json(force=True, silent=True) or {}
     service_id = data["serviceId"]
-    service_name = data["serviceName"]
-    price = data["price"]
     date = data["date"]
+    catalog_entry = HS_SERVICES.get(service_id)
+    if not catalog_entry:
+        return jsonify({"error": f"Unknown serviceId: {service_id}"}), 400
+    service_name, price = catalog_entry
 
     conn = get_db()
     hs_ensure_wallet_and_profile(conn, request.user["id"], request.user["name"])

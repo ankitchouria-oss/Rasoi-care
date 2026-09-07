@@ -11,13 +11,27 @@ import '../../core/theme/care_plus_theme.dart';
 import '../../data/api/api_repository.dart';
 import '../../data/firebase/technician_location_service.dart';
 import '../../data/models.dart';
+import '../../l10n/app_localizations.dart';
+import '../../l10n/l10n_extensions.dart';
 import '../../state/firestore_providers.dart';
 import '../../state/providers.dart';
 import '../booking/cancellation_policy_sheet.dart';
 
 /// Real backend status order — mirrors kBookingStatusOrder in the Partner
-/// app (app.py enforces the same progression server-side).
+/// app (app.py enforces the same progression server-side). These are the
+/// backend's literal status values, matched against booking.rawStatus —
+/// never shown to the customer directly; see _statusLabel for the real,
+/// localized display text.
 const _statusOrder = ['Requested', 'Accepted', 'On the way', 'In Progress', 'Completed'];
+
+String _statusLabel(String rawStatus, AppLocalizations t) => switch (rawStatus) {
+      'Requested' => t.trackingStatusRequested,
+      'Accepted' => t.trackingStatusAccepted,
+      'On the way' => t.trackingStatusOnTheWay,
+      'In Progress' => t.trackingStatusInProgress,
+      'Completed' => t.trackingStatusCompleted,
+      _ => rawStatus,
+    };
 
 class TrackingScreen extends ConsumerStatefulWidget {
   const TrackingScreen({super.key, required this.bookingId});
@@ -71,12 +85,13 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
 
     final stepIndex = booking == null ? 0 : _statusOrder.indexOf(booking.rawStatus);
     final cancelled = booking?.status == BookingStatus.cancelled;
+    final t = context.l10n;
 
     return Scaffold(
       appBar: AppBar(
         leading: BackButton(
             onPressed: () => context.canPop() ? context.pop() : context.go('/')),
-        title: const Text('Live tracking'),
+        title: Text(t.trackingTitle),
       ),
       body: SafeArea(
         top: false,
@@ -89,14 +104,14 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Eyebrow('Status'),
+                  Eyebrow(t.trackingStatusEyebrow),
                   const SizedBox(height: 4),
                   Text(
                       cancelled
-                          ? 'Cancelled'
+                          ? t.trackingStatusCancelled
                           : (booking?.rawStatus.isNotEmpty ?? false)
-                              ? booking!.rawStatus
-                              : 'Requested',
+                              ? _statusLabel(booking!.rawStatus, t)
+                              : t.trackingStatusRequested,
                       style: CareType.mono(context.scheme.onSurface,
                           size: 20, w: FontWeight.w600)),
                   if (booking != null) ...[
@@ -115,9 +130,7 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                        stepIndex >= 1
-                            ? 'A technician has been assigned to your job.'
-                            : "We're finding a technician for you.",
+                        stepIndex >= 1 ? t.trackingTechAssigned : t.trackingFindingTech,
                         style: context.type.bodySmall),
                   ),
                 ]),
@@ -140,7 +153,7 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Give this code to your technician',
+                          Text(t.trackingGiveCode,
                               style: context.type.bodySmall!
                                   .copyWith(color: context.scheme.onPrimaryContainer)),
                           const SizedBox(height: 4),
@@ -163,32 +176,32 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
                     Icon(Icons.info_outline, color: context.care.inkFaint, size: 22),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Text('Cancellation policy', style: context.type.bodySmall),
+                      child: Text(t.trackingCancellationPolicy, style: context.type.bodySmall),
                     ),
                     Icon(Icons.chevron_right, color: context.care.inkFaint, size: 20),
                   ],
                 ),
               ),
             ],
-            const SectionHeader('Progress'),
+            SectionHeader(t.trackingProgressHeader),
             if (booking == null)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Text('Loading your booking…', style: context.type.bodySmall),
+                child: Text(t.trackingLoadingBooking, style: context.type.bodySmall),
               )
             else if (cancelled)
               StepDot(TimelineStepView(
-                  'Booking cancelled', booking.whenLabel, TrackState.done),
+                  t.trackingBookingCancelledStep, booking.whenLabel, TrackState.done),
                   last: true)
             else ...[
               StepDot(TimelineStepView(
-                  'Booking confirmed', booking.whenLabel, TrackState.done)),
+                  t.trackingBookingConfirmedStep, booking.whenLabel, TrackState.done)),
               for (var i = 1; i < _statusOrder.length; i++)
                 StepDot(
                   TimelineStepView(
                     _statusOrder[i] == 'Accepted'
-                        ? 'Technician assigned'
-                        : _statusOrder[i],
+                        ? t.trackingTechAssignedStep
+                        : _statusLabel(_statusOrder[i], t),
                     '',
                     i < stepIndex
                         ? TrackState.done
@@ -219,6 +232,7 @@ class _TrackingMap extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (MapsConfig.isConfigured && liveLocation != null) {
+      final t = context.l10n;
       final techPoint = LatLng(liveLocation!.lat, liveLocation!.lng);
       final customerPoint =
           (booking?.lat != null && booking?.lng != null)
@@ -235,13 +249,13 @@ class _TrackingMap extends StatelessWidget {
                 markerId: const MarkerId('technician'),
                 position: techPoint,
                 icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
-                infoWindow: const InfoWindow(title: 'Your technician'),
+                infoWindow: InfoWindow(title: t.trackingMarkerTechnician),
               ),
               if (customerPoint != null)
                 Marker(
                   markerId: const MarkerId('customer'),
                   position: customerPoint,
-                  infoWindow: const InfoWindow(title: 'Your address'),
+                  infoWindow: InfoWindow(title: t.trackingMarkerAddress),
                 ),
             },
             myLocationButtonEnabled: false,

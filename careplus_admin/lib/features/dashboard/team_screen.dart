@@ -211,6 +211,31 @@ class _TechnicianDetailSheetState extends ConsumerState<_TechnicianDetailSheet> 
   Future<void> _verify() async {
     final id = widget.member.id;
     if (id == null) return;
+    // Irreversible in practice — see verify_technician's own comment
+    // ("there's no unverify") — and it puts someone straight into real
+    // customer routing, so a single accidental tap while scrolling a
+    // review queue shouldn't be enough to do it.
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Verify this technician?'),
+        content: Text(
+          'They will immediately start receiving real bookings and appear '
+          'as verified in the Partner app. This cannot be undone from here.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Verify'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
     setState(() => _verifying = true);
     final ok = await ref.read(repositoryProvider).verifyTechnician(id);
     if (!mounted) return;
@@ -316,15 +341,17 @@ class _TechnicianDetailSheetState extends ConsumerState<_TechnicianDetailSheet> 
             const SizedBox(height: 8),
             Row(
               children: [
-                Expanded(child: _docThumb(context, t.aadharDocumentUrl, 'Front')),
+                Expanded(
+                    child: _kycDocThumb(context, t.id, 'aadhar-front', t.aadharDocumentReady, 'Front')),
                 const SizedBox(width: 10),
-                Expanded(child: _docThumb(context, t.aadharDocumentBackUrl, 'Back')),
+                Expanded(
+                    child: _kycDocThumb(context, t.id, 'aadhar-back', t.aadharDocumentBackReady, 'Back')),
               ],
             ),
             const SizedBox(height: 18),
             Eyebrow('PAN card'),
             const SizedBox(height: 8),
-            _docThumb(context, t.panDocumentUrl, 'PAN'),
+            _kycDocThumb(context, t.id, 'pan', t.panDocumentReady, 'PAN'),
             // Older technician rows created before Aadhaar/PAN got their own
             // upload fields only ever had this generic one — still shown so
             // nothing on file silently disappears from review.
@@ -343,7 +370,7 @@ class _TechnicianDetailSheetState extends ConsumerState<_TechnicianDetailSheet> 
                 t.bankAccountNumber?.isNotEmpty == true ? t.bankAccountNumber! : '—'),
             _row(context, 'IFSC', t.bankIfsc?.isNotEmpty == true ? t.bankIfsc! : '—'),
             const SizedBox(height: 8),
-            _docThumb(context, t.bankPassbookUrl, 'Passbook / cheque'),
+            _kycDocThumb(context, t.id, 'bank-passbook', t.bankPassbookReady, 'Passbook / cheque'),
             const SizedBox(height: 20),
             if (t.id != null && !t.verified)
               SizedBox(
@@ -395,6 +422,57 @@ class _TechnicianDetailSheetState extends ConsumerState<_TechnicianDetailSheet> 
     return ClipRRect(
       borderRadius: Radii.rMd,
       child: Image.network(url, height: 140, width: double.infinity, fit: BoxFit.cover),
+    );
+  }
+
+  /// Same "missing" warning as [_docThumb], but for a KYC document that's
+  /// now fetched through GET /api/technicians/<id>/document/<kind> instead
+  /// of a raw Image.network(url) — the staff-scoped technician listing no
+  /// longer hands out the underlying Firebase Storage URL at all (see
+  /// technician_row_to_dict's redact_documents), so this needs a fresh
+  /// staff bearer token attached to the request instead.
+  Widget _kycDocThumb(BuildContext context, String? technicianId, String kind, bool ready, String label) {
+    if (technicianId == null || !ready) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: Radii.rMd,
+          border: Border.all(color: context.care.warning.withValues(alpha: 0.4)),
+          color: context.care.warning.withValues(alpha: 0.08),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, size: 16, color: context.care.warning),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text('$label — missing',
+                  style: context.type.bodySmall!.copyWith(color: context.care.warning)),
+            ),
+          ],
+        ),
+      );
+    }
+    final repo = ref.read(repositoryProvider);
+    return FutureBuilder<Map<String, String>>(
+      future: repo.documentHeaders(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const SizedBox(
+            height: 140,
+            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          );
+        }
+        return ClipRRect(
+          borderRadius: Radii.rMd,
+          child: Image.network(
+            repo.documentUrl(technicianId, kind),
+            headers: snapshot.data,
+            height: 140,
+            width: double.infinity,
+            fit: BoxFit.cover,
+          ),
+        );
+      },
     );
   }
 

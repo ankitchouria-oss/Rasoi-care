@@ -65,4 +65,6 @@ def test_rating_rejects_other_customers_booking(client):
         json={"serviceRating": 1, "techRating": 1},
         headers=auth_headers(bob["token"]),
     )
-    assert resp.status_code == 403
+    # 404, not 403 — booking ids are sequential, so a 403 here would
+    # confirm the id exists and belongs to someone else.
+    assert resp.status_code == 404

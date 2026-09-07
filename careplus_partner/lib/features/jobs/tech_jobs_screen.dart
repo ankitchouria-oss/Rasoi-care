@@ -336,7 +336,7 @@ class _TechJobsScreenState extends ConsumerState<TechJobsScreen> {
                             ),
                           const SizedBox(height: 4),
                           Text(
-                            '${request.timeWindow} · payout ${Money.rupees(request.payoutPaise)} · ${request.note}',
+                            '${request.timeWindow} · ${t.jobsPayoutLabel(Money.rupees(request.payoutPaise))} · ${request.note}',
                             style: context.type.bodySmall,
                           ),
                           const SizedBox(height: 13),

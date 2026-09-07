@@ -73,3 +73,68 @@ def test_bookings_isolated_between_customers(client):
 
     bob_bookings = client.get("/api/bookings", headers=auth_headers(bob["token"])).get_json()
     assert bob_bookings == []
+
+
+OWNER_PHONE = "9822000001"
+OWNER_PIN = "1234"
+
+
+def _staff_headers(client):
+    login = client.post("/api/staff/login", json={"phone": OWNER_PHONE, "pin": OWNER_PIN}).get_json()
+    return auth_headers(login["token"])
+
+
+def test_assign_technician_rejects_unverified_technician(client):
+    conn = database.get_db()
+    conn.execute(
+        "INSERT INTO technicians (id, name, category, area, verified, online, rating, rating_count, jobs_completed) "
+        "VALUES ('unverified-tech', 'Not Yet Verified', 'RasoiSpark', 'Test Area', 0, 0, 5.0, 0, 0)"
+    )
+    add_technician(conn)  # so a booking can be created at all
+    conn.commit()
+    conn.close()
+
+    user = register_and_login(client)
+    service_id = _first_service_id(client)
+    booking = client.post(
+        "/api/bookings", json={"service_id": service_id}, headers=auth_headers(user["token"])
+    ).get_json()
+
+    resp = client.patch(
+        f"/api/bookings/{booking['id']}/assign",
+        json={"technician_id": "unverified-tech"},
+        headers=_staff_headers(client),
+    )
+    assert resp.status_code == 400
+
+
+def test_assign_technician_rejects_reassigning_completed_booking(client):
+    conn = database.get_db()
+    add_technician(conn, tid="tech1")
+    add_technician(conn, tid="tech2")
+    conn.commit()
+    conn.close()
+
+    user = register_and_login(client)
+    service_id = _first_service_id(client)
+    booking = client.post(
+        "/api/bookings", json={"service_id": service_id}, headers=auth_headers(user["token"])
+    ).get_json()
+
+    staff_headers = _staff_headers(client)
+    client.patch(
+        f"/api/bookings/{booking['id']}/assign",
+        json={"technician_id": "tech1"},
+        headers=staff_headers,
+    )
+    conn = database.get_db()
+    conn.execute("UPDATE bookings SET status = 'Completed' WHERE id = ?", (booking["id"],))
+    conn.commit()
+    conn.close()
+
+    resp = client.patch(
+        f"/api/bookings/{booking['id']}/assign",
+        json={"technician_id": "tech2"},
+        headers=staff_headers,
+    )
+    assert resp.status_code == 400

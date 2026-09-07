@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
 import '../../data/api/legal_client.dart';
+import '../../l10n/l10n_extensions.dart';
 
 class LegalDocumentScreen extends StatefulWidget {
   const LegalDocumentScreen({super.key, required this.kind, required this.fallbackTitle});
@@ -55,13 +56,13 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
                 children: [
                   Icon(Icons.cloud_off, size: 40, color: context.care.inkFaint),
                   const SizedBox(height: 12),
-                  Text("Couldn't load this document — check your connection and try again.",
+                  Text(context.l10n.legalDocLoadError,
                       style: context.type.bodyMedium, textAlign: TextAlign.center),
                   const SizedBox(height: 16),
                   Center(
                     child: OutlinedButton(
                       onPressed: () => setState(_load),
-                      child: const Text('Retry'),
+                      child: Text(context.l10n.legalDocRetry),
                     ),
                   ),
                 ],
@@ -74,7 +75,8 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
               children: [
                 if (doc['lastUpdated'] != null) ...[
-                  Text('Last updated ${doc['lastUpdated']}', style: context.type.bodySmall),
+                  Text(context.l10n.legalDocLastUpdated('${doc['lastUpdated']}'),
+                      style: context.type.bodySmall),
                   const SizedBox(height: 18),
                 ],
                 for (final section in sections) ...[

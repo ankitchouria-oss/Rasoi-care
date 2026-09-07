@@ -22,7 +22,7 @@ def test_hs_booking_lifecycle_and_cashback(client):
 
     created = client.post(
         "/api/hs/bookings",
-        json={"serviceId": "svc1", "serviceName": "AC Repair", "price": 500, "date": "2026-09-05"},
+        json={"serviceId": "otg", "date": "2026-09-05"},
         headers=headers,
     )
     assert created.status_code == 201
@@ -34,8 +34,8 @@ def test_hs_booking_lifecycle_and_cashback(client):
         result = client.patch(f"/api/hs/bookings/{booking_id}/advance", headers=headers).get_json()
 
     assert result["booking"]["status"] == "Completed"
-    assert result["wallet"]["points"] == 125  # 100 starter + 5% of 500
-    assert result["wallet"]["tx"][0]["label"] == "Cashback: AC Repair"
+    assert result["wallet"]["points"] == 122  # 100 starter + 5% of 449 (server-priced from the catalog)
+    assert result["wallet"]["tx"][0]["label"] == "Cashback: OTG"
 
 
 def test_hs_redeem_requires_enough_points(client):
@@ -67,13 +67,24 @@ def test_hs_data_isolated_between_users(client):
 
     client.post(
         "/api/hs/bookings",
-        json={"serviceId": "svc1", "serviceName": "AC Repair", "price": 500, "date": "2026-09-05"},
+        json={"serviceId": "otg", "date": "2026-09-05"},
         headers=auth_headers(alice["token"]),
     )
 
     bob_state = client.get("/api/hs/state", headers=auth_headers(bob["token"])).get_json()
     assert bob_state["bookings"] == []
     assert bob_state["wallet"]["points"] == 100
+
+
+def test_hs_booking_rejects_unknown_service_and_client_price(client):
+    user = register_and_login(client)
+    headers = auth_headers(user["token"])
+    resp = client.post(
+        "/api/hs/bookings",
+        json={"serviceId": "svc1", "price": 9_999_999, "date": "2026-09-05"},
+        headers=headers,
+    )
+    assert resp.status_code == 400
 
 
 def test_hs_advance_on_unknown_booking_404s(client):
@@ -87,7 +98,7 @@ def test_hs_reset(client):
     headers = auth_headers(user["token"])
     client.post(
         "/api/hs/bookings",
-        json={"serviceId": "svc1", "serviceName": "AC Repair", "price": 500, "date": "2026-09-05"},
+        json={"serviceId": "otg", "date": "2026-09-05"},
         headers=headers,
     )
     resp = client.post("/api/hs/reset", headers=headers)

@@ -14,6 +14,7 @@ import 'package:geolocator/geolocator.dart';
 
 import '../../core/widgets/care_widgets.dart';
 import '../../data/models.dart';
+import '../../l10n/l10n_extensions.dart';
 import '../../state/firestore_providers.dart';
 import '../../state/providers.dart';
 import 'address_picker_screen.dart';
@@ -80,15 +81,15 @@ class _SelectLocationScreenState extends ConsumerState<SelectLocationScreen> {
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('Location permission denied — try "Add new address" instead.')));
+          ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(context.l10n.selectLocationPermissionDenied)));
         }
         return;
       }
       if (!await Geolocator.isLocationServiceEnabled()) {
         if (mounted) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(const SnackBar(content: Text('Turn on location services and try again.')));
+          ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(context.l10n.selectLocationServiceDisabled)));
         }
         return;
       }
@@ -107,8 +108,8 @@ class _SelectLocationScreenState extends ConsumerState<SelectLocationScreen> {
       if (address != null && mounted) Navigator.pop(context, address);
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Couldn\'t get your location — try "Add new address" instead.')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(context.l10n.selectLocationLocationError)));
       }
     }
   }
@@ -121,18 +122,19 @@ class _SelectLocationScreenState extends ConsumerState<SelectLocationScreen> {
   }
 
   Future<void> _delete(SavedAddress a) async {
+    final t = context.l10n;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Remove this address?'),
-        content: Text('"${a.label}" will no longer show up in your saved addresses.'),
+        title: Text(t.selectLocationRemoveTitle),
+        content: Text(t.selectLocationRemoveBody(a.label)),
         actions: [
           TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Cancel')),
+              child: Text(t.selectLocationCancel)),
           FilledButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('Remove')),
+              child: Text(t.selectLocationRemove)),
         ],
       ),
     );
@@ -141,17 +143,18 @@ class _SelectLocationScreenState extends ConsumerState<SelectLocationScreen> {
     if (!mounted) return;
     if (!ok) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Could not remove — check your connection.')));
+          .showSnackBar(SnackBar(content: Text(t.selectLocationRemoveFailed)));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final addresses = ref.watch(savedAddressesProvider);
+    final t = context.l10n;
     return Scaffold(
       appBar: AppBar(
         leading: BackButton(onPressed: () => Navigator.pop(context)),
-        title: const Text('Select your location'),
+        title: Text(t.selectLocationTitle),
       ),
       body: SafeArea(
         top: false,
@@ -161,7 +164,7 @@ class _SelectLocationScreenState extends ConsumerState<SelectLocationScreen> {
             GestureDetector(
               onTap: _addNewAddress,
               child: AbsorbPointer(
-                child: CareField('Search an area or address',
+                child: CareField(t.selectLocationSearchHint,
                     prefix: const Icon(Icons.search), suffix: const SizedBox.shrink()),
               ),
             ),
@@ -170,7 +173,7 @@ class _SelectLocationScreenState extends ConsumerState<SelectLocationScreen> {
               Expanded(
                 child: _QuickAction(
                   icon: Icons.my_location,
-                  label: 'Use Current\nLocation',
+                  label: t.selectLocationUseCurrentLocation,
                   onTap: _useCurrentLocation,
                 ),
               ),
@@ -178,7 +181,7 @@ class _SelectLocationScreenState extends ConsumerState<SelectLocationScreen> {
               Expanded(
                 child: _QuickAction(
                   icon: Icons.add_location_alt_outlined,
-                  label: 'Add New\nAddress',
+                  label: t.selectLocationAddNewAddress,
                   onTap: _addNewAddress,
                 ),
               ),
@@ -188,12 +191,12 @@ class _SelectLocationScreenState extends ConsumerState<SelectLocationScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 child: Text(
-                  "You haven't saved an address yet — use one of the options above to add one.",
+                  t.selectLocationEmptyState,
                   style: context.type.bodySmall,
                 ),
               )
             else ...[
-              Eyebrow('Saved addresses'),
+              Eyebrow(t.selectLocationSavedAddresses),
               const SizedBox(height: 10),
               CareCard(
                 padding: EdgeInsets.zero,
@@ -294,7 +297,8 @@ class _AddressRow extends StatelessWidget {
                       ],
                       if (selected) ...[
                         const SizedBox(width: 8),
-                        const StatusChip('SELECTED', tone: ChipTone.success, height: 20),
+                        StatusChip(context.l10n.selectLocationSelectedChip,
+                            tone: ChipTone.success, height: 20),
                       ],
                     ]),
                     const SizedBox(height: 3),

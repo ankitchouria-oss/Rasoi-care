@@ -373,6 +373,10 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
       aadharDocumentBackUrl: t['aadharDocumentBackUrl'] as String?,
       panDocumentUrl: t['panDocumentUrl'] as String?,
       bankPassbookUrl: t['bankPassbookUrl'] as String?,
+      aadharDocumentReady: t['aadharDocumentReady'] == true,
+      aadharDocumentBackReady: t['aadharDocumentBackReady'] == true,
+      panDocumentReady: t['panDocumentReady'] == true,
+      bankPassbookReady: t['bankPassbookReady'] == true,
       partnerCode: t['partnerCode'] as String?,
       employmentType: t['employmentType'] as String?,
     );
@@ -773,6 +777,17 @@ class ApiRepository extends ChangeNotifier implements AdminRepository {
   Map<String, String> _headers(String? token) => {
         if (token != null) 'Authorization': 'Bearer $token',
       };
+
+  /// URL + headers for a technician's KYC document image — see
+  /// GET /api/technicians/<id>/document/<kind> in app.py. The response no
+  /// longer includes the raw Firebase Storage URL (technician_row_to_dict
+  /// redacts it for staff-scoped requests), so team_screen fetches the
+  /// image bytes through this authenticated proxy instead of a plain,
+  /// non-expiring Image.network(url).
+  String documentUrl(String technicianId, String kind) =>
+      '${ApiConfig.baseUrl}/api/technicians/$technicianId/document/$kind';
+
+  Future<Map<String, String>> documentHeaders() async => _headers(await _idToken());
 
   String _initials(String name) {
     final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();

@@ -675,12 +675,12 @@ body{
         <div class="appbar"><button class="iconbtn" onclick="back()">←</button></div>
         <div class="scroll pad">
           <h1 class="display">Enter the code</h1>
-          <p class="sub" style="margin-top:10px">Sent to +91 98220 41537. <button class="btn btn-t" style="font-size:13px;height:auto;padding:0" onclick="go('login')">Change</button></p>
+          <p class="sub" style="margin-top:10px">Sent to +91 <span id="otpPhoneDisplay"></span>. <button class="btn btn-t" style="font-size:13px;height:auto;padding:0" onclick="go('login')">Change</button></p>
           <div class="row" style="gap:11px;margin:34px 0 0" id="otpBoxes"></div>
-          <p class="helper" id="otpHelp">Auto-reading SMS…</p>
+          <p class="helper" id="otpHelp">Enter the 4-digit code we texted you.</p>
           <div class="between" style="margin-top:26px">
             <span class="tiny muted">Didn't get it?</span>
-            <span class="mono" id="otpTimer" style="color:var(--accent)">Resend in 0:24</span>
+            <span class="mono" id="otpTimer" style="color:var(--accent);cursor:pointer" onclick="resendOtp()">Resend in 0:24</span>
           </div>
           <div class="card card-p" style="margin-top:30px;display:flex;gap:12px;background:var(--primary-soft);border-color:transparent">
             <span style="font-size:17px">🔒</span>
@@ -1487,20 +1487,22 @@ body{
 
 /* ================= real backend wiring ================= */
 const API_BASE = window.location.origin;
+// admin.html/technician.html already escape every backend-supplied string
+// before innerHTML insertion — this file didn't have the same helper,
+// and one field it renders unescaped (a booking's `service` name, which
+// the legacy free-text booking path lets a customer set to anything up
+// to 200 chars) is a real, reachable self-XSS otherwise.
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 const STATE = { token: localStorage.getItem('rc_token'), user: JSON.parse(localStorage.getItem('rc_user')||'null'),
   appliances: [], services: [], amcPlans: [], amcSub: null, bookings: [], currentBooking: null };
 
 function authHeaders(){ return STATE.token ? { 'Authorization': 'Bearer ' + STATE.token } : {}; }
 async function apiGet(path){ const r = await fetch(API_BASE+path, { headers: authHeaders() }); if(!r.ok) throw new Error('GET '+path+' '+r.status); return r.json(); }
-async function apiPost(path, body){ const r = await fetch(API_BASE+path, { method:'POST', headers: Object.assign({'Content-Type':'application/json'}, authHeaders()), body: JSON.stringify(body||{}) }); if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.error||('POST '+path+' '+r.status)); } return r.json(); }
+async function apiPost(path, body){ const r = await fetch(API_BASE+path, { method:'POST', headers: Object.assign({'Content-Type':'application/json'}, authHeaders()), body: JSON.stringify(body||{}) }); if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.message||e.error||('POST '+path+' '+r.status)); } return r.json(); }
 async function apiPatch(path, body){ const r = await fetch(API_BASE+path, { method:'PATCH', headers: Object.assign({'Content-Type':'application/json'}, authHeaders()), body: JSON.stringify(body||{}) }); if(!r.ok) throw new Error('PATCH '+path+' '+r.status); return r.json(); }
 
 const APPLIANCE_ID_MAP = { chimney:'app_chimney', hob:'app_hob', cooktop:'app_cooktop', dishwasher:'app_dishwasher',
   refrigerator:'app_fridge', microwave:'app_microwave', otg:'app_otg', purifier:'app_purifier' };
-
-function deriveCredentials(phone, email){
-  return { email: (email && email.trim()) ? email.trim().toLowerCase() : (phone + '@rasoicare.demo'), password: 'rc-' + phone };
-}
 
 async function loadCatalog(){
   try{
@@ -1528,31 +1530,77 @@ function updateIdentity(){
 }
 
 /* ---------------- auth ---------------- */
+// Real, server-verified OTP — send-otp/verify-otp/register in app.py.
+// Previously this whole screen was UI theater: a hardcoded, animated
+// "4402" with no server check at all, backing a login whose password was
+// deterministically derivable from the phone number alone. Now the code
+// is generated and checked server-side and never appears in this file.
 let pendingPhone = '';
-function submitLogin(){
+async function submitLogin(){
   const v = document.getElementById('loginPhoneInput').value.replace(/\D/g,'');
   if(v.length !== 10){ toast('Enter a valid 10-digit mobile number.'); return; }
   pendingPhone = v;
+  try{
+    const resp = await apiPost('/api/auth/phone/send-otp', { phone: v });
+    if(!resp.sent){ toast(resp.message || "Couldn't send a code — try again."); return; }
+  }catch(e){ toast('Could not send a code — try again.'); return; }
   go('otp');
 }
-async function completeOtp(){
-  const creds = deriveCredentials(pendingPhone);
+async function resendOtp(){
+  const t = document.getElementById('otpTimer');
+  if(t.textContent.indexOf('Resend in') === 0) return; // still counting down
   try{
-    const resp = await apiPost('/api/auth/login', creds);
+    const resp = await apiPost('/api/auth/phone/send-otp', { phone: pendingPhone });
+    toast(resp.sent ? 'Code resent.' : (resp.message || "Couldn't resend — try again."));
+  }catch(e){ toast('Could not resend — try again.'); return; }
+  renderOtpEntry();
+}
+function renderOtpEntry(){
+  document.getElementById('otpPhoneDisplay').textContent =
+    pendingPhone.length === 10 ? pendingPhone.slice(0,5) + ' ' + pendingPhone.slice(5) : pendingPhone;
+  const box=document.getElementById('otpBoxes');
+  box.innerHTML=[0,1,2,3].map((_,i)=>
+    `<input class="card" style="flex:1;height:64px;text-align:center;border:1.5px solid var(--line);border-radius:var(--r-md);font-family:var(--font-mono);font-size:24px;font-weight:600;background:var(--surface);color:var(--ink)" inputmode="numeric" maxlength="1" data-i="${i}">`
+  ).join('');
+  const cells=[...box.children];
+  cells.forEach((c,i)=>{
+    c.addEventListener('input', ()=>{
+      c.value = c.value.replace(/\D/g,'').slice(0,1);
+      if(c.value && i<3) cells[i+1].focus();
+      if(cells.every(x=>x.value)) completeOtp();
+    });
+    c.addEventListener('keydown', (e)=>{
+      if(e.key==='Backspace' && !c.value && i>0) cells[i-1].focus();
+    });
+  });
+  if(cells[0]) cells[0].focus();
+  document.getElementById('otpHelp').textContent = 'Enter the 4-digit code we texted you.';
+  let s=24;const t=document.getElementById('otpTimer');clearInterval(window._ot);
+  t.textContent=`Resend in 0:${String(s).padStart(2,'0')}`;
+  window._ot=setInterval(()=>{s--;t.textContent=s>0?`Resend in 0:${String(s).padStart(2,'0')}`:'Resend code';if(s<=0)clearInterval(window._ot);},1000);
+}
+async function completeOtp(){
+  const cells=[...document.getElementById('otpBoxes').children];
+  const otp = cells.map(c=>c.value).join('');
+  if(otp.length !== 4) return;
+  document.getElementById('otpHelp').textContent = 'Verifying…';
+  try{
+    const resp = await apiPost('/api/auth/phone/verify-otp', { phone: pendingPhone, otp });
+    if(resp.needsRegistration){ go('register'); return; }
     finishAuth(resp, pendingPhone);
   }catch(e){
-    // Unknown user — collect a name first.
-    go('register');
+    document.getElementById('otpHelp').textContent = e.message || 'Incorrect code — try again.';
+    cells.forEach(c=>c.value='');
+    if(cells[0]) cells[0].focus();
   }
 }
 async function submitRegister(){
   const name = document.getElementById('regNameInput').value.trim() || 'Guest User';
   const email = document.getElementById('regEmailInput').value.trim();
-  const creds = deriveCredentials(pendingPhone, email);
   try{
-    const resp = await apiPost('/api/auth/register', { email: creds.email, password: creds.password, name, phone: pendingPhone });
+    const resp = await apiPost('/api/auth/phone/register', { phone: pendingPhone, name, email: email || undefined });
     finishAuth(resp, pendingPhone);
-  }catch(e){ toast('Could not create your account — try again.'); }
+  }catch(e){ toast(e.message || 'Could not create your account — try again.'); }
 }
 function finishAuth(resp, phone){
   STATE.token = resp.token;
@@ -1570,17 +1618,15 @@ function logout(){
   updateIdentity();
   go('login');
 }
-async function googleLogin(){
-  const demo = { name:'Amit Sharma', email:'amit.sharma@gmail.com', phone:'9876500000' };
-  try{
-    const resp = await apiPost('/api/auth/login', { email: demo.email, password: 'google-oauth-demo' });
-    finishAuth(resp, demo.phone);
-  }catch(e){
-    try{
-      const resp = await apiPost('/api/auth/register', { email: demo.email, password:'google-oauth-demo', name: demo.name, phone: demo.phone });
-      finishAuth(resp, demo.phone);
-    }catch(e2){ toast('Google sign-in failed.'); }
-  }
+function googleLogin(){
+  // No real Google OAuth is wired up in this static shell (that needs a
+  // real client ID and a redirect/ID-token flow) — this used to sign
+  // every visitor who tapped it into the same shared demo account with a
+  // password sitting in this file's source, which is worse than not
+  // offering it at all. Matches "Continue with Apple" below: an honest
+  // "not in this build" toast rather than fake, all-visitors-share-one-
+  // account access.
+  toast('Google sign-in — Firebase Auth');
 }
 
 /* ---------------- home categories ---------------- */
@@ -1701,11 +1747,11 @@ function openSvc(id){
     <div class="card card-p">
       <div class="between" style="align-items:flex-start">
         <div style="flex:1">${i===0?'<span class="chip chip-brass" style="height:22px;font-size:10px">Most booked</span>':''}
-          <b style="display:block;margin-top:${i===0?'8px':'0'};font-size:14.5px">${s.name}</b>
+          <b style="display:block;margin-top:${i===0?'8px':'0'};font-size:14.5px">${esc(s.name)}</b>
           <p class="tiny muted" style="margin:5px 0 0;line-height:1.5">${s.quick_fix?'Quick fix visit':'Full service visit'}</p>
           <div class="row" style="gap:8px;margin-top:9px"><span class="price" style="font-size:15px">₹${s.price}</span></div>
         </div>
-        <button class="chip${window._selectedService===s.id?' on':''}" style="height:32px" onclick="selectService('${s.id}',this)">${window._selectedService===s.id?'Selected ✓':'Select'}</button>
+        <button class="chip${window._selectedService===s.id?' on':''}" style="height:32px" onclick='selectService(${JSON.stringify(s.id)},this)'>${window._selectedService===s.id?'Selected ✓':'Select'}</button>
       </div>
     </div>`).join('') : '<p class="sub" style="padding:20px 0">No services listed yet for this appliance.</p>';
 
@@ -1863,8 +1909,8 @@ function renderBookings(){
   const active = STATE.bookings.filter(b => b.status !== 'Completed');
   const done = STATE.bookings.filter(b => b.status === 'Completed');
   const card = (b) => `<div class="card card-p tap" onclick='openBookingFromList(${JSON.stringify(b.id)})'>
-      <div class="between"><span class="chip ${b.status==='Completed'?'chip-grow':(b.status==='Requested'?'':'chip-brass')}" style="height:24px;font-size:10.5px">${b.status}</span><span class="mono muted">${b.id}</span></div>
-      <b style="display:block;margin-top:11px;font-size:14.5px">${b.service}</b>
+      <div class="between"><span class="chip ${b.status==='Completed'?'chip-grow':(b.status==='Requested'?'':'chip-brass')}" style="height:24px;font-size:10.5px">${esc(b.status)}</span><span class="mono muted">${esc(b.id)}</span></div>
+      <b style="display:block;margin-top:11px;font-size:14.5px">${esc(b.service)}</b>
       <p class="tiny muted" style="margin:4px 0 0">₹${b.total_amount||b.price}${b.ratings?' · ★'+b.ratings.service:''}</p>
     </div>`;
   document.getElementById('bkUpcoming').innerHTML = active.length ? active.map(card).join('') : '<p class="sub" style="padding:20px 0">No upcoming bookings.</p>';
@@ -1890,9 +1936,9 @@ async function renderAmc(){
     document.getElementById('amcRenews').textContent = sub.subscription.end_date;
   }
   document.getElementById('amcPlanList').innerHTML = STATE.amcPlans.map(p => `
-    <div class="card card-p tap" onclick="subscribeAmc('${p.id}')">
-      <div class="between"><b style="font-size:14.5px">${p.name}</b><span class="price" style="font-size:15px">₹${p.price}<span class="tiny muted">/yr</span></span></div>
-      <p class="tiny muted" style="margin:6px 0 0">${p.benefits.join(' · ')}</p>
+    <div class="card card-p tap" onclick='subscribeAmc(${JSON.stringify(p.id)})'>
+      <div class="between"><b style="font-size:14.5px">${esc(p.name)}</b><span class="price" style="font-size:15px">₹${p.price}<span class="tiny muted">/yr</span></span></div>
+      <p class="tiny muted" style="margin:6px 0 0">${p.benefits.map(esc).join(' · ')}</p>
     </div>`).join('');
 }
 async function subscribeAmc(planId){
@@ -1962,17 +2008,6 @@ function obRender(){
 function obAdvance(){if(obI<2){obI++;obRender();}else go('login');}
 obRender();
 
-/* ---------------- OTP visual autofill (demo code — see MockAuthService pattern) ---------------- */
-function runOtp(){
-  const box=document.getElementById('otpBoxes');
-  box.innerHTML=[0,1,2,3].map(()=>`<div class="card" style="flex:1;height:64px;display:grid;place-items:center;font-family:var(--font-mono);font-size:24px;font-weight:600"></div>`).join('');
-  const cells=[...box.children];const code='4402';
-  cells.forEach((c,i)=>setTimeout(()=>{c.textContent=code[i];c.style.borderColor='var(--primary)';
-    if(i===3){ document.getElementById('otpHelp').textContent='Code read from SMS. Verifying…'; completeOtp(); }},420+i*230));
-  let s=24;const t=document.getElementById('otpTimer');clearInterval(window._ot);
-  window._ot=setInterval(()=>{s--;t.textContent=s>0?`Resend in 0:${String(s).padStart(2,'0')}`:'Resend code';if(s<=0)clearInterval(window._ot);},1000);
-}
-
 /* ---------------- generic helpers ---------------- */
 function toast(m){const t=document.getElementById('toast');document.getElementById('toastMsg').textContent=m;t.classList.add('show');clearTimeout(t._x);t._x=setTimeout(()=>t.classList.remove('show'),2400);}
 function openSheet(id){const el=document.getElementById(id); if(el) el.classList.add('open');}
@@ -2000,7 +2035,7 @@ function go(id,reverse){
   el.querySelectorAll('.tabbar button').forEach(b=>b.classList.toggle('on',b.dataset.t===tab));
   closeSheet();
   if(id==='splash')setTimeout(()=>{if(cur==='splash')go(localStorage.getItem('rc_onboarded')?(STATE.user?'home':'login'):'onboard')},1600);
-  if(id==='otp')runOtp();
+  if(id==='otp')renderOtpEntry();
   if(id==='onboard')localStorage.setItem('rc_onboarded','1');
   if(id==='explore')renderExplore();
   if(id==='confirmed')renderConfirmed();

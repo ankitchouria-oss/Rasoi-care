@@ -6,6 +6,8 @@ import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
 import '../../data/api/api_repository.dart';
 import '../../data/models.dart';
+import '../../l10n/app_localizations.dart';
+import '../../l10n/l10n_extensions.dart';
 import '../../state/providers.dart';
 
 // ============================================================ INVOICE
@@ -42,10 +44,11 @@ class _InvoiceScreenState extends ConsumerState<InvoiceScreen> {
     final total = booking?.totalPaise ?? 0;
     final base = (total / 1.18).round();
     final gst = total - base;
+    final t = context.l10n;
     return Scaffold(
       appBar: AppBar(
         leading: BackButton(onPressed: context.pop),
-        title: const Text('Invoice'),
+        title: Text(t.invoiceTitle),
         actions: [IconButton(onPressed: () {}, icon: const Icon(Icons.download))],
       ),
       body: SafeArea(
@@ -67,7 +70,7 @@ class _InvoiceScreenState extends ConsumerState<InvoiceScreen> {
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Eyebrow('Rasoi Care tax invoice'),
+                                Eyebrow(t.invoiceTaxInvoiceEyebrow),
                                 const SizedBox(height: 6),
                                 Mono(bookingId, size: 12, weight: FontWeight.w600),
                                 const SizedBox(height: 5),
@@ -78,14 +81,14 @@ class _InvoiceScreenState extends ConsumerState<InvoiceScreen> {
                           ],
                         ),
                         const Divider(height: 24),
-                        _line(context, booking?.title ?? 'Service', Money.rupees(base)),
-                        _line(context, 'GST 18%', Money.rupees(gst)),
+                        _line(context, booking?.title ?? t.invoiceServiceFallback, Money.rupees(base)),
+                        _line(context, t.invoiceGst, Money.rupees(gst)),
                         const Divider(height: 24),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text('Total paid',
-                                style: TextStyle(fontWeight: FontWeight.w700)),
+                            Text(t.invoiceTotalPaid,
+                                style: const TextStyle(fontWeight: FontWeight.w700)),
                             Text(Money.rupees(total),
                                 style: CareType.mono(context.scheme.onSurface,
                                     size: 18, w: FontWeight.w600)),
@@ -100,7 +103,7 @@ class _InvoiceScreenState extends ConsumerState<InvoiceScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Eyebrow('Service updated'),
+                          Eyebrow(t.invoiceServiceUpdatedEyebrow),
                           const SizedBox(height: 10),
                           for (final change in booking.serviceChanges) ...[
                             Text(
@@ -119,13 +122,12 @@ class _InvoiceScreenState extends ConsumerState<InvoiceScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Eyebrow('Work log'),
+                        Eyebrow(t.invoiceWorkLogEyebrow),
                         const SizedBox(height: 12),
                         if (booking?.suctionBefore == null &&
                             booking?.suctionAfter == null &&
                             booking?.timeOnSiteMin == null)
-                          Text('Not recorded for this visit.',
-                              style: context.type.bodySmall)
+                          Text(t.invoiceNotRecorded, style: context.type.bodySmall)
                         else ...[
                           // Chimney jobs get the real airflow (CFM) reading
                           // the technician actually took, before and after
@@ -143,22 +145,24 @@ class _InvoiceScreenState extends ConsumerState<InvoiceScreen> {
                             )
                           else ...[
                             if (booking?.suctionBefore != null)
-                              _line(context, 'Airflow before', '${booking!.suctionBefore} CFM'),
+                              _line(context, t.invoiceAirflowBefore,
+                                  t.invoiceCfmValue(booking!.suctionBefore!)),
                             if (booking?.suctionAfter != null)
-                              _line(context, 'Airflow after', '${booking!.suctionAfter} CFM',
+                              _line(context, t.invoiceAirflowAfter,
+                                  t.invoiceCfmValue(booking!.suctionAfter!),
                                   color: context.care.success),
                           ],
                           if (booking?.timeOnSiteMin != null)
-                            _line(context, 'Time on site',
-                                _formatMinutes(booking!.timeOnSiteMin!)),
+                            _line(context, t.invoiceTimeOnSite,
+                                _formatMinutes(booking!.timeOnSiteMin!, t)),
                         ],
                         if ((booking?.brand?.trim().isNotEmpty ?? false) ||
                             (booking?.modelNumber?.trim().isNotEmpty ?? false)) ...[
                           const Divider(height: 22),
                           if (booking?.brand?.trim().isNotEmpty ?? false)
-                            _line(context, 'Brand', booking!.brand!),
+                            _line(context, t.invoiceBrand, booking!.brand!),
                           if (booking?.modelNumber?.trim().isNotEmpty ?? false)
-                            _line(context, 'Model', booking!.modelNumber!),
+                            _line(context, t.invoiceModel, booking!.modelNumber!),
                         ],
                       ],
                     ),
@@ -171,13 +175,13 @@ class _InvoiceScreenState extends ConsumerState<InvoiceScreen> {
             Dock(
               child: Row(children: [
                 Expanded(
-                  child: OutlinedButton(onPressed: () {}, child: const Text('Share')),
+                  child: OutlinedButton(onPressed: () {}, child: Text(t.invoiceShare)),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: FilledButton(
                       onPressed: () => context.push('/booking/$bookingId/rate'),
-                      child: const Text('Rate the visit')),
+                      child: Text(t.invoiceRateVisit)),
                 ),
               ]),
             ),
@@ -204,11 +208,12 @@ class _InvoiceScreenState extends ConsumerState<InvoiceScreen> {
       );
 }
 
-String _formatMinutes(int minutes) {
+String _formatMinutes(int minutes, AppLocalizations t) {
   final hrs = minutes ~/ 60;
   final mins = minutes % 60;
-  if (hrs == 0) return '$mins min';
-  return '$hrs hr${mins == 0 ? '' : ' $mins min'}';
+  if (hrs == 0) return t.invoiceTimeMinutesOnly(mins);
+  if (mins == 0) return t.invoiceTimeHoursOnly(hrs);
+  return t.invoiceTimeHoursAndMinutes(hrs, mins);
 }
 
 /// Real part/extra-work quotes the technician has raised for this booking —
@@ -235,9 +240,8 @@ class _PartsQuoteCardState extends ConsumerState<_PartsQuoteCard> {
     if (!mounted) return;
     setState(() => _decidingPartId = null);
     if (!ok) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content:
-              Text("Couldn't submit your decision — check your connection and try again.")));
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.l10n.invoicePartDecisionError)));
     }
   }
 
@@ -249,7 +253,7 @@ class _PartsQuoteCardState extends ConsumerState<_PartsQuoteCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Eyebrow('Parts & extra work'),
+            Eyebrow(context.l10n.invoicePartsEyebrow),
             const SizedBox(height: 12),
             for (var i = 0; i < widget.parts.length; i++) ...[
               _PartQuoteRow(
@@ -274,6 +278,7 @@ class _PartQuoteRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.l10n;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -287,7 +292,8 @@ class _PartQuoteRow extends StatelessWidget {
                   Text(part.name,
                       style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 3),
-                  Text('Qty ${part.qty}${part.sku != null ? ' · ${part.sku}' : ''}',
+                  Text(
+                      '${t.invoicePartQty(part.qty)}${part.sku != null ? ' · ${part.sku}' : ''}',
                       style: context.type.bodySmall),
                 ],
               ),
@@ -303,7 +309,7 @@ class _PartQuoteRow extends StatelessWidget {
               Expanded(
                 child: OutlinedButton(
                   onPressed: deciding ? null : () => onDecide(false),
-                  child: const Text('Reject'),
+                  child: Text(t.invoicePartReject),
                 ),
               ),
               const SizedBox(width: 10),
@@ -315,14 +321,14 @@ class _PartQuoteRow extends StatelessWidget {
                           width: 16,
                           height: 16,
                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text('Approve'),
+                      : Text(t.invoicePartApprove),
                 ),
               ),
             ],
           )
         else
           StatusChip(
-            part.isApproved ? 'Approved' : 'Rejected',
+            part.isApproved ? t.invoicePartApproved : t.invoicePartRejected,
             tone: part.isApproved ? ChipTone.success : ChipTone.danger,
             height: 26,
           ),
@@ -345,15 +351,20 @@ class _AirflowCompare extends StatelessWidget {
   Widget build(BuildContext context) {
     final delta = after - before;
     final pct = before > 0 ? ((delta / before) * 100).round() : 0;
+    final t = context.l10n;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Expanded(child: _stat(context, 'Airflow before', '$before CFM', context.scheme.onSurface)),
+            Expanded(
+                child: _stat(context, t.invoiceAirflowBefore, t.invoiceCfmValue(before),
+                    context.scheme.onSurface)),
             Icon(Icons.arrow_forward_rounded, size: 16, color: context.care.inkFaint),
             const SizedBox(width: 8),
-            Expanded(child: _stat(context, 'Airflow after', '$after CFM', context.care.success)),
+            Expanded(
+                child: _stat(context, t.invoiceAirflowAfter, t.invoiceCfmValue(after),
+                    context.care.success)),
           ],
         ),
         if (delta > 0) ...[
@@ -364,7 +375,7 @@ class _AirflowCompare extends StatelessWidget {
               color: context.care.success.withValues(alpha: 0.1),
               borderRadius: Radii.pill,
             ),
-            child: Text('+$pct% stronger airflow after cleaning',
+            child: Text(t.invoiceAirflowImprovement(pct),
                 style: CareType.mono(context.care.success, size: 11, w: FontWeight.w600)),
           ),
         ],
@@ -392,7 +403,7 @@ class _PaidStamp extends StatelessWidget {
             border: Border.all(color: context.care.success, width: 2),
             borderRadius: Radii.rSm,
           ),
-          child: Text('PAID',
+          child: Text(context.l10n.invoicePaidStamp,
               style: CareType.mono(context.care.success, size: 11, w: FontWeight.w600)
                   .copyWith(letterSpacing: 3)),
         ),
@@ -419,7 +430,14 @@ class _RateScreenState extends ConsumerState<RateScreen> {
   int _rating = 5;
   bool _submitting = false;
 
-  static const _words = ['', 'Not good', 'Below par', 'Fine', 'Good', 'Excellent'];
+  List<String> _words(AppLocalizations t) => [
+        '',
+        t.rateWordNotGood,
+        t.rateWordBelowPar,
+        t.rateWordFine,
+        t.rateWordGood,
+        t.rateWordExcellent,
+      ];
 
   Future<void> _submit() async {
     setState(() => _submitting = true);
@@ -428,20 +446,20 @@ class _RateScreenState extends ConsumerState<RateScreen> {
         .rateBooking(bookingId: widget.bookingId, rating: _rating);
     if (!mounted) return;
     setState(() => _submitting = false);
+    final t = context.l10n;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(ok
-            ? 'Thanks for rating your visit.'
-            : "Couldn't submit your rating — check your connection and try again.")));
+        content: Text(ok ? t.rateThanks : t.rateSubmitError)));
     if (ok) context.go('/');
   }
 
   @override
   Widget build(BuildContext context) {
     final booking = ref.watch(repositoryProvider).bookingById(widget.bookingId);
+    final t = context.l10n;
     return Scaffold(
       appBar: AppBar(
           leading: BackButton(onPressed: context.pop),
-          title: const Text('How did it go?')),
+          title: Text(t.rateTitle)),
       body: SafeArea(
         top: false,
         child: Column(
@@ -481,7 +499,7 @@ class _RateScreenState extends ConsumerState<RateScreen> {
                           ),
                         ),
                         const SizedBox(height: 12),
-                        Text(_words[_rating], style: context.type.bodySmall),
+                        Text(_words(t)[_rating], style: context.type.bodySmall),
                       ],
                     ),
                   ),
@@ -498,7 +516,7 @@ class _RateScreenState extends ConsumerState<RateScreen> {
                           width: 18,
                           height: 18,
                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text('Submit rating'),
+                      : Text(t.rateSubmitButton),
                 ),
               ),
             ),

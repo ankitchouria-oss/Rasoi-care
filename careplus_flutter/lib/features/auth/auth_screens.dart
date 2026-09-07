@@ -7,6 +7,8 @@ import 'package:smart_auth/smart_auth.dart';
 
 import '../../core/widgets/care_widgets.dart';
 import '../../core/theme/care_plus_theme.dart';
+import '../../l10n/app_localizations.dart';
+import '../../l10n/l10n_extensions.dart';
 import '../../state/auth_providers.dart';
 import '../../state/firestore_providers.dart';
 import '../../state/providers.dart';
@@ -68,7 +70,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
             const SizedBox(height: 26),
             Text('Rasoi Care', style: CareType.display(CareColors.porcelain, size: 36)),
             const SizedBox(height: 14),
-            Text('EXPERT CARE FOR THE\nHEART OF YOUR HOME',
+            Text(context.l10n.authSplashTagline,
                 textAlign: TextAlign.center,
                 style: CareType.mono(CareColors.brass, size: 10)
                     .copyWith(letterSpacing: 2.2, height: 1.6)),
@@ -86,23 +88,11 @@ class _Slide {
   final IconData icon;
 }
 
-const _slides = [
-  _Slide(
-    'Your kitchen has eight machines. We look after all of them.',
-    'Chimneys, hobs, cooktops, built-in ovens, dishwashers, refrigerators, OTGs and water purifiers — one app, one set of trained technicians.',
-    Icons.kitchen_outlined,
-  ),
-  _Slide(
-    'A fixed price before a single screw comes out.',
-    'You see the visit fee upfront, and every part is quoted in the app for your approval. Nothing gets fitted until you tap yes.',
-    Icons.receipt_long_outlined,
-  ),
-  _Slide(
-    'Watch them arrive. Keep the warranty.',
-    'Live location on the way, photos of the work when it is done, a GST invoice in seconds and 90 days of cover on every repair.',
-    Icons.verified_user_outlined,
-  ),
-];
+List<_Slide> _slides(AppLocalizations t) => [
+      _Slide(t.authOnboardSlide1Title, t.authOnboardSlide1Body, Icons.kitchen_outlined),
+      _Slide(t.authOnboardSlide2Title, t.authOnboardSlide2Body, Icons.receipt_long_outlined),
+      _Slide(t.authOnboardSlide3Title, t.authOnboardSlide3Body, Icons.verified_user_outlined),
+    ];
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -114,8 +104,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final _pager = PageController();
   int _i = 0;
 
-  void _next() {
-    if (_i < _slides.length - 1) {
+  void _next(List<_Slide> slides) {
+    if (_i < slides.length - 1) {
       _pager.nextPage(duration: Motion.screen, curve: Motion.ease);
     } else {
       context.go('/login');
@@ -124,6 +114,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.l10n;
+    final slides = _slides(t);
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -133,9 +125,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Eyebrow('0${_i + 1} / 03'),
+                  Eyebrow(t.authOnboardStepCounter(_i + 1, slides.length)),
                   TextButton(
-                      onPressed: () => context.go('/login'), child: const Text('Skip')),
+                      onPressed: () => context.go('/login'), child: Text(t.authOnboardSkip)),
                 ],
               ),
             ),
@@ -143,9 +135,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: PageView.builder(
                 controller: _pager,
                 onPageChanged: (i) => setState(() => _i = i),
-                itemCount: _slides.length,
+                itemCount: slides.length,
                 itemBuilder: (_, i) {
-                  final s = _slides[i];
+                  final s = slides[i];
                   return SingleChildScrollView(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Column(
@@ -185,7 +177,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     children: [
                       Row(
                         children: List.generate(
-                          _slides.length,
+                          slides.length,
                           (d) => AnimatedContainer(
                             duration: Motion.screen,
                             width: d == _i ? 18 : 5,
@@ -200,7 +192,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           ),
                         ),
                       ),
-                      Mono(_i == 2 ? 'Free to browse' : 'Swipe or tap next',
+                      Mono(_i == slides.length - 1 ? t.authOnboardFreeToBrowse : t.authOnboardSwipeOrTap,
                           color: context.care.inkMuted),
                     ],
                   ),
@@ -208,8 +200,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton(
-                      onPressed: _next,
-                      child: Text(_i == 2 ? 'Get started' : 'Next'),
+                      onPressed: () => _next(slides),
+                      child: Text(_i == slides.length - 1 ? t.authOnboardGetStarted : t.authOnboardNext),
                     ),
                   ),
                 ],
@@ -263,10 +255,11 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
   }
 
   Future<void> _send() async {
+    final t = context.l10n;
     final digits = _phoneCtrl.text.replaceAll(RegExp(r'\D'), '');
     if (digits.length != 10) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Enter a 10-digit mobile number.')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(t.authPhoneInvalidNumber)));
       return;
     }
     final ok = await ref.read(authFlowProvider.notifier).sendOtp(digits);
@@ -275,7 +268,7 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
       unawaited(RecentPhoneStore().save(digits));
       context.push('/login/otp');
     } else {
-      final err = ref.read(authFlowProvider).error ?? 'Could not send a code.';
+      final err = ref.read(authFlowProvider).error ?? t.authPhoneSendFailed;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
     }
   }
@@ -283,6 +276,7 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
   @override
   Widget build(BuildContext context) {
     final sending = ref.watch(authFlowProvider.select((s) => s.sending));
+    final t = context.l10n;
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
@@ -298,11 +292,9 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                 child: Icon(Icons.add, color: context.scheme.primary, size: 22),
               ),
               const SizedBox(height: 26),
-              Text('Welcome back', style: context.type.headlineLarge),
+              Text(t.authPhoneWelcomeBack, style: context.type.headlineLarge),
               const SizedBox(height: 10),
-              Text(
-                  "Sign in with your mobile number. We'll text you a one-time code.",
-                  style: context.type.bodyMedium),
+              Text(t.authPhoneSubtitle, style: context.type.bodyMedium),
               const SizedBox(height: 30),
               Row(
                 children: [
@@ -313,7 +305,7 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: CareField('Mobile number',
+                    child: CareField(t.authPhoneMobileField,
                         controller: _phoneCtrl, keyboardType: TextInputType.phone),
                   ),
                 ],
@@ -328,7 +320,7 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                           width: 18,
                           height: 18,
                           child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Send code'),
+                      : Text(t.authPhoneSendCode),
                 ),
               ),
               const SizedBox(height: 26),
@@ -336,7 +328,7 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                 const Expanded(child: Divider()),
                 Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Mono('OR', color: context.care.inkMuted)),
+                    child: Mono(t.authPhoneOrDivider, color: context.care.inkMuted)),
                 const Expanded(child: Divider()),
               ]),
               const SizedBox(height: 16),
@@ -349,7 +341,7 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                           width: 18,
                           height: 18,
                           child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Continue with Google'),
+                      : Text(t.authPhoneContinueWithGoogle),
                 ),
               ),
               const SizedBox(height: 10),
@@ -357,17 +349,17 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                 width: double.infinity,
                 child: OutlinedButton(
                     onPressed: () => context.push('/login/email'),
-                    child: const Text('Continue with email')),
+                    child: Text(t.authPhoneContinueWithEmail)),
               ),
               const SizedBox(height: 22),
               Center(
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text('New to Rasoi Care? ', style: context.type.bodySmall),
+                    Text(t.authPhoneNewToApp, style: context.type.bodySmall),
                     GestureDetector(
                       onTap: () => context.push('/register'),
-                      child: Text('Create an account',
+                      child: Text(t.authPhoneCreateAccount,
                           style: TextStyle(
                               fontSize: 12.5,
                               fontWeight: FontWeight.w700,
@@ -407,6 +399,7 @@ class _EmailAuthScreenState extends ConsumerState<EmailAuthScreen> {
 
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
+    final t = context.l10n;
     final email = _emailCtrl.text.trim();
     final password = _passwordCtrl.text;
     final vm = ref.read(authFlowProvider.notifier);
@@ -417,7 +410,7 @@ class _EmailAuthScreenState extends ConsumerState<EmailAuthScreen> {
     if (ok) {
       context.go('/register');
     } else {
-      final err = ref.read(authFlowProvider).error ?? 'Something went wrong.';
+      final err = ref.read(authFlowProvider).error ?? t.authEmailGenericError;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
     }
   }
@@ -425,6 +418,7 @@ class _EmailAuthScreenState extends ConsumerState<EmailAuthScreen> {
   @override
   Widget build(BuildContext context) {
     final submitting = ref.watch(authFlowProvider.select((s) => s.submitting));
+    final t = context.l10n;
     return Scaffold(
       appBar: AppBar(leading: BackButton(onPressed: context.pop)),
       body: SafeArea(
@@ -435,32 +429,28 @@ class _EmailAuthScreenState extends ConsumerState<EmailAuthScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(_creatingAccount ? 'Create an account' : 'Sign in with email',
+                Text(_creatingAccount ? t.authEmailCreateTitle : t.authEmailSignInTitle,
                     style: context.type.headlineLarge),
                 const SizedBox(height: 10),
                 Text(
-                    _creatingAccount
-                        ? 'Set an email and password — you can add your name and appliances next.'
-                        : 'Enter the email and password you signed up with.',
+                    _creatingAccount ? t.authEmailCreateSubtitle : t.authEmailSignInSubtitle,
                     style: context.type.bodyMedium),
                 const SizedBox(height: 30),
-                CareField('Email',
+                CareField(t.authEmailField,
                     controller: _emailCtrl,
                     keyboardType: TextInputType.emailAddress,
-                    validator: (v) => (v == null || !v.contains('@'))
-                        ? 'Enter a valid email address'
-                        : null),
+                    validator: (v) =>
+                        (v == null || !v.contains('@')) ? t.authEmailInvalid : null),
                 const SizedBox(height: 13),
-                CareField('Password',
+                CareField(t.authEmailPasswordField,
                     controller: _passwordCtrl,
                     obscureText: _obscure,
                     suffix: IconButton(
                       icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
                       onPressed: () => setState(() => _obscure = !_obscure),
                     ),
-                    validator: (v) => (v == null || v.length < 6)
-                        ? 'Password must be at least 6 characters'
-                        : null),
+                    validator: (v) =>
+                        (v == null || v.length < 6) ? t.authEmailPasswordTooShort : null),
                 const SizedBox(height: 22),
                 SizedBox(
                   width: double.infinity,
@@ -471,7 +461,7 @@ class _EmailAuthScreenState extends ConsumerState<EmailAuthScreen> {
                             width: 18,
                             height: 18,
                             child: CircularProgressIndicator(strokeWidth: 2))
-                        : Text(_creatingAccount ? 'Create account' : 'Sign in'),
+                        : Text(_creatingAccount ? t.authEmailCreateButton : t.authEmailSignInButton),
                   ),
                 ),
                 const SizedBox(height: 18),
@@ -480,8 +470,8 @@ class _EmailAuthScreenState extends ConsumerState<EmailAuthScreen> {
                     onTap: () => setState(() => _creatingAccount = !_creatingAccount),
                     child: Text(
                         _creatingAccount
-                            ? 'Already have an account? Sign in'
-                            : "New here? Create an account",
+                            ? t.authEmailToggleToSignIn
+                            : t.authEmailToggleToCreate,
                         style: TextStyle(
                             fontSize: 12.5,
                             fontWeight: FontWeight.w700,
@@ -596,7 +586,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     if (ok) {
       context.go('/register');
     } else {
-      final err = ref.read(authFlowProvider).error ?? 'Verification failed.';
+      final err = ref.read(authFlowProvider).error ?? context.l10n.authOtpVerificationFailed;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
       setState(() => _codeCtrl.clear());
     }
@@ -617,6 +607,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
   Widget build(BuildContext context) {
     final isMock = ref.watch(authFlowProvider.notifier).isMock;
     final phone = ref.watch(authFlowProvider.select((s) => s.phone));
+    final t = context.l10n;
     return Scaffold(
       appBar: AppBar(leading: BackButton(onPressed: context.pop)),
       body: SafeArea(
@@ -628,12 +619,12 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Enter the code', style: context.type.headlineLarge),
+                    Text(t.authOtpTitle, style: context.type.headlineLarge),
                     const SizedBox(height: 10),
                     Text(
                         phone.isEmpty
-                            ? 'Enter the $_length-digit code we sent.'
-                            : 'Sent to +91 $phone.',
+                            ? t.authOtpSubtitleGeneric(_length)
+                            : t.authOtpSubtitlePhone(phone),
                         style: context.type.bodyMedium),
                     const SizedBox(height: 34),
                     Stack(
@@ -691,22 +682,22 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                     const SizedBox(height: 8),
                     Text(
                         _verifying
-                            ? 'Verifying…'
+                            ? t.authOtpVerifying
                             : isMock
-                                ? (_mockCode.length < _length ? 'Auto-reading SMS…' : 'Code read from SMS.')
-                                : 'Enter the code from the SMS you received.',
+                                ? (_mockCode.length < _length ? t.authOtpAutoReading : t.authOtpCodeRead)
+                                : t.authOtpEnterFromSms,
                         style: context.type.bodySmall),
                     const SizedBox(height: 26),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text("Didn't get it?", style: context.type.bodySmall),
+                        Text(t.authOtpDidntGetIt, style: context.type.bodySmall),
                         GestureDetector(
                           onTap: _resend,
                           child: Mono(
                               _secs > 0
-                                  ? 'Resend in 0:${_secs.toString().padLeft(2, '0')}'
-                                  : 'Resend code',
+                                  ? t.authOtpResendIn(_secs.toString().padLeft(2, '0'))
+                                  : t.authOtpResendCode,
                               color: context.scheme.secondary),
                         ),
                       ],
@@ -719,9 +710,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                         const Text('🔒', style: TextStyle(fontSize: 17)),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: Text(
-                              'Rasoi Care never asks for your OTP over a call. Share it only inside this app.',
-                              style: context.type.bodySmall),
+                          child: Text(t.authOtpSecurityNote, style: context.type.bodySmall),
                         ),
                       ]),
                     ),
@@ -740,7 +729,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                           width: 18,
                           height: 18,
                           child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Verify'),
+                      : Text(t.authOtpVerify),
                 ),
               ),
             ),
@@ -797,9 +786,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   }
 
   Future<void> _save() async {
+    final t = context.l10n;
     if (_pickedAddress == null) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Add your address to continue.')));
+          .showSnackBar(SnackBar(content: Text(t.authRegisterAddAddress)));
       return;
     }
     // Already-verified phone-OTP sign-ins skip this — the number's real.
@@ -808,13 +798,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     // SMS have to reach them on.
     final phoneDigits = _phoneCtrl.text.replaceAll(RegExp(r'\D'), '');
     if (_verifiedPhone == null && !RegExp(r'^[0-9]{10}$').hasMatch(phoneDigits)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Enter a valid 10-digit mobile number.')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(t.authRegisterInvalidPhone)));
       return;
     }
     if (!_confirmedAdult) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Confirm you are 18 or older and agree to the Terms to continue.')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(t.authRegisterConfirmAge)));
       return;
     }
     setState(() => _saving = true);
@@ -847,10 +837,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.l10n;
     return Scaffold(
       appBar: AppBar(
         leading: BackButton(onPressed: context.pop),
-        title: const Text('Set up your profile'),
+        title: Text(t.authRegisterTitle),
       ),
       body: SafeArea(
         child: Column(
@@ -863,11 +854,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   children: [
                     const ProgressBar(0.66),
                     const SizedBox(height: 7),
-                    Mono('Step 2 of 3 — about you', color: context.care.inkMuted),
+                    Mono(t.authRegisterStep, color: context.care.inkMuted),
                     const SizedBox(height: 22),
-                    CareField('Full name', controller: _nameCtrl),
+                    CareField(t.authRegisterFullName, controller: _nameCtrl),
                     const SizedBox(height: 13),
-                    CareField('Email',
+                    CareField(t.authRegisterEmail,
                         controller: _emailCtrl, keyboardType: TextInputType.emailAddress),
                     const SizedBox(height: 13),
                     if (_verifiedPhone != null)
@@ -879,7 +870,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                             child: Text('+91 $_verifiedPhone',
                                 style: context.type.bodyMedium!.copyWith(fontWeight: FontWeight.w600)),
                           ),
-                          Mono('Verified', color: context.care.inkMuted),
+                          Mono(t.authRegisterVerified, color: context.care.inkMuted),
                         ]),
                       )
                     else
@@ -892,13 +883,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           ),
                           const SizedBox(width: 10),
                           Expanded(
-                            child: CareField('Mobile number',
+                            child: CareField(t.authRegisterMobileNumber,
                                 controller: _phoneCtrl, keyboardType: TextInputType.phone),
                           ),
                         ],
                       ),
                     const SizedBox(height: 13),
-                    Eyebrow('Your address'),
+                    Eyebrow(t.authRegisterAddressEyebrow),
                     const SizedBox(height: 8),
                     CareCard(
                       onTap: _pickAddress,
@@ -907,7 +898,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            _pickedAddress?.line ?? 'Pin your address on the map',
+                            _pickedAddress?.line ?? t.authRegisterPickAddress,
                             style: _pickedAddress == null
                                 ? context.type.bodyMedium
                                 : context.type.bodyMedium!.copyWith(fontWeight: FontWeight.w600),
@@ -917,9 +908,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       ]),
                     ),
                     const SizedBox(height: 13),
-                    const CareField('Referral code (optional)'),
+                    CareField(t.authRegisterReferralCode),
                     const SizedBox(height: 20),
-                    Eyebrow('Which appliances do you own?'),
+                    Eyebrow(t.authRegisterAppliancesEyebrow),
                     const SizedBox(height: 10),
                     _OwnedChips(owned: _owned, onChanged: (s) => _owned = s),
                     const SizedBox(height: 22),
@@ -941,7 +932,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           width: 18,
                           height: 18,
                           child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Save and continue'),
+                      : Text(t.authRegisterSaveAndContinue),
                 ),
               ),
             ),
@@ -962,25 +953,43 @@ class _OwnedChips extends StatefulWidget {
 
 class _OwnedChipsState extends State<_OwnedChips> {
   late final Set<String> _sel = {...widget.owned};
+  // Internal keys sent straight to UserProfileService.saveProfile as
+  // ownedAppliances — never shown as-is; see _ownedApplianceLabel for the
+  // real, localized display text. Kept in English so the stored profile
+  // data stays stable regardless of locale.
   static const _all = [
     'Chimney', 'Hob', 'Dishwasher', 'Refrigerator',
     'Built-in oven', 'OTG', 'Water purifier', 'Cooktop',
   ];
   @override
-  Widget build(BuildContext context) => Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          for (final a in _all)
-            ChoiceTag(a,
-                selected: _sel.contains(a),
-                onTap: () => setState(() {
-                      _sel.contains(a) ? _sel.remove(a) : _sel.add(a);
-                      widget.onChanged(_sel);
-                    })),
-        ],
-      );
+  Widget build(BuildContext context) {
+    final t = context.l10n;
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final a in _all)
+          ChoiceTag(_ownedApplianceLabel(a, t),
+              selected: _sel.contains(a),
+              onTap: () => setState(() {
+                    _sel.contains(a) ? _sel.remove(a) : _sel.add(a);
+                    widget.onChanged(_sel);
+                  })),
+      ],
+    );
+  }
 }
+
+String _ownedApplianceLabel(String key, AppLocalizations t) => switch (key) {
+      'Chimney' => t.authApplianceChimney,
+      'Hob' => t.authApplianceHob,
+      'Dishwasher' => t.authApplianceDishwasher,
+      'Refrigerator' => t.authApplianceRefrigerator,
+      'Built-in oven' => t.authApplianceBuiltInOven,
+      'OTG' => t.authApplianceOtg,
+      'Water purifier' => t.authApplianceWaterPurifier,
+      _ => t.authApplianceCooktop,
+    };
 
 /// The age-eligibility gate every account must clear before finishing
 /// sign-up — Rasoi Care doesn't verify age any other way (no ID upload at
@@ -993,6 +1002,7 @@ class _AgeAndTermsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.l10n;
     return CareCard(
       color: context.scheme.surfaceContainerHigh,
       borderColor: Colors.transparent,
@@ -1009,29 +1019,29 @@ class _AgeAndTermsRow extends StatelessWidget {
                   style: context.type.bodySmall?.copyWith(color: context.care.inkMuted) ??
                       TextStyle(color: context.care.inkMuted, fontSize: 12.5),
                   children: [
-                    const TextSpan(text: 'I confirm I am 18 years or older, and I agree to the '),
+                    TextSpan(text: t.authTermsConfirmPrefix),
                     TextSpan(
-                      text: 'Terms of Service',
+                      text: t.authTermsTermsOfService,
                       style: TextStyle(
                           color: context.scheme.primary,
                           fontWeight: FontWeight.w700,
                           decoration: TextDecoration.underline),
                       recognizer: TapGestureRecognizer()
                         ..onTap = () => Navigator.of(context).push(MaterialPageRoute(
-                            builder: (_) => const LegalDocumentScreen(
-                                kind: 'terms', fallbackTitle: 'Terms of Service'))),
+                            builder: (_) => LegalDocumentScreen(
+                                kind: 'terms', fallbackTitle: t.authTermsTermsOfService))),
                     ),
-                    const TextSpan(text: ' and '),
+                    TextSpan(text: t.authTermsAnd),
                     TextSpan(
-                      text: 'Privacy Policy',
+                      text: t.authTermsPrivacyPolicy,
                       style: TextStyle(
                           color: context.scheme.primary,
                           fontWeight: FontWeight.w700,
                           decoration: TextDecoration.underline),
                       recognizer: TapGestureRecognizer()
                         ..onTap = () => Navigator.of(context).push(MaterialPageRoute(
-                            builder: (_) => const LegalDocumentScreen(
-                                kind: 'privacy', fallbackTitle: 'Privacy Policy'))),
+                            builder: (_) => LegalDocumentScreen(
+                                kind: 'privacy', fallbackTitle: t.authTermsPrivacyPolicy))),
                     ),
                     const TextSpan(text: '.'),
                   ],

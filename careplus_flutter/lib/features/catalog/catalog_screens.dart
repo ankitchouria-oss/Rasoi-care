@@ -6,6 +6,8 @@ import '../../core/widgets/care_widgets.dart';
 import '../../core/widgets/appliance_illustration.dart';
 import '../../core/theme/care_plus_theme.dart';
 import '../../data/models.dart';
+import '../../l10n/app_localizations.dart';
+import '../../l10n/l10n_extensions.dart';
 import '../../state/providers.dart';
 
 // ============================================================ ALL SERVICES
@@ -14,9 +16,10 @@ class CatalogScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = context.l10n;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('All services'),
+        title: Text(t.catalogAllServicesTitle),
         actions: [IconButton(onPressed: () {}, icon: const Icon(Icons.tune))],
       ),
       body: SafeArea(
@@ -30,14 +33,14 @@ class CatalogScreen extends ConsumerWidget {
                 decoration: InputDecoration(
                   border: InputBorder.none,
                   isDense: true,
-                  hintText: 'Search appliance, brand or symptom',
+                  hintText: t.catalogSearchHint,
                   hintStyle: context.type.bodyMedium,
                   prefixIcon: Icon(Icons.search, color: context.care.inkFaint, size: 20),
                 ),
               ),
             ),
             const SizedBox(height: 18),
-            Eyebrow('8 appliance categories'),
+            Eyebrow(t.catalogCategoriesCount(Appliance.values.length)),
             const SizedBox(height: 12),
             Stagger(
               children: [
@@ -55,11 +58,11 @@ class CatalogScreen extends ConsumerWidget {
                                 style: const TextStyle(
                                     fontSize: 14, fontWeight: FontWeight.w700)),
                             const SizedBox(height: 3),
-                            Text(_blurb(a), style: context.type.bodySmall),
+                            Text(_blurb(a, t), style: context.type.bodySmall),
                           ],
                         ),
                       ),
-                      _fromPrice(context, ref, a),
+                      _fromPrice(context, ref, a, t),
                     ]),
                   ),
               ],
@@ -70,15 +73,15 @@ class CatalogScreen extends ConsumerWidget {
     );
   }
 
-  Widget _fromPrice(BuildContext context, WidgetRef ref, Appliance a) {
+  Widget _fromPrice(BuildContext context, WidgetRef ref, Appliance a, AppLocalizations t) {
     final services = ref.read(repositoryProvider).servicesFor(a);
     if (services.isEmpty) {
-      return const StatusChip('Coming soon', height: 26);
+      return StatusChip(t.catalogComingSoon, height: 26);
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        Eyebrow('from'),
+        Eyebrow(t.catalogFromPriceEyebrow),
         const SizedBox(height: 2),
         Text(Money.rupees(services[1].pricePaise),
             style: CareType.mono(context.scheme.onSurface, size: 14, w: FontWeight.w600)),
@@ -86,15 +89,15 @@ class CatalogScreen extends ConsumerWidget {
     );
   }
 
-  String _blurb(Appliance a) => switch (a) {
-        Appliance.chimney => 'Deep clean, suction loss, oil leak, auto-clean',
-        Appliance.hob => 'Igniter, low flame, burner and knob replacement',
-        Appliance.cooktop => 'Induction and glass-top faults, coil and sensor',
-        Appliance.dishwasher => 'Not draining, not cleaning, error codes, install',
-        Appliance.microwave => 'Magnetron, turntable, door switch, panel',
-        Appliance.refrigerator => 'Booking opens shortly — tap to get notified',
-        Appliance.otg => 'Heating element, thermostat, timer',
-        Appliance.purifier => 'Booking opens shortly — tap to get notified',
+  String _blurb(Appliance a, AppLocalizations t) => switch (a) {
+        Appliance.chimney => t.catalogBlurbChimney,
+        Appliance.hob => t.catalogBlurbHob,
+        Appliance.cooktop => t.catalogBlurbCooktop,
+        Appliance.dishwasher => t.catalogBlurbDishwasher,
+        Appliance.microwave => t.catalogBlurbMicrowave,
+        Appliance.refrigerator => t.catalogBlurbRefrigerator,
+        Appliance.otg => t.catalogBlurbOtg,
+        Appliance.purifier => t.catalogBlurbPurifier,
       };
 }
 
@@ -133,6 +136,7 @@ class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
     final selectedTotalPaise = selected.fold<int>(0, (sum, s) => sum + s.pricePaise);
     final avgDurationMin =
         services.firstWhere((s) => s.mostBooked, orElse: () => services.first).durationMin;
+    final t = context.l10n;
 
     return Scaffold(
       appBar: AppBar(
@@ -155,8 +159,8 @@ class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
                         '★ ${detail.rating} (${_thousands(detail.ratingCount)})',
                         tone: ChipTone.success,
                         height: 28),
-                    StatusChip('$avgDurationMin min avg', height: 28),
-                    const StatusChip('All brands', height: 28),
+                    StatusChip(t.serviceDetailAvgDuration(avgDurationMin), height: 28),
+                    StatusChip(t.serviceDetailAllBrands, height: 28),
                   ]),
                   const SizedBox(height: 16),
                   Text(detail.heading, style: context.type.headlineMedium),
@@ -164,13 +168,13 @@ class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
                   Text(detail.blurb, style: context.type.bodyMedium),
                   const SizedBox(height: 22),
                   _Segmented(
-                    tabs: const ['Services', 'Reviews'],
+                    tabs: [t.serviceDetailServicesTab, t.serviceDetailReviewsTab],
                     index: _tab,
                     onChanged: (i) => setState(() => _tab = i),
                   ),
                   const SizedBox(height: 16),
-                  if (_tab == 0) ..._servicesTab(services),
-                  if (_tab == 1) ..._reviewsTab(detail),
+                  if (_tab == 0) ..._servicesTab(services, t),
+                  if (_tab == 1) ..._reviewsTab(detail, t),
                 ],
               ),
             ),
@@ -180,9 +184,7 @@ class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Eyebrow(selected.length == 1
-                          ? '1 service'
-                          : '${selected.length} services'),
+                      Eyebrow(t.serviceDetailSelectedCount(selected.length)),
                       Text(Money.rupees(selectedTotalPaise),
                           style: CareType.mono(context.scheme.onSurface,
                               size: 16, w: FontWeight.w600)),
@@ -196,7 +198,7 @@ class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
                           ref.read(bookingDraftProvider.notifier).start(selected);
                           context.push('/book/issue');
                         },
-                  child: const Text('Continue'),
+                  child: Text(t.serviceDetailContinue),
                 ),
               ]),
             ),
@@ -210,7 +212,7 @@ class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
       .toString()
       .replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => ',');
 
-  List<Widget> _servicesTab(List<ServiceItem> services) => [
+  List<Widget> _servicesTab(List<ServiceItem> services, AppLocalizations t) => [
         for (final s in services) ...[
           CareCard(
             child: Column(
@@ -224,7 +226,7 @@ class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           if (s.mostBooked) ...[
-                            const StatusChip('Most booked',
+                            StatusChip(t.serviceDetailMostBooked,
                                 tone: ChipTone.warning, height: 22),
                             const SizedBox(height: 8),
                           ],
@@ -249,7 +251,10 @@ class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
                       ),
                     ),
                     const SizedBox(width: 10),
-                    ChoiceTag(_selectedIds.contains(s.id) ? 'Added' : 'Add',
+                    ChoiceTag(
+                        _selectedIds.contains(s.id)
+                            ? t.serviceDetailAdded
+                            : t.serviceDetailAdd,
                         selected: _selectedIds.contains(s.id),
                         onTap: () => setState(() {
                               // A real multi-add, not a single radio pick —
@@ -283,7 +288,7 @@ class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
         ],
       ];
 
-  List<Widget> _reviewsTab(ApplianceDetail detail) => [
+  List<Widget> _reviewsTab(ApplianceDetail detail, AppLocalizations t) => [
         CareCard(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -295,7 +300,8 @@ class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
                 Text('★★★★★',
                     style: TextStyle(color: context.scheme.secondary, fontSize: 12)),
                 const SizedBox(height: 5),
-                Text('${_thousands(detail.ratingCount)} ratings', style: context.type.bodySmall),
+                Text(t.serviceDetailRatingsCount(_thousands(detail.ratingCount)),
+                    style: context.type.bodySmall),
               ]),
               const SizedBox(width: 16),
               Expanded(
@@ -369,7 +375,7 @@ class _IncludedDropdown extends StatelessWidget {
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text("What's included",
+                      child: Text(context.l10n.serviceDetailWhatsIncluded,
                           style: const TextStyle(
                               fontSize: 12.5, fontWeight: FontWeight.w700)),
                     ),
@@ -402,7 +408,7 @@ class _IncludedDropdown extends StatelessWidget {
                       ),
                     if (service.notIncluded.isNotEmpty) ...[
                       const SizedBox(height: 2),
-                      Text('Not included',
+                      Text(context.l10n.serviceDetailNotIncluded,
                           style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
@@ -414,8 +420,8 @@ class _IncludedDropdown extends StatelessWidget {
                       const SizedBox(height: 14),
                       const Divider(height: 1),
                       const SizedBox(height: 12),
-                      const Text("What we'll need from you",
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                      Text(context.l10n.serviceDetailWhatWeNeed,
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                       const SizedBox(height: 10),
                       Wrap(
                         spacing: 16,
@@ -546,7 +552,7 @@ class _ComingSoonScreen extends StatelessWidget {
               children: [
                 _ApplianceHero(appliance: appliance),
                 const SizedBox(height: 16),
-                const StatusChip('Coming soon', height: 28),
+                StatusChip(context.l10n.catalogComingSoon, height: 28),
                 const SizedBox(height: 16),
                 Text(detail.heading, style: context.type.headlineMedium),
                 const SizedBox(height: 8),
@@ -556,8 +562,8 @@ class _ComingSoonScreen extends StatelessWidget {
                   width: double.infinity,
                   child: OutlinedButton(
                     onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("We'll notify you when this opens up"))),
-                    child: const Text('Notify me'),
+                        SnackBar(content: Text(context.l10n.catalogNotifySnackbar))),
+                    child: Text(context.l10n.catalogNotifyMe),
                   ),
                 ),
                 const SizedBox(height: 20),
