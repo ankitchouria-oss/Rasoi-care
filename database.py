@@ -599,6 +599,17 @@ def migrate_bookings_columns(conn):
         conn.execute("ALTER TABLE bookings ADD COLUMN brand TEXT")
     if "model_number" not in cols:
         conn.execute("ALTER TABLE bookings ADD COLUMN model_number TEXT")
+    if "city" not in cols:
+        # Which of the Partner app's five service cities this booking is
+        # actually in — see infer_city in app.py. Distinct from `area`
+        # (a short label like "Home"/"Office", never a city) and from
+        # `address_line` (the free-text street address a city name might
+        # or might not appear in verbatim): this is the field
+        # technician_available_bookings matches against a technician's own
+        # `area` (their chosen service city) for dispatch. Null for
+        # bookings made before this existed, or where no city could be
+        # inferred from the address/coordinates sent.
+        conn.execute("ALTER TABLE bookings ADD COLUMN city TEXT")
     conn.commit()
 
 

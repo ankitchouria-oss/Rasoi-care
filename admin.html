@@ -680,7 +680,7 @@ function openBooking(id){
     <b class="display" style="font-size:19px;display:block;margin-top:10px">${esc(b.service)}</b>
     <p class="tiny muted" style="margin:5px 0 0">${esc(b.customerName)} · ₹${b.total_amount||b.price}${b.area?' · '+esc(b.area):''}</p>
     <div class="divider"></div>
-    <p class="eyebrow">Assign technician${b.area?' — customer is in '+esc(b.area):''}</p>
+    <p class="eyebrow">Assign technician${b.city?' — customer is in '+esc(b.city):(b.area?' — '+esc(b.area):'')}</p>
     <select id="assignSelect" style="${SELECT_STYLE}">
       ${techOptionsHtml(b.technicianId, b.area)}
     </select>
