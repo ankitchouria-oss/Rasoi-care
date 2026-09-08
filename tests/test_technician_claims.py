@@ -13,7 +13,7 @@ def _bootstrap_technician(client, monkeypatch, uid, category="RasoiSpark", area=
     return resp.get_json()
 
 
-def _create_booking(client, category="RasoiSpark", area=None):
+def _create_booking(client, category="RasoiSpark", area=None, lat=None, lng=None, address_line=None):
     conn = database.get_db()
     conn.execute(
         "INSERT INTO technicians (id, name, category, area, verified, online, rating, rating_count, jobs_completed) "
@@ -25,8 +25,15 @@ def _create_booking(client, category="RasoiSpark", area=None):
     user = register_and_login(client, email="customer-claims@example.com", phone="9876500001")
     services = client.get("/api/services").get_json()
     service_id = next(s["id"] for s in services if s["category"] == category)
+    payload = {"service_id": service_id}
+    if lat is not None:
+        payload["lat"] = lat
+    if lng is not None:
+        payload["lng"] = lng
+    if address_line is not None:
+        payload["addressLine"] = address_line
     booking = client.post(
-        "/api/bookings", json={"service_id": service_id}, headers=auth_headers(user["token"])
+        "/api/bookings", json=payload, headers=auth_headers(user["token"])
     ).get_json()
     return booking
 
@@ -73,3 +80,44 @@ def test_verified_technician_can_claim_a_booking(client, monkeypatch):
     resp = client.patch(f"/api/bookings/{booking['id']}/claim", headers=auth_headers("x"))
     assert resp.status_code == 200
     assert resp.get_json()["technicianId"] == tech["id"]
+
+
+def test_booking_city_inferred_from_coordinates(client):
+    booking = _create_booking(client, lat=19.9975, lng=73.7898)  # Nashik
+    assert booking["city"] == "Nashik"
+
+
+def test_booking_city_inferred_from_address_text_without_coordinates(client):
+    booking = _create_booking(client, address_line="12 FC Road, Pune, Maharashtra")
+    assert booking["city"] == "Pune"
+
+
+def test_booking_with_no_address_has_no_city(client):
+    booking = _create_booking(client)
+    assert booking["city"] is None
+
+
+def test_available_bookings_only_reaches_technicians_in_the_same_city(client, monkeypatch):
+    # A Nashik-area booking (real coordinates) must not show up for a
+    # technician who registered in a different city — this is exactly the
+    # bug fixed here: the old code compared the booking's address *label*
+    # ("Home"/"Office") against the technician's city, which never matched
+    # a real booking, so this dispatch filter was effectively dead.
+    booking = _create_booking(client, lat=19.9975, lng=73.7898)  # Nashik
+    assert booking["city"] == "Nashik"
+
+    nashik_tech = _bootstrap_technician(client, monkeypatch, uid="tech-nashik", area="Nashik")
+    conn = database.get_db()
+    conn.execute("UPDATE technicians SET verified = 1, online = 1 WHERE id = ?", (nashik_tech["id"],))
+    conn.commit()
+    conn.close()
+    listing = client.get("/api/technician/bookings/available", headers=auth_headers("x")).get_json()
+    assert any(b["id"] == booking["id"] for b in listing)
+
+    pune_tech = _bootstrap_technician(client, monkeypatch, uid="tech-pune", area="Pune")
+    conn = database.get_db()
+    conn.execute("UPDATE technicians SET verified = 1, online = 1 WHERE id = ?", (pune_tech["id"],))
+    conn.commit()
+    conn.close()
+    listing2 = client.get("/api/technician/bookings/available", headers=auth_headers("x")).get_json()
+    assert not any(b["id"] == booking["id"] for b in listing2)

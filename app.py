@@ -1017,6 +1017,11 @@ def booking_row_to_dict(
         # create_booking and migrate_bookings_columns. Null for bookings
         # made before this existed, or by a client that didn't send one.
         "addressLine": row["address_line"] if "address_line" in keys else None,
+        # Which of the Partner app's five service cities this booking is
+        # in — see infer_city. Distinct from `area` above (a display label
+        # like "Home"/"Office"); this is what dispatch actually matches
+        # against a technician's own city.
+        "city": row["city"] if "city" in keys else None,
         "lat": row["lat"] if "lat" in keys else None,
         "lng": row["lng"] if "lng" in keys else None,
         # Real work-log data, filled in as the technician actually advances
@@ -2426,6 +2431,47 @@ def send_sms(to_number, content, *, request_id=None):
         return False
 
 
+# The Partner app's technician sign-up only ever offers these five cities
+# as a technician's own `area` (see careplus_partner's tech_apply_screen.dart
+# _cities list) — kept in sync here so a booking can be matched against the
+# same fixed set. Coordinates are each city's approximate centre, close
+# enough for "which of these five cities is this booking in" — the cities
+# are hundreds of kilometres apart, so there's no real ambiguity at this
+# granularity.
+PARTNER_CITY_CENTERS = {
+    "Nashik": (19.9975, 73.7898),
+    "Pune": (18.5204, 73.8567),
+    "Mumbai": (19.0760, 72.8777),
+    "Nagpur": (21.1458, 79.0882),
+    "Aurangabad": (19.8762, 75.3433),
+}
+
+
+def infer_city(address_line, lat, lng):
+    """Which of the Partner app's five service cities a booking is in, for
+    technician_available_bookings' dispatch matching — replaces the old,
+    broken comparison against `area` (a short address *label* like
+    "Home"/"Office", never a city; see migrate_bookings_columns' comment
+    on the `city` column). Prefers real coordinates (nearest city centre)
+    when the client sent them; falls back to a plain substring match on
+    the reverse-geocoded/typed address text otherwise. None if neither
+    yields a confident match — technician_available_bookings already
+    treats a booking with no city as visible to every technician of the
+    matching category, same as it always has for the legacy promo path."""
+    if lat is not None and lng is not None:
+        return min(
+            PARTNER_CITY_CENTERS,
+            key=lambda city: (PARTNER_CITY_CENTERS[city][0] - lat) ** 2
+            + (PARTNER_CITY_CENTERS[city][1] - lng) ** 2,
+        )
+    if address_line:
+        lowered = address_line.lower()
+        for city in PARTNER_CITY_CENTERS:
+            if city.lower() in lowered:
+                return city
+    return None
+
+
 @app.route("/api/bookings", methods=["POST"])
 @require_auth
 @validate_json({
@@ -2516,16 +2562,17 @@ def create_booking():
     # booking into "In Progress" without it. Not required to be globally
     # unique since it's only ever checked against this one booking's row.
     start_code = f"{secrets.randbelow(10000):04d}"
+    city = infer_city(address_line, lat, lng)
     conn.execute(
         "INSERT INTO bookings (id, category, service, price, technician_id, customer_name, "
         "status, bachat_slot, service_rating, tech_rating, area, created_at, updated_at, "
         "user_id, service_id, total_amount, lat, lng, directions, notes, issues_json, "
-        "start_code, scheduled_at, address_line) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "start_code, scheduled_at, address_line, city) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (booking_id, category, service, price, None, request.user["name"],
          "Requested", bachat_slot, None, None, area, ts, ts,
          request.user["id"], service_id, total_amount, lat, lng, directions,
-         notes, issues_json, start_code, scheduled_at, address_line),
+         notes, issues_json, start_code, scheduled_at, address_line, city),
     )
     conn.commit()
     row = conn.execute(BOOKING_SELECT + " WHERE bookings.id = ?", (booking_id,)).fetchone()
@@ -2654,6 +2701,7 @@ def create_booking_cart():
 
     created_ids = []
     ts = now()
+    city = infer_city(address_line, lat, lng)
     for r, price in zip(rows, allocations):
         booking_id = next_id(conn, "order", "RC")
         start_code = f"{secrets.randbelow(10000):04d}"
@@ -2663,12 +2711,12 @@ def create_booking_cart():
             "INSERT INTO bookings (id, category, service, price, technician_id, customer_name, "
             "status, bachat_slot, service_rating, tech_rating, area, created_at, updated_at, "
             "user_id, service_id, total_amount, lat, lng, directions, notes, issues_json, "
-            "start_code, scheduled_at, address_line) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "start_code, scheduled_at, address_line, city) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (booking_id, category, service, price, None, request.user["name"],
              "Requested", None, None, None, area, ts, ts,
              request.user["id"], r["id"], price, lat, lng, directions,
-             notes, issues_json, start_code, scheduled_at, address_line),
+             notes, issues_json, start_code, scheduled_at, address_line, city),
         )
         created_ids.append((booking_id, service, start_code))
     conn.commit()
@@ -2726,13 +2774,17 @@ def technician_available_bookings():
         "ORDER BY bookings.created_at ASC"
     ).fetchall()
     conn.close()
-    # A booking with no area at all (the legacy Bachat-slot promo path,
-    # which never collects one) is shown to any matching-category
-    # technician; one with a real area is only broadcast to technicians
-    # actually in that city — a Nashik technician can't do a Mumbai job.
+    # A booking with no inferred city at all (the legacy Bachat-slot promo
+    # path, which never collects an address to infer one from) is shown to
+    # any matching-category technician; one with a real city is only
+    # broadcast to technicians actually in that city — a Nashik technician
+    # can't do a Mumbai job. Matched against `city` (see infer_city), not
+    # `area` — `area` is just the customer's address label ("Home"/
+    # "Office"), never a city, so comparing it to a technician's own city
+    # here would never actually match a real booking.
     matching = [
         r for r in rows
-        if r["category"] in my_categories and (not r["area"] or r["area"] == tech["area"])
+        if r["category"] in my_categories and (not r["city"] or r["city"] == tech["area"])
     ]
     return jsonify([booking_row_to_dict(r, redact_customer_contact=True) for r in matching])
 
