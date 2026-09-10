@@ -31,6 +31,18 @@ import 'earnings_dto.dart';
 
 const _timeout = Duration(seconds: 8);
 
+// Job photos and the customer's signature go up as base64 JSON bodies —
+// hundreds of KB to a few MB, not the few-hundred-byte payloads every
+// other call here sends. On top of the transfer itself taking longer,
+// this backend runs on Render's free tier, which spins down after 15
+// minutes idle — exactly the kind of gap a technician leaves between
+// arriving on-site and actually taking the after photo — and can take
+// well past 8 seconds to cold-start (see TechApplyScreen's bootstrap
+// retry for the same issue on a much smaller request). Without more
+// room here, a cold start reliably fails the upload and blames "check
+// your connection" on a technician who did nothing wrong.
+const _uploadTimeout = Duration(seconds: 30);
+
 class ApiRepository implements PartnerRepository {
   ApiRepository({MockPartnerRepository? mock}) : _mock = mock ?? MockPartnerRepository();
 
@@ -248,7 +260,7 @@ class ApiRepository implements PartnerRepository {
               'dataBase64': base64Encode(bytes),
             }),
           )
-          .timeout(_timeout);
+          .timeout(_uploadTimeout);
       if (res.statusCode != 200) return false;
       final i = _bookings.indexWhere((b) => b.id == jobId);
       if (i != -1) {
@@ -281,7 +293,7 @@ class ApiRepository implements PartnerRepository {
             },
             body: jsonEncode({'dataBase64': base64Encode(pngBytes)}),
           )
-          .timeout(_timeout);
+          .timeout(_uploadTimeout);
       if (res.statusCode != 200) return false;
       final i = _bookings.indexWhere((b) => b.id == jobId);
       if (i != -1) {
