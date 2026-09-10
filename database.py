@@ -886,13 +886,24 @@ def migrate_users_columns(conn):
 
 def migrate_add_customer_catalog_services(conn):
     """Idempotently inserts CUSTOMER_CATALOG_SEED's rows — safe to run on
-    every boot (INSERT OR IGNORE keyed on the primary key `id`) so it
-    reaches databases seed_catalog already ran on long ago."""
+    every boot (rows already present, keyed on the primary key `id`, are
+    skipped) so it reaches databases seed_catalog already ran on long ago.
+
+    `INSERT OR IGNORE` is SQLite-only syntax; Postgres needs
+    `ON CONFLICT ... DO NOTHING` instead. Getting this wrong isn't a
+    no-op — it's a syntax error from init_db() on every single boot
+    against Postgres, which crash-loops gunicorn and leaves Render stuck
+    serving whatever build last deployed successfully. That's exactly
+    what happened here: this line shipped in #83, and every deploy since
+    (including #84's dispatch fix) silently failed to go live for over a
+    week while the app kept serving August 29's build."""
     ts = now()
+    insert = "INSERT" if DATABASE_URL else "INSERT OR IGNORE"
+    on_conflict = "ON CONFLICT (id) DO NOTHING" if DATABASE_URL else ""
     for sid, appliance_id, category, name, price, quick_fix in CUSTOMER_CATALOG_SEED:
         conn.execute(
-            "INSERT OR IGNORE INTO services (id, appliance_id, category, name, price, quick_fix, created_at) "
-            "VALUES (?,?,?,?,?,?,?)",
+            f"{insert} INTO services (id, appliance_id, category, name, price, quick_fix, created_at) "
+            f"VALUES (?,?,?,?,?,?,?) {on_conflict}",
             (sid, appliance_id, category, name, price, quick_fix, ts),
         )
     conn.commit()
