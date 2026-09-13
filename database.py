@@ -164,25 +164,6 @@ CREATE TABLE IF NOT EXISTS services (
     created_at      TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS amc_plans (
-    id                  TEXT PRIMARY KEY,
-    name                TEXT NOT NULL,
-    price               INTEGER NOT NULL,
-    duration_months     INTEGER NOT NULL,
-    benefits            TEXT NOT NULL,
-    created_at          TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS amc_subscriptions (
-    id              TEXT PRIMARY KEY,
-    user_id         TEXT NOT NULL REFERENCES users(id),
-    plan_id         TEXT NOT NULL REFERENCES amc_plans(id),
-    status          TEXT NOT NULL DEFAULT 'Active',
-    start_date      TEXT NOT NULL,
-    end_date        TEXT NOT NULL,
-    created_at      TEXT NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS appliance_health (
     id              TEXT PRIMARY KEY,
     user_id         TEXT NOT NULL REFERENCES users(id),
@@ -308,16 +289,6 @@ CUSTOMER_CATALOG_SEED = [
     ("svc_otg_repair_visit", "app_otg", "RasoiBuilt", "Repair visit and diagnosis", 399, 1),
     ("svc_otg_install", "app_otg", "RasoiBuilt", "Installation and test bake", 999, 0),
     ("svc_otg_uninstall", "app_otg", "RasoiBuilt", "Uninstall and pack for a move", 599, 0),
-]
-
-# (id, name, price, duration_months, benefits list)
-AMC_PLANS_SEED = [
-    ("amc_basic", "Basic Care", 999, 12,
-     ["1 free check-up per year", "10% off repairs", "Standard response time"]),
-    ("amc_premium", "Premium Care", 1999, 12,
-     ["2 free check-ups per year", "10% off every repair", "Priority scheduling"]),
-    ("amc_elite", "Elite Care", 3499, 12,
-     ["4 free check-ups per year", "20% off every repair", "Priority scheduling", "24/7 dedicated support"]),
 ]
 
 
@@ -819,12 +790,6 @@ def seed_catalog(conn):
             "INSERT INTO services (id, appliance_id, category, name, price, quick_fix, created_at) "
             "VALUES (?,?,?,?,?,?,?)",
             (sid, appliance_id, category, name, price, quick_fix, ts),
-        )
-    for pid, name, price, duration_months, benefits in AMC_PLANS_SEED:
-        conn.execute(
-            "INSERT INTO amc_plans (id, name, price, duration_months, benefits, created_at) "
-            "VALUES (?,?,?,?,?,?)",
-            (pid, name, price, duration_months, json.dumps(benefits), ts),
         )
     conn.commit()
 

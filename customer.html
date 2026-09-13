@@ -798,21 +798,6 @@ body{
             </div>
           </div>
 
-          <!-- AMC strip -->
-          <div class="pad" style="margin-top:20px">
-            <div class="card tap" style="padding:16px;background:var(--accent-soft);border-color:transparent;display:flex;gap:14px;align-items:center" onclick="go('amc')">
-              <svg width="46" height="46" viewBox="0 0 120 120">
-                <circle class="dial-track" cx="60" cy="60" r="52" style="stroke:rgba(182,130,42,.25)"/>
-                <circle cx="60" cy="60" r="52" fill="none" stroke="var(--accent)" stroke-width="7" stroke-linecap="round" style="--c:327;--pct:.45;stroke-dasharray:327;stroke-dashoffset:327;transform:rotate(-90deg);transform-origin:50% 50%;animation:fill 1.1s .2s var(--ease) forwards"/>
-              </svg>
-              <div style="flex:1">
-                <b style="font-size:13.5px;color:var(--accent)">Rasoi Care Complete — 2 visits left</b>
-                <p class="tiny" style="margin:3px 0 0;color:var(--ink-2)">Renews 04 Nov 2026 · covers 4 appliances</p>
-              </div>
-              <span style="color:var(--accent)">›</span>
-            </div>
-          </div>
-
           <!-- offers -->
           <div class="sect pad"><h3>Offers</h3><a onclick="toast('7 offers live')">See all</a></div>
           <div class="hscroll">
@@ -1324,21 +1309,9 @@ body{
 
       <section class="screen" id="amc">
         <div style="height:10px"></div>
-        <div class="appbar"><button class="iconbtn" onclick="back()">←</button><h2>Plans and warranty</h2></div>
+        <div class="appbar"><button class="iconbtn" onclick="back()">←</button><h2>Warranty and appliances</h2></div>
         <div class="scroll pad pb">
-          <div class="card card-p" style="background:var(--primary);border-color:transparent;color:#F6F4EF">
-            <div class="between"><p class="eyebrow" style="color:var(--accent)">Active plan</p><span class="mono" style="color:rgba(246,244,239,.6)">AMC-7734</span></div>
-            <b class="display" style="font-size:24px;display:block;margin-top:8px;color:#F6F4EF">Rasoi Care Complete</b>
-            <div class="row" style="margin-top:16px;gap:20px">
-              <div><p class="tiny" style="margin:0;color:rgba(246,244,239,.6)">Visits left</p><b class="price" style="font-size:19px">2 of 4</b></div>
-              <div><p class="tiny" style="margin:0;color:rgba(246,244,239,.6)">Renews</p><b class="price" style="font-size:19px">04 Nov</b></div>
-            </div>
-            <div class="bar" style="margin-top:16px;background:rgba(246,244,239,.2)"><i style="--w:50%;background:var(--accent)"></i></div>
-          </div>
-
-          <div class="sect"><h3>Upgrade or add a plan</h3></div>
-          <div class="stack" id="amcPlanList"></div>
-<div class="sect"><h3>Your appliances</h3><a onclick="toast('Add appliance')">Add</a></div>
+          <div class="sect"><h3>Your appliances</h3><a onclick="toast('Add appliance')">Add</a></div>
           <div class="stack">
             <div class="card card-p row"><div class="avatar" style="background:var(--accent-soft);color:var(--accent)">◍</div>
               <div style="flex:1"><b style="font-size:13.5px">Elica WDFL 906 HAC</b><p class="tiny muted" style="margin:2px 0 0">Chimney · installed Mar 2023</p></div>
@@ -1351,7 +1324,6 @@ body{
               <span class="chip chip-grow" style="height:26px;font-size:10.5px">Compressor 6 yr</span></div>
           </div>
         </div>
-        <div class="dock"><button class="btn btn-brass btn-block" onclick="toast('Razorpay checkout opens')">Upgrade to Home Suite</button></div>
       </section>
 
       <section class="screen" id="wallet">
@@ -1442,7 +1414,7 @@ body{
           <div class="card">
             <div style="padding:0 16px">
               <div class="list-row" onclick="go('bookings')"><span>🗓</span><b style="flex:1;font-size:13.5px">Bookings and history</b><span class="muted">›</span></div>
-              <div class="list-row" onclick="go('amc')"><span>🛡</span><b style="flex:1;font-size:13.5px">Plans, warranty, appliances</b><span class="muted">›</span></div>
+              <div class="list-row" onclick="go('amc')"><span>🛡</span><b style="flex:1;font-size:13.5px">Warranty and appliances</b><span class="muted">›</span></div>
               <div class="list-row" onclick="go('wallet')"><span>◍</span><b style="flex:1;font-size:13.5px">Wallet and Care Coins</b><span class="muted">›</span></div>
               <div class="list-row" onclick="openSheet('sheetAddr')"><span>📍</span><b style="flex:1;font-size:13.5px">Saved addresses</b><span class="muted">›</span></div>
               <div class="list-row" onclick="go('chat')"><span>💬</span><b style="flex:1;font-size:13.5px">Help and support</b><span class="muted">›</span></div>
@@ -1494,7 +1466,7 @@ const API_BASE = window.location.origin;
 // to 200 chars) is a real, reachable self-XSS otherwise.
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 const STATE = { token: localStorage.getItem('rc_token'), user: JSON.parse(localStorage.getItem('rc_user')||'null'),
-  appliances: [], services: [], amcPlans: [], amcSub: null, bookings: [], currentBooking: null };
+  appliances: [], services: [], bookings: [], currentBooking: null };
 
 function authHeaders(){ return STATE.token ? { 'Authorization': 'Bearer ' + STATE.token } : {}; }
 async function apiGet(path){ const r = await fetch(API_BASE+path, { headers: authHeaders() }); if(!r.ok) throw new Error('GET '+path+' '+r.status); return r.json(); }
@@ -1506,8 +1478,8 @@ const APPLIANCE_ID_MAP = { chimney:'app_chimney', hob:'app_hob', cooktop:'app_co
 
 async function loadCatalog(){
   try{
-    const [appliances, services, amcPlans] = await Promise.all([apiGet('/api/appliances'), apiGet('/api/services'), apiGet('/api/amc/plans')]);
-    STATE.appliances = appliances; STATE.services = services; STATE.amcPlans = amcPlans;
+    const [appliances, services] = await Promise.all([apiGet('/api/appliances'), apiGet('/api/services')]);
+    STATE.appliances = appliances; STATE.services = services;
   }catch(e){ console.warn('Catalog failed to load — is the backend running?', e); }
 }
 function servicesFor(applianceKey){
@@ -1923,30 +1895,6 @@ function openBookingFromList(id){
   if(b.status==='Completed') go('invoice'); else go('tracking');
 }
 
-/* ---------------- AMC — REAL plans + subscription ---------------- */
-async function renderAmc(){
-  try{
-    STATE.amcSub = STATE.token ? await apiGet('/api/amc/my-subscription') : { subscribed:false };
-  }catch(e){ STATE.amcSub = { subscribed:false }; }
-  const sub = STATE.amcSub;
-  document.getElementById('amcActiveCard').style.display = sub.subscribed ? '' : 'none';
-  document.getElementById('amcNoneNote').style.display = sub.subscribed ? 'none' : '';
-  if(sub.subscribed){
-    document.getElementById('amcPlanName').textContent = sub.subscription.plan.name;
-    document.getElementById('amcRenews').textContent = sub.subscription.end_date;
-  }
-  document.getElementById('amcPlanList').innerHTML = STATE.amcPlans.map(p => `
-    <div class="card card-p tap" onclick='subscribeAmc(${JSON.stringify(p.id)})'>
-      <div class="between"><b style="font-size:14.5px">${esc(p.name)}</b><span class="price" style="font-size:15px">₹${p.price}<span class="tiny muted">/yr</span></span></div>
-      <p class="tiny muted" style="margin:6px 0 0">${p.benefits.map(esc).join(' · ')}</p>
-    </div>`).join('');
-}
-async function subscribeAmc(planId){
-  if(!STATE.token){ toast('Sign in first'); go('login'); return; }
-  try{ await apiPost('/api/amc/subscribe', { plan_id: planId }); toast('Plan activated'); renderAmc(); }
-  catch(e){ toast('Could not activate plan'); }
-}
-
 /* ---------------- chat (simulated — no chat backend) ---------------- */
 function sendMsg(txt){
   const inp=document.getElementById('chatInput');
@@ -2042,7 +1990,6 @@ function go(id,reverse){
   if(id==='tracking')renderTracking();
   if(id==='invoice')renderInvoiceScreen();
   if(id==='bookings'){ refreshMyBookings().then(renderBookings); }
-  if(id==='amc')renderAmc();
   if(id==='home')updateIdentity();
   if(id==='profile')updateIdentity();
 }

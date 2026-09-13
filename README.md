@@ -198,7 +198,6 @@ blank/broken WebView, explaining what to configure.
 | GET | `/api/health` | Check the server is up |
 | POST | `/api/auth/register` / `/api/auth/login` | Real JWT accounts — the customer app derives email/password from the phone number |
 | GET | `/api/appliances`, `/api/services` | The real catalog customer.html browses and prices bookings from |
-| GET | `/api/amc/plans`, `/api/amc/my-subscription` · POST `/api/amc/subscribe` | AMC plan browsing and subscription |
 | GET | `/api/bookings` | List bookings — only the caller's own with a Bearer token, all of them without one (what technician.html/admin.html use) |
 | GET | `/api/bookings/<id>` | Get one booking |
 | POST | `/api/bookings` | Create a booking — `{service_id}` (catalog price looked up server-side) or the legacy `{category, service, price, bachatSlot?}` shape |
