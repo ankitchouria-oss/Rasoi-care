@@ -714,9 +714,8 @@ TERMS_OF_SERVICE_SECTIONS = [
     ("Reviews and other features", [
         "You can rate and review a completed job — reviews should be honest, since other "
         "customers and our Partner-quality process both rely on them. Optional features like "
-        "annual maintenance (AMC) plans, referral codes, and reward coins are described where "
-        "you use them in the app and are subject to whatever terms are shown there at the "
-        "time.",
+        "referral codes and reward coins are described where you use them in the app and are "
+        "subject to whatever terms are shown there at the time.",
     ]),
     ("Liability", [
         "Services are carried out by independent Partners, and we're not liable for "
@@ -1260,16 +1259,6 @@ def inventory_row_to_dict(row):
         "reorderLevel": row["reorder_level"],
         "lowStock": row["quantity"] < row["reorder_level"],
         "updatedAt": row["updated_at"],
-    }
-
-
-def amc_plan_row_to_dict(row):
-    return {
-        "id": row["id"],
-        "name": row["name"],
-        "price": row["price"],
-        "duration_months": row["duration_months"],
-        "benefits": json.loads(row["benefits"]),
     }
 
 
@@ -2158,69 +2147,6 @@ def get_service(service_id):
         return jsonify({"error": "Service not found"}), 404
     return jsonify(service_row_to_dict(row))
 
-
-# ---------------------------------------------------------------- amc
-@app.route("/api/amc/plans", methods=["GET"])
-@rate_limit_public
-def list_amc_plans():
-    conn = get_db()
-    rows = conn.execute("SELECT * FROM amc_plans ORDER BY price").fetchall()
-    conn.close()
-    return jsonify([amc_plan_row_to_dict(r) for r in rows])
-
-
-@app.route("/api/amc/my-subscription", methods=["GET"])
-@require_auth
-def my_amc_subscription():
-    conn = get_db()
-    row = conn.execute(
-        "SELECT * FROM amc_subscriptions WHERE user_id = ? ORDER BY created_at DESC LIMIT 1",
-        (request.user["id"],),
-    ).fetchone()
-    conn.close()
-    if not row:
-        return jsonify({"subscribed": False, "subscription": None})
-    conn = get_db()
-    plan_row = conn.execute("SELECT * FROM amc_plans WHERE id = ?", (row["plan_id"],)).fetchone()
-    conn.close()
-    return jsonify({
-        "subscribed": True,
-        "subscription": {
-            "id": row["id"],
-            "plan": amc_plan_row_to_dict(plan_row) if plan_row else None,
-            "status": row["status"],
-            "start_date": row["start_date"],
-            "end_date": row["end_date"],
-        },
-    })
-
-
-@app.route("/api/amc/subscribe", methods=["POST"])
-@require_auth
-@validate_json({
-    "plan_id": Field(str, required=True, min_len=1, max_len=50),
-})
-def subscribe_amc():
-    data = request.get_json(force=True, silent=True) or {}
-    plan_id = data.get("plan_id")
-    conn = get_db()
-    plan_row = conn.execute("SELECT * FROM amc_plans WHERE id = ?", (plan_id,)).fetchone()
-    if not plan_row:
-        conn.close()
-        return jsonify({"error": "Unknown plan_id"}), 400
-
-    sub_id = new_uuid_id("AMCSUB")
-    start = datetime.now(timezone.utc).date()
-    end = start + timedelta(days=30 * plan_row["duration_months"])
-    conn.execute(
-        "INSERT INTO amc_subscriptions (id, user_id, plan_id, status, start_date, end_date, created_at) "
-        "VALUES (?,?,?,?,?,?,?)",
-        (sub_id, request.user["id"], plan_id, "Active", start.isoformat(), end.isoformat(), now()),
-    )
-    conn.commit()
-    conn.close()
-    return jsonify({"id": sub_id, "plan": amc_plan_row_to_dict(plan_row), "status": "Active",
-                     "start_date": start.isoformat(), "end_date": end.isoformat()}), 201
 
 
 # ---------------------------------------------------------------- kitchen health score

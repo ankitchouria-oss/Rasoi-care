@@ -122,18 +122,6 @@
   .gauge-card .big{ font-family:var(--mono); font-size:46px; font-weight:700; }
   .gauge-card .lbl{ font-size:11.5px; color:#F3E4CF; text-transform:uppercase; letter-spacing:0.08em; margin-top:4px; }
 
-  /* ---------- AMC plans ---------- */
-  .plans-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:22px; align-items:stretch; }
-  .plan-card{ background:var(--card); border:1.4px solid var(--line); border-radius:22px; padding:28px 24px; display:flex; flex-direction:column; position:relative; }
-  .plan-card.popular{ border-color:var(--copper); box-shadow:0 20px 44px -22px rgba(140,90,36,0.4); }
-  .plan-badge{ position:absolute; top:-13px; right:24px; background:var(--copper-deep); color:#fff; font-size:10.5px; font-weight:800; padding:5px 12px; border-radius:999px; text-transform:uppercase; letter-spacing:0.06em; }
-  .plan-card h3{ font-size:22px; }
-  .plan-price{ font-family:var(--mono); font-size:28px; font-weight:700; color:var(--copper-deep); margin:8px 0 18px; }
-  .plan-price span{ font-size:12px; color:var(--ink-soft); font-weight:600; }
-  .plan-card ul{ display:flex; flex-direction:column; gap:9px; margin-bottom:22px; flex:1; }
-  .plan-card li{ font-size:13px; color:var(--ink-soft); display:flex; gap:7px; }
-  .plan-card li::before{ content:'✓'; color:var(--emerald); font-weight:800; }
-
   /* ---------- reviews ---------- */
   .rev-top{ display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:36px; }
   .rev-score{ font-family:var(--display); font-size:44px; color:var(--copper-deep); }
@@ -166,7 +154,7 @@
     .hero h1{ font-size:42px; }
     .hero-grid{ grid-template-columns:1fr; }
     .hero-visual{ height:340px; margin-top:20px; }
-    .apps-grid, .svc-grid, .plans-grid, .rev-grid{ grid-template-columns:1fr; }
+    .apps-grid, .svc-grid, .rev-grid{ grid-template-columns:1fr; }
     .steps{ grid-template-columns:1fr 1fr; }
     .step:not(:last-child)::after{ display:none; }
     .health-band{ grid-template-columns:1fr; padding:36px 26px; }
@@ -189,7 +177,6 @@
     <div class="nav-links">
       <a href="#services">Services</a>
       <a href="#how-it-works">How it works</a>
-      <a href="#kavach">RasoiKavach</a>
       <a href="#reviews">Reviews</a>
       <a href="/technician">Partner with us</a>
     </div>
@@ -201,7 +188,6 @@
   <div id="mobile-links">
     <a href="#services">Services</a>
     <a href="#how-it-works">How it works</a>
-    <a href="#kavach">RasoiKavach</a>
     <a href="#reviews">Reviews</a>
     <a href="/technician">Partner with us</a>
     <a href="/admin">Admin login</a>
@@ -239,7 +225,6 @@
   <div class="chip">Chimney Deep Clean</div>
   <div class="chip">Ignition Fix</div>
   <div class="chip">Live Technician Tracking</div>
-  <div class="chip">RasoiKavach AMC Plans</div>
   <div class="chip">Transparent GST Billing</div>
   <div class="chip">Kitchen Health Score</div>
 </div>
@@ -360,50 +345,6 @@
   </div>
 </section>
 
-<section id="kavach" style="background:var(--stage-bg);">
-  <div class="wrap">
-    <div class="sec-head">
-      <div class="eyebrow">RasoiKavach · Annual Maintenance</div>
-      <h2>Year-round protection plans</h2>
-      <p>Unlimited breakdown support and scheduled check-ups, so your kitchen never catches you off guard.</p>
-    </div>
-    <div class="plans-grid">
-      <div class="plan-card">
-        <h3>Basic Care</h3>
-        <div class="plan-price">₹999 <span>/ year</span></div>
-        <ul>
-          <li>1 free check-up per year</li>
-          <li>10% off repairs</li>
-          <li>Standard response time</li>
-        </ul>
-        <a href="/customer" class="btn btn-ghost btn-sm">Subscribe</a>
-      </div>
-      <div class="plan-card popular">
-        <div class="plan-badge">Most Popular</div>
-        <h3>Premium Care</h3>
-        <div class="plan-price">₹1,999 <span>/ year</span></div>
-        <ul>
-          <li>2 free check-ups per year</li>
-          <li>10% off every repair</li>
-          <li>Priority scheduling</li>
-        </ul>
-        <a href="/customer" class="btn btn-primary btn-sm">Subscribe</a>
-      </div>
-      <div class="plan-card">
-        <h3>Elite Care</h3>
-        <div class="plan-price">₹3,499 <span>/ year</span></div>
-        <ul>
-          <li>4 free check-ups per year</li>
-          <li>20% off every repair</li>
-          <li>Priority scheduling</li>
-          <li>24/7 dedicated support</li>
-        </ul>
-        <a href="/customer" class="btn btn-ghost btn-sm">Subscribe</a>
-      </div>
-    </div>
-  </div>
-</section>
-
 <section id="reviews">
   <div class="wrap">
     <div class="rev-top">
@@ -450,7 +391,6 @@
           <a href="#services">RasoiAir</a>
           <a href="#services">RasoiSpark</a>
           <a href="#services">RasoiBuilt</a>
-          <a href="#kavach">RasoiKavach AMC</a>
         </div>
       </div>
     </div>
