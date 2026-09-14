@@ -1,3 +1,25 @@
+# Render Blueprint: web service + a managed Postgres database, wired
+# together so a fresh "Deploy to Render" click gets a real, persistent
+# database from the start instead of the free web service's ephemeral
+# local disk (wiped on every redeploy).
+#
+# NOTE: Render Postgres is a billable resource on current plans (no more
+# permanent free tier) — applying/syncing this blueprint provisions real,
+# billed infrastructure. Check the `plan` below against Render's current
+# Postgres pricing in your dashboard before applying, and change it if you
+# want a different tier. If you'd rather not have Render provision (and
+# bill for) the database itself, delete the `databases:` block and the
+# `fromDatabase` reference below, and instead paste a Postgres connection
+# string (Render Postgres created separately, or an external one like
+# Neon) directly into the web service's DATABASE_URL env var in the
+# dashboard — app.py now refuses to boot on Render with that var unset
+# either way, so a deploy can no longer silently fall back to SQLite.
+databases:
+  - name: rasoicare-db
+    databaseName: rasoicare
+    user: rasoicare
+    plan: basic-256mb
+
 services:
   - type: web
     name: rasoicare-backend
@@ -9,4 +31,6 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: rasoicare-db
+          property: connectionString
