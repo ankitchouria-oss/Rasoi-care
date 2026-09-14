@@ -29,6 +29,23 @@ from datetime import datetime
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rasoicare.db")
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
+# Render sets RENDER=true automatically on every service running there — a
+# signal that doesn't depend on anyone remembering to configure it (unlike
+# DATABASE_URL itself, which render.yaml deliberately leaves `sync: false`
+# for an admin to paste in by hand). Without this check, a service deployed
+# without ever setting DATABASE_URL boots "successfully" straight onto this
+# file's SQLite fallback — fine for a quick local run, silent data loss on
+# Render, whose free web services wipe local disk on every redeploy. Local
+# dev and the test suite never set RENDER, so this never fires for them.
+if os.environ.get("RENDER") and not DATABASE_URL:
+    raise RuntimeError(
+        "DATABASE_URL is not set. Refusing to boot on Render against ephemeral "
+        "local SQLite — every booking/account would be wiped on the next "
+        "redeploy. Set DATABASE_URL in the Render dashboard (Environment tab) "
+        "to a real Postgres connection string (Render Postgres or Neon) before "
+        "deploying."
+    )
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS technicians (
     id                    TEXT PRIMARY KEY,
