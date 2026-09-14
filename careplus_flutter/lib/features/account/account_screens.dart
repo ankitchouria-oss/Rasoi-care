@@ -372,7 +372,6 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(t.accountTitle),
-        actions: [IconButton(onPressed: () {}, icon: const Icon(Icons.settings_outlined))],
       ),
       body: SafeArea(
         top: false,
