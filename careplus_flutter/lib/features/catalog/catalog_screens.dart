@@ -20,7 +20,6 @@ class CatalogScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(t.catalogAllServicesTitle),
-        actions: [IconButton(onPressed: () {}, icon: const Icon(Icons.tune))],
       ),
       body: SafeArea(
         top: false,
@@ -142,7 +141,6 @@ class _ServiceDetailState extends ConsumerState<ServiceDetailScreen> {
       appBar: AppBar(
         leading: BackButton(onPressed: context.pop),
         title: Text(widget.appliance.label),
-        actions: [IconButton(onPressed: () {}, icon: const Icon(Icons.favorite_border))],
       ),
       body: SafeArea(
         top: false,
