@@ -1,36 +1,46 @@
-# Render Blueprint: web service + a managed Postgres database, wired
-# together so a fresh "Deploy to Render" click gets a real, persistent
-# database from the start instead of the free web service's ephemeral
-# local disk (wiped on every redeploy).
+# Render Blueprint for rasoicare-backend.
 #
-# NOTE: Render Postgres is a billable resource on current plans (no more
-# permanent free tier) — applying/syncing this blueprint provisions real,
-# billed infrastructure. Check the `plan` below against Render's current
-# Postgres pricing in your dashboard before applying, and change it if you
-# want a different tier. If you'd rather not have Render provision (and
-# bill for) the database itself, delete the `databases:` block and the
-# `fromDatabase` reference below, and instead paste a Postgres connection
-# string (Render Postgres created separately, or an external one like
-# Neon) directly into the web service's DATABASE_URL env var in the
-# dashboard — app.py now refuses to boot on Render with that var unset
-# either way, so a deploy can no longer silently fall back to SQLite.
-databases:
-  - name: rasoicare-db
-    databaseName: rasoicare
-    user: rasoicare
-    plan: basic-256mb
-
+# These are intentionally `sync: false` (not generated or committed here)
+# because they're either secrets or already manually set on the live
+# service — a blueprint re-apply must never silently overwrite them:
+#
+#   - DATABASE_URL somewhere already points at a real Postgres database
+#     (an existing "rasoicare-db" instance on Render's free Postgres
+#     plan). IMPORTANT: Render's free Postgres plan expires 30 days after
+#     creation — check the database's own page in the Render dashboard
+#     for its actual expiry date and upgrade it to a paid plan before
+#     then if this deployment needs to keep its data. app.py now refuses
+#     to boot on Render if DATABASE_URL is ever unset (see database.py),
+#     so a lapsed/deleted database means a loud boot failure rather than
+#     a silent fallback to ephemeral SQLite — but the data itself would
+#     still be gone once the database is actually deleted.
+#   - JWT_SECRET is a stable, manually-set signing secret. Kept
+#     `sync: false` rather than `generateValue: true` so re-applying this
+#     blueprint can never rotate it out from under existing sessions.
+#   - HTTPSMS_API_KEY / HTTPSMS_FROM_NUMBER configure real-SMS OTP
+#     delivery via httpSMS (see app.py) — optional in code (OTPs simply
+#     don't send without them) but required for phone verification to
+#     actually work in production.
+#
+# `fromGroup` pulls in whatever further vars live in the "rasoicare-
+# backend-env" Environment Group in the Render dashboard's Environment
+# tab, so a blueprint re-apply doesn't drop them either.
 services:
   - type: web
     name: rasoicare-backend
     runtime: python
+    region: oregon
     plan: free
+    autoDeployTrigger: commit
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
     envVars:
       - key: JWT_SECRET
-        generateValue: true
+        sync: false
       - key: DATABASE_URL
-        fromDatabase:
-          name: rasoicare-db
-          property: connectionString
+        sync: false
+      - key: HTTPSMS_API_KEY
+        sync: false
+      - key: HTTPSMS_FROM_NUMBER
+        sync: false
+      - fromGroup: rasoicare-backend-env
