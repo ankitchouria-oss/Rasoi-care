@@ -50,3 +50,34 @@ jobs:
           name: ${{ matrix.app }}-apk
           path: ${{ matrix.app }}/build/app/outputs/flutter-apk/*.apk
           retention-days: 30
+
+  release:
+    name: Publish APK release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: "*-apk"
+          path: apks
+
+      - name: Flatten and rename APKs
+        run: |
+          mkdir -p release
+          for dir in apks/*-apk; do
+            app="$(basename "$dir" -apk)"
+            apk="$(find "$dir" -name '*.apk' | head -n1)"
+            cp "$apk" "release/${app}.apk"
+          done
+          ls -la release
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "apks-${{ github.run_number }}" release/*.apk \
+            --repo "${{ github.repository }}" \
+            --title "APK build #${{ github.run_number }}" \
+            --notes "Automated release APK build from commit ${{ github.sha }}."
