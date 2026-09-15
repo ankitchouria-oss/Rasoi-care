@@ -47,13 +47,22 @@ and this repo ships a `render.yaml` blueprint so it's a one-click deploy
 1. Click **[Deploy to Render](https://render.com/deploy?repo=https://github.com/ankitchouria-oss/Rasoi-care)**
    (sign in with GitHub if prompted — this step has to happen in your
    own Render account, nobody else can do it for you).
-2. Render reads `render.yaml`, provisions a free web service named
-   `rasoicare-backend`, and generates a random `JWT_SECRET` for you.
+2. Render reads `render.yaml` and provisions a free web service named
+   `rasoicare-backend`. `DATABASE_URL`, `JWT_SECRET`, and the httpSMS
+   vars are deliberately left for you to set by hand in the Render
+   dashboard (Environment tab) rather than generated or committed here
+   — see "Persistent data" below for `DATABASE_URL` specifically.
 3. Click **Apply** / **Create Web Service**. First deploy takes a
    couple of minutes.
 4. Render gives you a public URL like
    `https://rasoicare-backend.onrender.com`.
 5. Test it from anywhere: `curl https://rasoicare-backend.onrender.com/api/health`
+
+`app.py` refuses to boot on Render (detected via Render's own `RENDER`
+env var) if `DATABASE_URL` isn't actually set, rather than silently
+falling back to SQLite — so a misconfigured deploy fails loudly in the
+logs instead of quietly starting to lose data. This only applies on
+Render; local dev is unaffected (see below).
 
 Prefer doing it by hand instead of the blueprint? Same result:
 **New → Web Service** → connect this repo → Render auto-detects
@@ -67,11 +76,15 @@ auto-detect Flask). Pick whichever you already have an account with.
 
 Render's **free** web services use ephemeral disk — the SQLite file
 above gets wiped on every redeploy, taking any real bookings/accounts
-with it. To fix that, point the backend at a real Postgres database
-instead (nothing else changes; `database.py` auto-detects it):
+with it. Point the backend at a real Postgres database instead —
+nothing else changes; `database.py` auto-detects it:
 
-1. Get a free Postgres database — [Neon](https://neon.tech) has a
-   generous free tier and takes under a minute to provision.
+1. Get a Postgres database — Render's own Postgres offering (from the
+   dashboard's **New → PostgreSQL**) or [Neon](https://neon.tech) both
+   work; either has a free tier. **Render's free Postgres plan expires
+   30 days after creation** unless upgraded to a paid plan — check the
+   database's own page in the dashboard for its actual expiry date, and
+   upgrade before then if you want to keep the data on it.
 2. Copy its connection string (looks like
    `postgresql://user:password@host/dbname?sslmode=require`).
 3. In the Render dashboard, open the `rasoicare-backend` service →
@@ -82,8 +95,10 @@ instead (nothing else changes; `database.py` auto-detects it):
    Postgres exactly like it does on SQLite, and every booking/account
    from then on survives redeploys.
 
-Without `DATABASE_URL` set, the backend keeps working exactly as
-before (SQLite, zero setup) — this is purely additive.
+Locally (or anywhere `RENDER` isn't set), leaving `DATABASE_URL` unset
+keeps the backend working exactly as before (SQLite, zero setup). On
+Render itself, `DATABASE_URL` is required — the app refuses to boot
+without it rather than silently falling back to SQLite.
 
 ### Important: SQLite + free hosting tiers
 

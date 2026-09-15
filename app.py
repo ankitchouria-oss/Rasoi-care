@@ -879,14 +879,46 @@ STATUS_ORDER = ["Requested", "Accepted", "On the way", "In Progress", "Completed
 
 # ---------------------------------------------------------------- CORS
 # Hand-rolled instead of pulling in flask-cors, so this has zero extra
-# dependencies to install at deploy time. Lets any frontend origin
-# (the customer app, technician app, admin dashboard — each opened as
-# its own file/origin) call this API from the browser.
+# dependencies to install at deploy time.
+#
+# customer.html/technician.html/admin.html all call this API same-origin
+# (API_BASE = window.location.origin — see customer.html) and the three
+# native/WebView apps aren't browsers, so CORS is never actually in the
+# way of any real client here — it only matters for what a browser will
+# let a *different* website's JavaScript read from this API. `*` let any
+# website on the internet make (and read the response of) authenticated
+# calls against a signed-in visitor's account from their own browser, so
+# this is locked to an explicit allowlist instead. Configure real
+# cross-origin frontends (a separately-hosted web build, a staging
+# domain) via CORS_ALLOWED_ORIGINS — a comma-separated list of full
+# origins, e.g. "https://app.example.com,https://staging.example.com".
+_DEFAULT_CORS_ORIGINS = {
+    "https://rasoicare-backend.onrender.com",
+    "http://localhost:8420",
+    "http://127.0.0.1:8420",
+}
+
+
+def _cors_allowed_origins():
+    raw = os.environ.get("CORS_ALLOWED_ORIGINS", "")
+    configured = {o.strip() for o in raw.split(",") if o.strip()}
+    return configured or set(_DEFAULT_CORS_ORIGINS)
+
+
+CORS_ALLOWED_ORIGINS = _cors_allowed_origins()
+
+
 @app.after_request
 def add_cors_headers(resp):
-    resp.headers["Access-Control-Allow-Origin"] = "*"
+    origin = request.headers.get("Origin")
+    if origin and origin in CORS_ALLOWED_ORIGINS:
+        resp.headers["Access-Control-Allow-Origin"] = origin
+        # Tells any cache sitting between here and the browser that the
+        # response varies by Origin, so it never serves one origin's
+        # CORS-approved response to a different origin's request.
+        resp.headers["Vary"] = "Origin"
     resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PATCH, OPTIONS"
-    resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    resp.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
     return resp
 
 
