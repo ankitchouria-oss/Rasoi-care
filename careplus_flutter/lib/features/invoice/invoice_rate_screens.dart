@@ -49,7 +49,6 @@ class _InvoiceScreenState extends ConsumerState<InvoiceScreen> {
       appBar: AppBar(
         leading: BackButton(onPressed: context.pop),
         title: Text(t.invoiceTitle),
-        actions: [IconButton(onPressed: () {}, icon: const Icon(Icons.download))],
       ),
       body: SafeArea(
         top: false,
@@ -173,17 +172,9 @@ class _InvoiceScreenState extends ConsumerState<InvoiceScreen> {
               ),
             ),
             Dock(
-              child: Row(children: [
-                Expanded(
-                  child: OutlinedButton(onPressed: () {}, child: Text(t.invoiceShare)),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: FilledButton(
-                      onPressed: () => context.push('/booking/$bookingId/rate'),
-                      child: Text(t.invoiceRateVisit)),
-                ),
-              ]),
+              child: FilledButton(
+                  onPressed: () => context.push('/booking/$bookingId/rate'),
+                  child: Text(t.invoiceRateVisit)),
             ),
           ],
         ),
