@@ -7,6 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <style>
 /* ============================================================
    CARE+ DESIGN SYSTEM
@@ -293,13 +295,53 @@ body{
 </head>
 <body>
 <div class="appwrap" id="vp">
+      <section class="screen" id="login" style="background:var(--bg)">
+        <div class="scroll pad pb" style="padding-top:64px">
+          <p class="eyebrow">Rasoi Care Partner</p>
+          <h1 class="display" style="font-size:26px;margin-top:8px">Sign in to start jobs</h1>
+          <p class="sub" style="margin-top:8px">We'll text you a one-time code to verify it's you.</p>
+
+          <div id="loginPhoneStep" style="margin-top:26px">
+            <label class="field">
+              <input id="loginPhoneInput" placeholder=" " inputmode="tel" maxlength="10">
+              <span>10-digit mobile number</span>
+            </label>
+            <button class="btn btn-p btn-block" style="margin-top:16px" onclick="submitTechLogin()">Send code</button>
+            <p class="helper" id="loginError" style="display:none;color:var(--signal)"></p>
+          </div>
+
+          <div id="loginOtpStep" style="margin-top:26px;display:none">
+            <p class="sub">Enter the 4-digit code sent to <b id="loginOtpPhone" style="color:var(--ink)"></b></p>
+            <label class="field" style="margin-top:14px">
+              <input id="loginOtpInput" placeholder=" " inputmode="numeric" maxlength="6">
+              <span>Verification code</span>
+            </label>
+            <button class="btn btn-p btn-block" style="margin-top:16px" onclick="confirmTechOtp()">Verify and continue</button>
+            <button class="btn btn-t btn-block" style="margin-top:6px" onclick="resetLoginStep()">Use a different number</button>
+            <p class="helper" id="otpError" style="display:none;color:var(--signal)"></p>
+          </div>
+
+          <div id="recaptchaContainer" style="margin-top:18px"></div>
+        </div>
+      </section>
+
+      <section class="screen" id="techPending" style="background:var(--bg)">
+        <div class="scroll pad pb" style="padding-top:64px;text-align:center">
+          <div style="font-size:40px">⏳</div>
+          <h1 class="display" style="font-size:22px;margin-top:14px">Verification pending</h1>
+          <p class="sub" style="margin-top:8px">Your application is with our ops team. Once a document check clears you, you'll be brought online and start seeing job requests here.</p>
+          <button class="btn btn-o btn-block" style="margin-top:22px" onclick="refreshTechProfile()">Check again</button>
+          <button class="btn btn-t btn-block" style="margin-top:6px" onclick="techLogout()">Sign out</button>
+        </div>
+      </section>
+
       <section class="screen" id="techJobs" style="background:var(--bg)">
         <div style="height:10px"></div>
         <div class="pad between" style="padding-bottom:14px">
-          <div><p class="eyebrow">Technician</p><b style="font-size:16px;letter-spacing:-.02em">Sandeep Pawar</b></div>
+          <div><p class="eyebrow">Technician</p><b style="font-size:16px;letter-spacing:-.02em" id="techNameLabel">—</b></div>
           <div class="row" style="gap:9px">
-            <span class="chip chip-grow" style="height:32px">● On duty</span>
-            <button class="iconbtn" onclick="go('profile')">←</button>
+            <span class="chip" id="onDutyChip" style="height:32px" onclick="toggleOnline()">● Off duty</span>
+            <button class="iconbtn" onclick="techLogout()">⎋</button>
           </div>
         </div>
         <div class="scroll pad pb">
@@ -315,74 +357,52 @@ body{
           </div>
 
           <div class="grid2" style="margin-top:12px">
-            <div class="stat"><p class="eyebrow">Rating</p><b>4.94</b></div>
-            <div class="stat"><p class="eyebrow">First-time fix</p><b>91%</b></div>
+            <div class="stat"><p class="eyebrow">Rating</p><b id="ratingStat">—</b></div>
+            <div class="stat"><p class="eyebrow">Jobs completed</p><b id="jobsCompletedStat">—</b></div>
           </div>
 
           <div id="newRequestSection"></div>
-<div class="sect"><h3>Route today</h3><a onclick="toast('Opens Google Maps')">Map</a></div>
+<div class="sect"><h3>Active jobs</h3></div>
           <div class="stack" id="routeList"></div>
-<div class="card card-p" style="margin-top:14px;background:var(--signal-soft);border-color:transparent">
-            <b style="font-size:13px;color:var(--signal)">Van stock running low</b>
-            <p class="tiny" style="margin:6px 0 0;color:var(--ink-2)">Elica baffle filters: 2 left. Request a top-up at the Ashok Nagar hub.</p>
-            <button class="btn btn-o btn-sm" style="margin-top:11px" onclick="toast('Stock request sent')">Request stock</button>
-          </div>
         </div>
       </section>
 
       <section class="screen" id="techJob">
         <div style="height:10px"></div>
-        <div class="appbar"><button class="iconbtn" onclick="back()">←</button><h2 id="jobHeaderId">CP-2481</h2><span class="chip chip-grow" style="height:30px">01:24</span></div>
+        <div class="appbar"><button class="iconbtn" onclick="back()">←</button><h2 id="jobHeaderId">CP-2481</h2></div>
         <div class="scroll pad pb">
           <div class="card card-p row">
-            <div class="avatar">RD</div>
-            <div style="flex:1"><b style="font-size:14px" id="jobCustomerName">Rohan Deshpande</b><p class="tiny muted" style="margin:2px 0 0;line-height:1.5" id="jobServiceLine">Chimney deep clean</p></div>
+            <div class="avatar" id="jobCustomerAvatar">–</div>
+            <div style="flex:1"><b style="font-size:14px" id="jobCustomerName">Customer</b><p class="tiny muted" style="margin:2px 0 0;line-height:1.5" id="jobServiceLine">Service</p></div>
           </div>
           <div class="grid4" style="margin-top:10px;gap:8px">
-            <button class="tile" onclick="toast('Opening Google Maps')">🧭<span>Navigate</span></button>
-            <button class="tile" onclick="toast('Calling — masked')">📞<span>Call</span></button>
-            <button class="tile" onclick="go('chat')">💬<span>Chat</span></button>
+            <button class="tile" onclick="navigateToJob()">🧭<span>Navigate</span></button>
+            <button class="tile" onclick="callCustomer()">📞<span>Call</span></button>
+            <button class="tile" onclick="toast('Chat isn\'t available yet')">💬<span>Chat</span></button>
             <button class="tile" onclick="toast('Escalated to ops')">⚑<span>Escalate</span></button>
           </div>
 
           <div class="card card-p" style="margin-top:12px">
             <p class="eyebrow">Customer reported</p>
-            <div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:10px">
-              <span class="chip chip-signal" style="height:28px;font-size:11.5px">Weak suction</span>
-              <span class="chip chip-signal" style="height:28px;font-size:11.5px">Rattling noise</span>
-              <span class="chip chip-signal" style="height:28px;font-size:11.5px">Oil dripping</span>
-            </div>
-            <p class="tiny muted" style="margin:11px 0 0;line-height:1.55">"Smoke lingers even on turbo, and there's a rattle when it starts."</p>
-            <div class="row" style="gap:8px;margin-top:12px"><div class="imgbox" style="width:62px;aspect-ratio:1;border-style:solid">🖼</div><div class="imgbox" style="width:62px;aspect-ratio:1;border-style:solid">🖼</div></div>
+            <div id="jobIssueChips" style="display:flex;flex-wrap:wrap;gap:7px;margin-top:10px"></div>
+            <p class="tiny muted" style="margin:11px 0 0;line-height:1.55" id="jobNotes"></p>
           </div>
 
-          <div class="sect"><h3>Checklist</h3><span class="mono muted">4 / 6</span></div>
-          <div class="card"><div style="padding:0 16px">
-            <div class="list-row" onclick="tick(this)"><span style="color:var(--grow)">☑</span><span style="flex:1;font-size:13px">Start code verified</span></div>
-            <div class="list-row" onclick="tick(this)"><span style="color:var(--grow)">☑</span><span style="flex:1;font-size:13px">Floor sheeting laid</span></div>
-            <div class="list-row" onclick="tick(this)"><span style="color:var(--grow)">☑</span><span style="flex:1;font-size:13px">Suction reading before — 480 m³/hr</span></div>
-            <div class="list-row" onclick="tick(this)"><span style="color:var(--grow)">☑</span><span style="flex:1;font-size:13px">Filters and blower degreased</span></div>
-            <div class="list-row" onclick="tick(this)"><span class="muted">☐</span><span style="flex:1;font-size:13px">Suction reading after</span></div>
-            <div class="list-row" onclick="tick(this)"><span class="muted">☐</span><span style="flex:1;font-size:13px">Site cleaned, customer walkthrough</span></div>
-          </div></div>
+          <div class="sect"><h3>Job status</h3><span class="mono muted" id="jobStatusLabel">—</span></div>
+          <div class="card card-p" id="jobStatusAction"></div>
 
           <div class="sect"><h3>Photos</h3><span class="tiny muted">Before and after are mandatory</span></div>
-          <div class="grid4" style="gap:8px">
-            <div class="imgbox" style="border-style:solid;background:var(--surface-2)">🖼<span>Before</span></div>
-            <div class="imgbox" style="border-style:solid;background:var(--surface-2)">🖼<span>Before</span></div>
-            <div class="imgbox tap" onclick="toast('Camera')">＋<span>After</span></div>
-            <div class="imgbox tap" onclick="toast('Camera')">＋<span>After</span></div>
+          <div class="grid2" style="gap:8px">
+            <label class="imgbox tap" id="beforePhotoBox" style="border-style:solid;background:var(--surface-2)">＋<span>Before</span>
+              <input type="file" accept="image/*" capture="environment" style="display:none" onchange="uploadPhoto(this,'before')"></label>
+            <label class="imgbox tap" id="afterPhotoBox" style="border-style:solid;background:var(--surface-2)">＋<span>After</span>
+              <input type="file" accept="image/*" capture="environment" style="display:none" onchange="uploadPhoto(this,'after')"></label>
           </div>
 
-          <div class="sect"><h3>Parts used</h3><a onclick="toast('Scan part barcode')">Scan</a></div>
-          <div class="card card-p">
-            <div class="between"><div><b style="font-size:13px">Baffle filter — Elica 90cm</b><p class="tiny muted" style="margin:2px 0 0">SKU ELF-90B · qty 2</p></div><span class="price tiny">₹640</span></div>
-            <div class="divider"></div>
-            <div class="row" style="gap:8px"><span class="chip chip-grow" style="height:26px;font-size:10.5px">Customer approved 11:02</span></div>
-          </div>
-          <button class="btn btn-o btn-block" style="margin-top:10px;height:46px" onclick="toast('Quote sent for approval')">+ Add a part and send quote</button>
+          <div class="sect"><h3>Parts used</h3><a onclick="addPart()">+ Add</a></div>
+          <div class="stack" id="partsList"></div>
         </div>
-        <div class="dock"><button class="btn btn-p btn-block" onclick="completeAndInvoice()">Complete and invoice</button></div>
+        <div class="dock"><button class="btn btn-p btn-block" id="completeBtn" onclick="completeAndInvoice()">Complete and invoice</button></div>
       </section>
 
       <section class="screen" id="techClose">
@@ -390,16 +410,12 @@ body{
         <div class="appbar"><button class="iconbtn" onclick="back()">←</button><h2>Close the job</h2></div>
         <div class="scroll pad pb">
           <div class="card card-p">
-            <p class="eyebrow">Invoice CP-2481-NSK</p>
+            <p class="eyebrow" id="closeJobId">Invoice</p>
             <div class="divider"></div>
-            <div class="between tiny"><span>Deep clean (prepaid)</span><span class="price">₹1,599</span></div>
-            <div class="between tiny" style="margin-top:9px"><span>Baffle filter set (2)</span><span class="price">₹640</span></div>
-            <div class="between tiny" style="margin-top:9px"><span>Visit and safety kit</span><span class="price">₹49</span></div>
-            <div class="between tiny" style="margin-top:9px"><span style="color:var(--grow)">CARE30</span><span class="price" style="color:var(--grow)">−₹480</span></div>
-            <div class="between tiny" style="margin-top:9px"><span class="muted">GST 18%</span><span class="price">₹325</span></div>
+            <div class="between tiny"><span id="closeServiceLine">Service</span><span class="price" id="closeServicePrice">₹0</span></div>
+            <div id="closePartsLines"></div>
             <div class="divider"></div>
-            <div class="between"><b>Collect now</b><b class="price" style="font-size:19px">₹755</b></div>
-            <p class="tiny muted" style="margin:7px 0 0">₹1,378 already prepaid by the customer</p>
+            <div class="between"><b>Collect now</b><b class="price" style="font-size:19px" id="closeTotal">₹0</b></div>
           </div>
 
           <div class="sect"><h3>Customer signature</h3><a onclick="clearSig()">Clear</a></div>
@@ -409,16 +425,11 @@ body{
           </div>
 
           <div class="sect"><h3>Collect payment</h3></div>
-          <div class="grid2" style="gap:10px">
-            <button class="card card-p tap" style="text-align:left;border-color:var(--primary);border-width:1.5px" onclick="payPick(this)"><b style="font-size:13px">UPI QR</b><p class="tiny muted" style="margin:3px 0 0">Instant settle</p></button>
-            <button class="card card-p tap" style="text-align:left" onclick="payPick(this)"><b style="font-size:13px">Card on tap</b><p class="tiny muted" style="margin:3px 0 0">Razorpay POS</p></button>
-            <button class="card card-p tap" style="text-align:left" onclick="payPick(this)"><b style="font-size:13px">Cash</b><p class="tiny muted" style="margin:3px 0 0">Deposit by 8 pm</p></button>
-            <button class="card card-p tap" style="text-align:left" onclick="payPick(this)"><b style="font-size:13px">Send link</b><p class="tiny muted" style="margin:3px 0 0">SMS and WhatsApp</p></button>
-          </div>
-
-          <div class="card card-p" style="margin-top:12px;text-align:center;background:var(--surface-2);border-color:transparent">
-            <div style="width:118px;height:118px;margin:0 auto;background:var(--surface);border-radius:var(--r-sm);display:grid;place-items:center;font-size:44px">▩</div>
-            <p class="tiny muted" style="margin:11px 0 0">Ask the customer to scan · ₹755</p>
+          <div class="grid2" style="gap:10px" id="paymentMethodGrid">
+            <button class="card card-p tap" style="text-align:left" onclick="payPick(this,'upi')"><b style="font-size:13px">UPI QR</b><p class="tiny muted" style="margin:3px 0 0">Instant settle</p></button>
+            <button class="card card-p tap" style="text-align:left" onclick="payPick(this,'card')"><b style="font-size:13px">Card on tap</b><p class="tiny muted" style="margin:3px 0 0">Razorpay POS</p></button>
+            <button class="card card-p tap" style="text-align:left" onclick="payPick(this,'cash')"><b style="font-size:13px">Cash</b><p class="tiny muted" style="margin:3px 0 0">Collected in person</p></button>
+            <button class="card card-p tap" style="text-align:left" onclick="payPick(this,'link')"><b style="font-size:13px">Send link</b><p class="tiny muted" style="margin:3px 0 0">SMS and WhatsApp</p></button>
           </div>
         </div>
         <div class="dock"><button class="btn btn-p btn-block" onclick="markPaidAndClose()">Mark paid and close</button></div>
@@ -429,10 +440,26 @@ body{
 <script>
 
 const API_BASE = window.location.origin;
-const STATE = { bookings: [] };
-async function apiGet(path){ const r = await fetch(API_BASE+path); if(!r.ok) throw new Error('GET '+path+' '+r.status); return r.json(); }
-async function apiPatch(path, body){ const r = await fetch(API_BASE+path, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{}) }); if(!r.ok) throw new Error('PATCH '+path+' '+r.status); return r.json(); }
-async function apiPost(path, body){ const r = await fetch(API_BASE+path, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{}) }); if(!r.ok) throw new Error('POST '+path+' '+r.status); return r.json(); }
+const STATE = { bookings: [], available: [], technician: null };
+const dismissed = new Set();
+
+// Real Firebase project config (rasoi-care) — technicians authenticate via
+// Firebase phone sign-in, same identity system the Partner Flutter app
+// uses, since the backend's technician endpoints only ever accept a
+// Firebase ID token (see require_technician_auth in app.py).
+firebase.initializeApp({
+  apiKey: "AIzaSyDEtV_MgtnnVJ_wZncr_NNibjuXr0K0x9E",
+  authDomain: "rasoi-care.firebaseapp.com",
+  projectId: "rasoi-care",
+  storageBucket: "rasoi-care.firebasestorage.app",
+  messagingSenderId: "1064653219482",
+  appId: "1:1064653219482:web:470420a250960700e42123",
+});
+const auth = firebase.auth();
+let confirmationResult = null;
+let recaptchaVerifier = null;
+let selectedPaymentMethod = null;
+let hasSignature = false;
 
 function toast(m){const t=document.getElementById('toast');document.getElementById('toastMsg').textContent=m;t.classList.add('show');clearTimeout(t._x);t._x=setTimeout(()=>t.classList.remove('show'),2400);}
 // Escapes customer-supplied text (name, area) before it's interpolated into
@@ -440,14 +467,121 @@ function toast(m){const t=document.getElementById('toast');document.getElementBy
 // comes from someone else's account and must never be trusted as HTML.
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
+/* ---------------- authed API calls ---------------- */
+// Firebase ID tokens expire hourly — getIdToken() transparently refreshes
+// one that's stale, so every call re-fetches rather than caching a token.
+async function authedFetch(path, opts){
+  const user = auth.currentUser;
+  if(!user) throw new Error('Not signed in');
+  const token = await user.getIdToken();
+  const r = await fetch(API_BASE+path, Object.assign({}, opts, {
+    headers: Object.assign({'Content-Type':'application/json','Authorization':'Bearer '+token}, (opts&&opts.headers)||{})
+  }));
+  let body = {};
+  try{ body = await r.json(); }catch(e){}
+  if(!r.ok){ const err = new Error(body.message || body.error || (r.status+' '+path)); err.status = r.status; err.body = body; throw err; }
+  return body;
+}
+async function apiGet(path){ return authedFetch(path); }
+async function apiPatch(path, body){ return authedFetch(path, { method:'PATCH', body: JSON.stringify(body||{}) }); }
+async function apiPost(path, body){ return authedFetch(path, { method:'POST', body: JSON.stringify(body||{}) }); }
+async function apiDelete(path){ return authedFetch(path, { method:'DELETE' }); }
+
+/* ---------------- auth ---------------- */
+function ensureRecaptcha(){
+  if(!recaptchaVerifier) recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptchaContainer', { size:'invisible' });
+  return recaptchaVerifier;
+}
+async function submitTechLogin(){
+  const phone = document.getElementById('loginPhoneInput').value.replace(/\D/g,'');
+  const errEl = document.getElementById('loginError');
+  errEl.style.display='none';
+  if(phone.length !== 10){ errEl.textContent='Enter a valid 10-digit mobile number.'; errEl.style.display=''; return; }
+  try{
+    confirmationResult = await auth.signInWithPhoneNumber('+91'+phone, ensureRecaptcha());
+    document.getElementById('loginOtpPhone').textContent = phone;
+    document.getElementById('loginPhoneStep').style.display='none';
+    document.getElementById('loginOtpStep').style.display='';
+  }catch(e){ errEl.textContent = e.message || "Couldn't send a code — try again."; errEl.style.display=''; }
+}
+async function confirmTechOtp(){
+  const code = document.getElementById('loginOtpInput').value.trim();
+  const errEl = document.getElementById('otpError');
+  errEl.style.display='none';
+  if(!confirmationResult){ errEl.textContent='Request a code first.'; errEl.style.display=''; return; }
+  try{ await confirmationResult.confirm(code); }
+  catch(e){ errEl.textContent='Incorrect code — try again.'; errEl.style.display=''; }
+}
+function resetLoginStep(){
+  confirmationResult = null;
+  document.getElementById('loginOtpStep').style.display='none';
+  document.getElementById('loginPhoneStep').style.display='';
+  document.getElementById('loginOtpInput').value='';
+}
+function techLogout(){
+  if(jobPoll) clearInterval(jobPoll);
+  auth.signOut();
+}
+async function afterSignIn(){
+  try{
+    const tech = await authedFetch('/api/technician/bootstrap', { method:'POST', body: JSON.stringify({}) });
+    STATE.technician = tech;
+    if(!tech.verified){ go('techPending'); return; }
+    await enterJobsScreen();
+  }catch(e){ toast('Could not set up your technician profile'); }
+}
+async function refreshTechProfile(){
+  try{
+    const tech = await apiGet('/api/technician/me');
+    STATE.technician = tech;
+    if(tech.verified){ await enterJobsScreen(); } else toast('Still pending — check back soon');
+  }catch(e){ toast('Could not refresh'); }
+}
+async function enterJobsScreen(){
+  document.getElementById('techNameLabel').textContent = STATE.technician.name || 'Technician';
+  updateOnDutyChip();
+  go('techJobs');
+  await refreshJobs();
+  renderJobFeed();
+  if(!jobPoll) jobPoll = setInterval(async()=>{ await refreshJobs(); if(cur==='techJobs') renderJobFeed(); }, 5000);
+}
+function updateOnDutyChip(){
+  const chip = document.getElementById('onDutyChip');
+  const online = !!(STATE.technician && STATE.technician.online);
+  chip.textContent = online ? '● On duty' : '● Off duty';
+  chip.className = 'chip' + (online ? ' chip-grow' : '');
+}
+async function toggleOnline(){
+  try{
+    STATE.technician = await apiPatch('/api/technician/online', { online: !(STATE.technician && STATE.technician.online) });
+    updateOnDutyChip();
+    await refreshJobs(); renderJobFeed();
+  }catch(e){ toast('Could not update duty status'); }
+}
+auth.onAuthStateChanged(async (user)=>{ if(user) await afterSignIn(); else go('login'); });
+
+/* ---------------- job list ---------------- */
 async function refreshJobs(){
-  try{ STATE.bookings = await apiGet('/api/bookings'); }catch(e){ console.warn(e); }
+  try{
+    const online = !!(STATE.technician && STATE.technician.online);
+    const [mine, available] = await Promise.all([
+      apiGet('/api/technician/bookings'),
+      online ? apiGet('/api/technician/bookings/available') : Promise.resolve([]),
+    ]);
+    STATE.bookings = mine;
+    STATE.available = available.filter(b=>!dismissed.has(b.id));
+    if(STATE.technician){
+      const fresh = await apiGet('/api/technician/me');
+      STATE.technician = fresh;
+      updateOnDutyChip();
+    }
+  }catch(e){ console.warn(e); }
 }
 
 function renderJobFeed(){
-  const requested = STATE.bookings.filter(b=>b.status==='Requested');
   const active = STATE.bookings.filter(b=>['Accepted','On the way','In Progress'].includes(b.status));
   const done = STATE.bookings.filter(b=>b.status==='Completed');
+  const requested = STATE.available;
 
   const newReqSection = document.getElementById('newRequestSection');
   if(requested.length){
@@ -456,93 +590,235 @@ function renderJobFeed(){
     newReqSection.innerHTML = `
       <div class="sect"><h3>New request</h3><span class="mono muted">${requested.length} waiting</span></div>
       <div class="card card-p" style="border-color:var(--accent);border-width:1.5px">
-        <div class="between"><span class="chip chip-brass" style="height:24px;font-size:10.5px">${esc(b.category)}</span><span class="mono muted">${b.id}</span></div>
+        <div class="between"><span class="chip chip-brass" style="height:24px;font-size:10.5px">${esc(b.category)}</span><span class="mono muted">${esc(b.id)}</span></div>
         <b style="display:block;margin-top:11px;font-size:14.5px">${esc(b.service)} · ${esc(b.customerName)}</b>
         <p class="tiny muted" style="margin:4px 0 0">${b.area?esc(b.area)+' · ':''}₹${b.total_amount||b.price} payout</p>
         <div class="grid2" style="margin-top:13px;gap:9px">
-          <button class="btn btn-o btn-sm" style="height:42px" onclick="passJob('${b.id}')">Pass</button>
-          <button class="btn btn-p btn-sm" style="height:42px" onclick="acceptJob('${b.id}')">Accept</button>
+          <button class="btn btn-o btn-sm" style="height:42px" onclick="passJob('${esc(b.id)}')">Pass</button>
+          <button class="btn btn-p btn-sm" style="height:42px" onclick="acceptJob('${esc(b.id)}')">Accept</button>
         </div>
       </div>`;
+  } else if(STATE.technician && !STATE.technician.online){
+    newReqSection.style.display='';
+    newReqSection.innerHTML = '<p class="sub" style="padding:6px 0 4px">Go on duty to start seeing new job requests.</p>';
   } else {
     newReqSection.style.display='none';
     newReqSection.innerHTML='';
   }
 
   document.getElementById('routeList').innerHTML = active.length ? active.map(b=>`
-    <div class="card card-p tap" onclick="openJob('${b.id}')">
-      <div class="between"><span class="chip ${b.status==='Accepted'?'':'chip-grow'}" style="height:24px;font-size:10.5px">${b.status}</span><span class="mono muted">${b.id}</span></div>
+    <div class="card card-p tap" onclick="openJob('${esc(b.id)}')">
+      <div class="between"><span class="chip ${b.status==='Accepted'?'':'chip-grow'}" style="height:24px;font-size:10.5px">${esc(b.status)}</span><span class="mono muted">${esc(b.id)}</span></div>
       <b style="display:block;margin-top:10px;font-size:14px">${esc(b.service)} · ${esc(b.customerName)}</b>
       <p class="tiny muted" style="margin:4px 0 0">${esc(b.category)}${b.area?' · '+esc(b.area):''}</p>
     </div>`).join('') : '<p class="sub" style="padding:14px 0">No active jobs right now.</p>';
 
-  document.getElementById('earningsToday').textContent = '₹' + done.reduce((s,b)=>s+(b.total_amount||b.price),0);
-  document.getElementById('jobsDoneCount').textContent = done.length + ' jobs done · ' + active.length + ' active';
+  document.getElementById('ratingStat').textContent = STATE.technician && STATE.technician.rating != null ? STATE.technician.rating.toFixed(1) : '—';
+  document.getElementById('jobsCompletedStat').textContent = STATE.technician ? STATE.technician.jobsCompleted : done.length;
 }
 
 async function acceptJob(id){
-  try{ await apiPatch('/api/bookings/'+id+'/advance', {}); toast('Job accepted'); await refreshJobs(); renderJobFeed(); openJob(id); }
-  catch(e){ toast('Could not accept job'); }
+  try{ await apiPatch('/api/bookings/'+id+'/claim', {}); toast('Job accepted'); await refreshJobs(); renderJobFeed(); openJob(id); }
+  catch(e){ toast(e.message || 'Could not accept job'); await refreshJobs(); renderJobFeed(); }
 }
-function passJob(id){ toast('Passed to next technician (demo — job stays queued)'); }
+function passJob(id){ dismissed.add(id); toast('Hidden — it stays open for other technicians'); renderJobFeed(); }
 
+/* ---------------- job detail ---------------- */
 function openJob(id){
   window._currentJob = id;
   const b = STATE.bookings.find(x=>x.id===id);
   if(!b) return;
+  renderJobDetail(b);
+  go('techJob');
+}
+function currentBooking(){ return STATE.bookings.find(x=>x.id===window._currentJob); }
+
+function renderJobDetail(b){
   document.getElementById('jobHeaderId').textContent = b.id;
   document.getElementById('jobCustomerName').textContent = b.customerName;
   document.getElementById('jobServiceLine').textContent = b.service + (b.area?' · '+b.area:'');
-  go('techJob');
+  document.getElementById('jobStatusLabel').textContent = b.status;
+  document.getElementById('jobCustomerAvatar').textContent = (b.customerName||'?').trim().split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();
+
+  const issues = (b.issues||[]);
+  document.getElementById('jobIssueChips').innerHTML = issues.length
+    ? issues.map(i=>`<span class="chip chip-signal" style="height:28px;font-size:11.5px">${esc(i)}</span>`).join('')
+    : '<span class="tiny muted">No issues logged by the customer.</span>';
+  document.getElementById('jobNotes').textContent = b.notes || '';
+
+  const actionEl = document.getElementById('jobStatusAction');
+  if(b.status === 'Accepted'){
+    actionEl.innerHTML = `<p class="sub">Head to the customer's address, then confirm you're on the way.</p>
+      <button class="btn btn-p btn-block" style="margin-top:10px" onclick="advanceToOnTheWay()">Start heading over</button>`;
+  } else if(b.status === 'On the way'){
+    actionEl.innerHTML = `<p class="sub">Ask the customer for the 4-digit code shown in their app.</p>
+      <label class="field" style="margin-top:10px"><input id="startCodeInput" placeholder=" " inputmode="numeric" maxlength="4"><span>Start code</span></label>
+      <button class="btn btn-p btn-block" style="margin-top:10px" onclick="confirmArrival()">Confirm arrival</button>`;
+  } else if(b.status === 'In Progress'){
+    actionEl.innerHTML = `<p class="sub">Add before/after photos below, then complete and invoice.</p>`;
+  } else {
+    actionEl.innerHTML = `<p class="sub">${esc(b.status)}</p>`;
+  }
+
+  ['before','after'].forEach(kind=>{
+    const box = document.getElementById(kind+'PhotoBox');
+    const ready = kind==='before' ? b.beforePhotoReady : b.afterPhotoReady;
+    box.classList.toggle('tap', !ready);
+    box.querySelector('span').textContent = kind[0].toUpperCase()+kind.slice(1);
+    box.firstChild.textContent = ready ? '✓' : '＋';
+  });
+
+  renderParts(b);
+  updateCompleteButton(b);
 }
 
-async function completeAndInvoice(){
+function updateCompleteButton(b){
+  const btn = document.getElementById('completeBtn');
+  const pendingParts = (b.parts||[]).some(p=>p.status==='pending');
+  const ready = b.status==='In Progress' && b.beforePhotoReady && b.afterPhotoReady && !pendingParts;
+  btn.disabled = !ready;
+  btn.style.opacity = ready ? 1 : .5;
+}
+
+function renderParts(b){
+  const parts = b.parts || [];
+  document.getElementById('partsList').innerHTML = parts.length ? parts.map(p=>`
+    <div class="card card-p">
+      <div class="between"><div><b style="font-size:13px">${esc(p.name)}</b><p class="tiny muted" style="margin:2px 0 0">qty ${p.qty}${p.sku?' · SKU '+esc(p.sku):''}</p></div><span class="price tiny">₹${(p.pricePaise/100).toFixed(0)}</span></div>
+      <div class="divider"></div>
+      <div class="between">
+        <span class="chip ${p.status==='approved'?'chip-grow':p.status==='rejected'?'chip-signal':''}" style="height:26px;font-size:10.5px">${esc(p.status)}</span>
+        ${p.status==='pending' ? `<a onclick="removePart('${esc(p.id)}')" style="font-size:12px;font-weight:600;color:var(--signal);cursor:pointer">Retract</a>` : ''}
+      </div>
+    </div>`).join('') : '<p class="sub" style="padding:4px 0">No extra parts added.</p>';
+}
+
+function navigateToJob(){
+  const b = currentBooking();
+  if(b && b.lat && b.lng) window.open('https://www.google.com/maps/search/?api=1&query='+b.lat+','+b.lng, '_blank');
+  else toast('No location on file for this job');
+}
+function callCustomer(){
+  const b = currentBooking();
+  if(b && b.customerPhone) location.href = 'tel:'+b.customerPhone;
+  else toast('No phone number on file');
+}
+
+async function advanceToOnTheWay(){
   const id = window._currentJob;
-  if(!id) return;
+  try{ await apiPatch('/api/bookings/'+id+'/advance', {}); await refreshCurrentJob(); }
+  catch(e){ toast(e.message || 'Could not advance job'); }
+}
+async function confirmArrival(){
+  const id = window._currentJob;
+  const code = (document.getElementById('startCodeInput').value||'').trim();
+  if(!code){ toast('Enter the code first'); return; }
+  try{ await apiPatch('/api/bookings/'+id+'/advance', { startCode: code }); await refreshCurrentJob(); }
+  catch(e){ toast(e.message || 'Incorrect code'); }
+}
+async function refreshCurrentJob(){
+  await refreshJobs();
+  const b = currentBooking();
+  if(b) renderJobDetail(b); else go('techJobs', true);
+}
+
+async function uploadPhoto(input, kind){
+  const file = input.files && input.files[0];
+  if(!file) return;
+  const id = window._currentJob;
   try{
-    // Advance through the remaining real states up to "In Progress" so the
-    // customer's live tracking screen reflects genuine status changes.
-    let b = STATE.bookings.find(x=>x.id===id);
-    while(b && b.status !== 'In Progress' && b.status !== 'Completed'){
-      b = await apiPatch('/api/bookings/'+id+'/advance', {});
-    }
-    await refreshJobs();
-    go('techClose');
-  }catch(e){ toast('Could not advance job'); }
+    const dataUrl = await new Promise((resolve,reject)=>{ const fr=new FileReader(); fr.onload=()=>resolve(fr.result); fr.onerror=reject; fr.readAsDataURL(file); });
+    const base64 = dataUrl.split(',')[1];
+    await apiPatch('/api/bookings/'+id+'/photo', { kind, dataBase64: base64 });
+    toast(kind[0].toUpperCase()+kind.slice(1)+' photo saved');
+    await refreshCurrentJob();
+  }catch(e){ toast(e.message || 'Could not upload photo'); }
+  input.value = '';
+}
+
+async function addPart(){
+  const id = window._currentJob;
+  const name = prompt('Part or extra-work name:');
+  if(!name) return;
+  const priceStr = prompt('Price in ₹:');
+  const price = Number(priceStr);
+  if(!priceStr || Number.isNaN(price) || price <= 0){ toast('Enter a valid price'); return; }
+  try{
+    await apiPost('/api/technician/bookings/'+id+'/parts', { name, qty: 1, pricePaise: Math.round(price*100) });
+    toast('Sent to customer for approval');
+    await refreshCurrentJob();
+  }catch(e){ toast(e.message || 'Could not add part'); }
+}
+async function removePart(partId){
+  const id = window._currentJob;
+  try{ await apiDelete('/api/technician/bookings/'+id+'/parts/'+partId); await refreshCurrentJob(); }
+  catch(e){ toast(e.message || 'Could not retract part'); }
+}
+
+function completeAndInvoice(){
+  const b = currentBooking();
+  if(!b) return;
+  if(b.status !== 'In Progress'){ toast('Confirm arrival first'); return; }
+  if(!b.beforePhotoReady || !b.afterPhotoReady){ toast('Add both before and after photos first'); return; }
+  if((b.parts||[]).some(p=>p.status==='pending')){ toast('Waiting on the customer to approve pending parts'); return; }
+
+  const partsTotal = (b.parts||[]).filter(p=>p.status==='approved').reduce((s,p)=>s+p.pricePaise*p.qty,0)/100;
+  const total = (b.total_amount||b.price) + partsTotal;
+  document.getElementById('closeJobId').textContent = 'Invoice ' + b.id;
+  document.getElementById('closeServiceLine').textContent = b.service;
+  document.getElementById('closeServicePrice').textContent = '₹' + (b.total_amount||b.price);
+  document.getElementById('closePartsLines').innerHTML = (b.parts||[]).filter(p=>p.status==='approved').map(p=>
+    `<div class="between tiny" style="margin-top:9px"><span>${esc(p.name)}</span><span class="price">₹${(p.pricePaise*p.qty/100).toFixed(0)}</span></div>`).join('');
+  document.getElementById('closeTotal').textContent = '₹' + total.toFixed(0);
+  selectedPaymentMethod = null;
+  document.querySelectorAll('#paymentMethodGrid button').forEach(el=>{el.style.borderColor='var(--line)';el.style.borderWidth='1px'});
+  clearSig();
+  go('techClose');
+}
+
+function payPick(el, method){
+  selectedPaymentMethod = method;
+  [...el.parentElement.children].forEach(c=>{c.style.borderColor='var(--line)';c.style.borderWidth='1px'});
+  el.style.borderColor='var(--primary)';el.style.borderWidth='1.5px';
 }
 
 async function markPaidAndClose(){
   const id = window._currentJob;
   if(!id) return;
+  if(!hasSignature){ toast('Get the customer to sign first'); return; }
+  if(!selectedPaymentMethod){ toast('Pick a payment method'); return; }
   try{
-    await apiPatch('/api/bookings/'+id+'/advance', {}); // -> Completed
-    try{
-      await apiPost('/api/bookings/'+id+'/health-update', { metric_name:'Suction', value_pct:92, status_label:'Excellent' });
-    }catch(e){ /* booking may have no user_id (legacy/anon) — non-fatal */ }
+    const cv = document.getElementById('sigPad');
+    const base64 = cv.toDataURL('image/png').split(',')[1];
+    await apiPatch('/api/bookings/'+id+'/signature', { dataBase64: base64 });
+    await apiPatch('/api/bookings/'+id+'/payment', { paymentMethod: selectedPaymentMethod });
+    await apiPatch('/api/bookings/'+id+'/advance', {}); // In Progress -> Completed
     toast('Payment received · job closed');
     await refreshJobs();
-    go('techJobs');
-  }catch(e){ toast('Could not close job'); }
+    go('techJobs', true);
+    renderJobFeed();
+  }catch(e){ toast(e.message || 'Could not close job'); }
 }
 
-/* ---------------- checklist / signature (cosmetic) ---------------- */
-function tick(row){const b=row.firstElementChild;const on=b.textContent.trim()==='☑';
-  b.textContent=on?'☐':'☑';b.style.color=on?'var(--ink-2)':'var(--grow)';b.className=on?'muted':'';}
-function payPick(el){[...el.parentElement.children].forEach(c=>{c.style.borderColor='var(--line)';c.style.borderWidth='1px'});el.style.borderColor='var(--primary)';el.style.borderWidth='1.5px';}
+/* ---------------- signature pad ---------------- */
 const cv=document.getElementById('sigPad');
 if(cv){
   const cx=cv.getContext('2d');
   let drawing=false;
   const pos=(e)=>{const r=cv.getBoundingClientRect();const p=e.touches?e.touches[0]:e;return[(p.clientX-r.left)*cv.width/r.width,(p.clientY-r.top)*cv.height/r.height];};
-  const start=(e)=>{drawing=true;cx.beginPath();cx.moveTo(...pos(e));document.getElementById('sigHint').style.display='none';e.preventDefault();};
+  const start=(e)=>{drawing=true;hasSignature=true;cx.beginPath();cx.moveTo(...pos(e));document.getElementById('sigHint').style.display='none';e.preventDefault();};
   const move=(e)=>{if(!drawing)return;cx.lineWidth=4.5;cx.lineCap='round';cx.lineJoin='round';cx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--ink');cx.lineTo(...pos(e));cx.stroke();e.preventDefault();};
   cv.addEventListener('pointerdown',start);cv.addEventListener('pointermove',move);
   window.addEventListener('pointerup',()=>drawing=false);
 }
-function clearSig(){const cv=document.getElementById('sigPad');if(!cv)return;cv.getContext('2d').clearRect(0,0,cv.width,cv.height);document.getElementById('sigHint').style.display='';}
+function clearSig(){const cvv=document.getElementById('sigPad');if(!cvv)return;cvv.getContext('2d').clearRect(0,0,cvv.width,cvv.height);document.getElementById('sigHint').style.display='';hasSignature=false;}
 
 /* ---------------- navigation ---------------- */
-let stack=[],cur=null;
+// var, not let: go() can be invoked by auth.onAuthStateChanged's callback
+// before this line is reached (Firebase may fire it synchronously on
+// registration) — var's hoisting means `cur`/`stack` already exist as
+// undefined at that point instead of throwing a temporal-dead-zone error.
+var stack=[],cur=null;
 function go(id,reverse){
   if(cur===id)return;
   if(cur&&!reverse)stack.push(cur);
@@ -552,22 +828,17 @@ function go(id,reverse){
   el.classList.add('active');if(reverse)el.classList.add('rev');
   el.querySelectorAll('.scroll').forEach(s=>s.scrollTop=0);
   cur=id;
-  if(id==='techJobs'){ refreshJobs().then(renderJobFeed); }
 }
 function back(){const p=stack.pop();if(p)go(p,true);}
 
 function setTheme(t){ document.documentElement.dataset.theme=t; localStorage.setItem('tech_theme', t); }
 
-let jobPoll=null;
-async function boot(){
+var jobPoll=null; // var for the same early-callback reason as stack/cur above
+(function boot(){
   const savedTheme = localStorage.getItem('tech_theme');
   if(savedTheme) setTheme(savedTheme);
-  await refreshJobs();
-  renderJobFeed();
-  go('techJobs');
-  jobPoll = setInterval(async()=>{ await refreshJobs(); if(cur==='techJobs') renderJobFeed(); }, 5000);
-}
-boot();
+  go('login');
+})();
 
 </script>
 </body>
