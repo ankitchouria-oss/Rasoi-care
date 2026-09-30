@@ -640,6 +640,11 @@ def smiler_app():
     return send_from_directory(FRONTEND_DIR, "smiler.html")
 
 
+@app.route("/kitchen-passport")
+def kitchen_passport_app():
+    return send_from_directory(FRONTEND_DIR, "kitchen_passport.html")
+
+
 @app.route("/homeservices")
 def homeservices_app():
     return send_from_directory(FRONTEND_DIR, "homeservices.html")
@@ -4629,6 +4634,25 @@ def hs_reset():
     conn.commit()
     conn.close()
     return jsonify({"ok": True})
+
+
+# ---------------------------------------------------------------- Kitchen Passport
+# Mounted at /api/kp. The lambdas resolve these module globals at call
+# time, so the blueprint always uses this app's current auth helpers.
+from kitchen_passport.routes import create_blueprint as _kp_blueprint
+
+app.register_blueprint(_kp_blueprint({
+    "get_db": lambda: get_db(),
+    "get_bearer_token": lambda: get_bearer_token(),
+    "decode_token": lambda t: decode_token(t),
+    "decode_staff_token": lambda t: decode_staff_token(t),
+    "verify_firebase_token": lambda t: verify_firebase_token(t),
+    "jwt_secret": JWT_SECRET,
+    "jwt_algorithm": JWT_ALGORITHM,
+    "rate_limit_authenticated": lambda k: _rate_limit_authenticated(k),
+    "auth_gate": lambda k: _auth_gate(k),
+    "auth_gate_record": lambda k, ok: _auth_gate_record(k, ok),
+}))
 
 
 if __name__ == "__main__":

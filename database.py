@@ -893,6 +893,9 @@ def init_db():
     # no-op once they're gone — so it's safe to run on every boot rather
     # than needing a one-time migration step.
     purge_demo_seed_rows(conn)
+    # Kitchen Passport module tables (kp_*) + category/parameter schema.
+    from kitchen_passport.store import init_kp
+    init_kp(conn)
     conn.close()
 
 
