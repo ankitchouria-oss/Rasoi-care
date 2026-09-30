@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kitchen Passport — Rasoi Care</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+:root{--bg:#f6f4ef;--card:#fff;--ink:#1d1b16;--muted:#6b665c;--line:#e6e1d6;--brand:#b4451f;--brand2:#7a2e14;
+--g:#1f8a4c;--b:#2667b8;--y:#c98a00;--o:#d9630b;--r:#c62828;--chip:#f1ede4}
+*{box-sizing:border-box}body{margin:0;font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+header{background:var(--brand);color:#fff;padding:12px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:5}
+header h1{font-size:17px;margin:0;flex:1}header small{opacity:.85}
+header button{background:rgba(255,255,255,.15);color:#fff;border:0}
+main{max-width:1100px;margin:0 auto;padding:16px}
+nav.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+nav.tabs button{background:var(--chip);border:1px solid var(--line);color:var(--ink)}
+nav.tabs button.on{background:var(--ink);color:#fff}
+button{font:inherit;padding:8px 14px;border-radius:8px;border:1px solid var(--brand);background:var(--brand);color:#fff;cursor:pointer}
+button.ghost{background:transparent;color:var(--brand)}button.sm{padding:4px 10px;font-size:13px}
+button:disabled{opacity:.5;cursor:default}
+input,select,textarea{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;width:100%;background:#fff}
+label{display:block;font-size:13px;color:var(--muted);margin:8px 0 3px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr))}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.row>*{flex:1;min-width:140px}
+.muted{color:var(--muted)}.small{font-size:13px}.right{text-align:right}
+.hero{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.ring{width:118px;height:118px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:30px;
+ background:conic-gradient(var(--c) calc(var(--p)*1%),#ece7dc 0);position:relative}
+.ring::after{content:"";position:absolute;inset:11px;background:#fff;border-radius:50%}.ring span{position:relative;z-index:1}
+.ring span small{font-size:13px;color:var(--muted);font-weight:500}
+.ind{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:6px;margin-top:10px}
+.ind div{background:var(--chip);border-radius:8px;padding:6px 8px;min-width:0}
+.ind b{display:block;font-size:10px;letter-spacing:.06em;color:var(--muted)}
+.ind span{font-weight:600;font-size:13px;display:block;overflow-wrap:anywhere}
+.badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:12px;font-weight:600;color:#fff;background:var(--muted)}
+.EXCELLENT,.NORMAL,.NOT_DUE,.MONITOR_P{background:var(--g)}.HEALTHY{background:#3a9d5d}.MONITOR{background:var(--y)}
+.ATTENTION_REQUIRED{background:var(--o)}.CRITICAL,.EMERGENCY,.OVERDUE,.DUE{background:var(--r)}
+.APPROACHING{background:var(--b)}.DUE_SOON,.HIGH{background:var(--o)}.MEDIUM{background:var(--y)}.LOW{background:var(--b)}.PREVENTIVE{background:#5a7d9a}
+.c-EXCELLENT,.c-HEALTHY{--c:var(--g)}.c-MONITOR{--c:var(--y)}.c-ATTENTION_REQUIRED{--c:var(--o)}.c-CRITICAL{--c:var(--r)}
+.warn{background:#fdecea;border:2px solid var(--r);color:#7f1414;border-radius:12px;padding:12px 14px;margin-bottom:14px}
+.warn b{display:block;font-size:15px;margin-bottom:2px}
+.attn{background:#fff4e5;border:1px solid var(--o);border-radius:12px;padding:10px 14px;margin-bottom:14px}
+.apl{cursor:pointer;transition:box-shadow .15s}.apl:hover{box-shadow:0 3px 14px rgba(0,0,0,.08)}
+.apl h3{margin:0;font-size:16px}.apl .sc{font-size:26px;font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;color:var(--muted);font-weight:600}
+.bar{height:8px;background:#ece7dc;border-radius:99px;overflow:hidden}.bar i{display:block;height:100%;background:var(--brand)}
+.modal{position:fixed;inset:0;background:rgba(20,18,14,.5);display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:24px 12px;z-index:20}
+.modal>.card{max-width:820px;width:100%}
+.tl{border-left:3px solid var(--line);margin-left:8px;padding-left:16px}
+.tl .it{position:relative;margin-bottom:14px;cursor:pointer}.tl .it::before{content:"";position:absolute;left:-23px;top:5px;width:11px;height:11px;border-radius:50%;background:var(--brand)}
+.chg{font-weight:700}.up{color:var(--g)}.down{color:var(--r)}
+.photos img{width:120px;height:90px;object-fit:cover;border-radius:8px;margin:4px;border:1px solid var(--line)}
+.err{color:var(--r);font-size:13px}.ok{color:var(--g)}
+.steps{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px}.steps span{font-size:12px;padding:3px 8px;border-radius:99px;background:var(--chip)}
+.steps span.on{background:var(--ink);color:#fff}.steps span.done{background:var(--g);color:#fff}
+.sect{font-size:12px;letter-spacing:.07em;color:var(--muted);font-weight:700;margin:14px 0 6px;text-transform:uppercase}
+fieldset{border:1px solid var(--line);border-radius:10px;margin:0 0 10px;padding:6px 12px 12px}legend{font-size:13px;font-weight:600;padding:0 4px}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:0 12px}
+.hide{display:none!important}
+.qr{background:#fff;padding:10px;display:inline-block;border-radius:10px;border:1px solid var(--line)}
+@media (max-width:560px){.ring{width:96px;height:96px;font-size:24px}}
+@media print{header,nav,button{display:none!important}.modal{position:static;background:none;padding:0}body{background:#fff}}
+</style>
+</head>
+<body>
+<header><h1>Kitchen Passport <small>by Rasoi Care</small></h1><span id="who" class="small"></span><button id="logout" class="sm hide">Sign out</button></header>
+<main id="app"></main>
+<div id="modal" class="modal hide"><div class="card" id="mbody"></div></div>
+
+<script>
+"use strict";
+const $ = (s, el = document) => el.querySelector(s);
+const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const nice = v => v == null ? "—" : String(v).replace(/_/g, " ").toLowerCase().replace(/^\w/, c => c.toUpperCase());
+const fmtDate = d => d ? new Date(d + (d.length === 10 ? "T00:00:00" : "")).toLocaleDateString("en-IN", {day: "numeric", month: "long", year: "numeric"}) : "—";
+const S = { token: null, role: null, name: "", cfg: null, tab: null };
+try { Object.assign(S, JSON.parse(sessionStorage.getItem("kp_session") || "{}")); } catch (e) {}
+const save = () => { try { sessionStorage.setItem("kp_session", JSON.stringify({token: S.token, role: S.role, name: S.name})); } catch (e) {} };
+
+async function api(path, opts = {}) {
+  const headers = {"Content-Type": "application/json"};
+  if (S.token) headers.Authorization = "Bearer " + S.token;
+  const r = await fetch(path, {method: opts.method || "GET", headers, body: opts.body ? JSON.stringify(opts.body) : undefined});
+  if (r.status === 401 && S.token) { logout(); throw new Error("Session expired"); }
+  const ct = r.headers.get("content-type") || "";
+  const data = ct.includes("json") ? await r.json() : await r.blob();
+  if (!r.ok) { const e = new Error(data.error || r.statusText); e.fields = data.fields; e.status = r.status; throw e; }
+  return data;
+}
+function badge(v, extra = "") { return v ? `<span class="badge ${esc(v)}${extra}">${esc(nice(v))}</span>` : `<span class="badge">—</span>`; }
+function ring(score, status) {
+  return `<div class="ring c-${esc(status || "")}" style="--p:${score ?? 0}"><span>${score ?? "—"}<small>/100</small></span></div>`;
+}
+function modal(html) { $("#mbody").innerHTML = html + `<div class="right" style="margin-top:12px"><button class="ghost" onclick="closeModal()">Close</button></div>`; $("#modal").classList.remove("hide"); window.scrollTo(0, 0); }
+function closeModal() { $("#modal").classList.add("hide"); }
+$("#modal").addEventListener("click", e => { if (e.target.id === "modal") closeModal(); });
+function logout() { S.token = null; S.role = null; S.name = ""; save(); render(); }
+$("#logout").onclick = logout;
+async function photoURL(id) { const b = await api("/api/kp/photos/" + encodeURIComponent(id)); return URL.createObjectURL(b); }
+async function fillPhotos(el, photos) {
+  for (const p of photos) { try { const u = await photoURL(p.photo_id); el.insertAdjacentHTML("beforeend", `<figure style="display:inline-block;margin:0"><img src="${u}" alt="${esc(p.kind)} photo"><figcaption class="small muted">${esc(nice(p.kind))}</figcaption></figure>`); } catch (e) {} }
+}
+
+// ================================================================ login
+function renderLogin() {
+  $("#app").innerHTML = `
+  <div class="card" style="max-width:460px;margin:30px auto">
+    <h2 style="margin-top:0">Sign in</h2>
+    <nav class="tabs" id="lt"><button data-r="customer" class="on">Customer</button><button data-r="technician">Technician</button><button data-r="staff">Admin</button></nav>
+    <form id="lf">
+      <div data-for="customer"><label>Email</label><input name="email" type="email" autocomplete="username"><label>Password</label><input name="password" type="password" autocomplete="current-password"></div>
+      <div data-for="technician staff" class="hide"><label>Phone</label><input name="phone" inputmode="numeric"><label>PIN</label><input name="pin" type="password" inputmode="numeric"></div>
+      <p class="err" id="le"></p><button style="width:100%">Sign in</button>
+    </form>
+    <p class="small muted">Demo (after <code>python -m kitchen_passport.seed</code>): customer <b>ankit@rasoicare.demo</b> / demo1234 · technician <b>9822000099</b> / 4321 · admin <b>9822000001</b> / 1234</p>
+  </div>`;
+  let role = "customer";
+  $("#lt").onclick = e => { const b = e.target.closest("button"); if (!b) return; role = b.dataset.r;
+    [...$("#lt").children].forEach(x => x.classList.toggle("on", x === b));
+    document.querySelectorAll("[data-for]").forEach(d => d.classList.toggle("hide", !d.dataset.for.split(" ").includes(role))); };
+  $("#lf").onsubmit = async e => {
+    e.preventDefault(); const f = new FormData(e.target); $("#le").textContent = "";
+    try {
+      let r;
+      if (role === "customer") { r = await api("/api/auth/login", {method: "POST", body: {email: f.get("email"), password: f.get("password")}}); S.name = r.user.name; }
+      else if (role === "technician") { r = await api("/api/kp/tech/login", {method: "POST", body: {phone: f.get("phone"), pin: f.get("pin")}}); S.name = r.technician.name; }
+      else { r = await api("/api/staff/login", {method: "POST", body: {phone: f.get("phone"), pin: f.get("pin")}}); S.name = r.staff.name + (r.staff.role === "owner" ? " (owner)" : ""); }
+      S.token = r.token; S.role = role; S.tab = null; save(); render();
+    } catch (err) { $("#le").textContent = err.message; }
+  };
+}
+
+async function render() {
+  $("#who").textContent = S.token ? `${S.name} · ${nice(S.role)}` : "";
+  $("#logout").classList.toggle("hide", !S.token);
+  if (!S.cfg) { try { S.cfg = await api("/api/kp/config/public"); } catch (e) {} }
+  if (!S.token) return renderLogin();
+  const scan = (location.hash.match(/scan=([^&]+)/) || [])[1];
+  if (S.role === "customer") return customerApp();
+  if (S.role === "technician") return techApp(scan ? decodeURIComponent(scan) : null);
+  return adminApp();
+}
+
+// ================================================================ shared appliance views
+function indicators(ind) {
+  const svcBadge = ind.service.status ? `<span class="badge ${esc(ind.service.status)}">${esc(ind.service.label || nice(ind.service.status))}</span>` : "";
+  return `<div class="ind">
+    <div><b>HEALTH</b><span>${ind.health.score != null ? esc(ind.health.score) + "/100" : "—"}</span>${badge(ind.health.status)}</div>
+    <div><b>SAFETY</b><span>${esc(ind.safety.text)}</span>${badge(ind.safety.status)}</div>
+    <div><b>SERVICE</b><span>${esc(ind.service.text)}</span>${svcBadge}</div>
+    <div><b>ACTION</b><span>${esc(ind.action.text)}</span>${ind.action.priority ? badge(ind.action.priority) : ""}</div></div>`;
+}
+function applianceCard(a) {
+  const crit = a.indicators.safety.status === "CRITICAL";
+  return `<div class="card apl" data-aid="${esc(a.appliance_id)}" style="${crit ? "border:2px solid var(--r)" : ""}">
+    <div class="row" style="align-items:flex-start"><div><h3>${esc(a.label)}</h3><div class="small muted">${esc([a.brand, a.model].filter(Boolean).join(" ") || "")} · ${esc(a.appliance_id)}</div></div>
+    <div class="right sc" style="flex:0">${a.indicators.health.score ?? "—"}</div></div>
+    ${crit ? `<div class="warn" style="margin:8px 0 0"><b>⚠ SAFETY WARNING</b>${esc(a.safety_findings[0]?.customer_message || "")}</div>` : ""}
+    ${indicators(a.indicators)}</div>`;
+}
+function bindApplianceClicks(root) {
+  root.querySelectorAll("[data-aid]").forEach(el => el.onclick = () => openAppliance(el.dataset.aid));
+}
+async function openAppliance(aid) {
+  const a = await api("/api/kp/appliances/" + encodeURIComponent(aid));
+  const ai = a.ai_summary;
+  const hist = a.score_history.map(h => `<tr><td>${fmtDate(h.inspected_at)}</td><td>${esc(nice(h.phase))}</td><td><b>${h.score}</b></td><td>${badge(h.safety_status)}</td><td>${badge(h.repair_priority)}</td><td><button class="sm ghost" data-ins="${esc(h.inspection_id)}">View</button></td></tr>`).join("");
+  const svc = a.services.map(s => `<tr><td>${fmtDate(s.service_date)}</td><td>${esc(nice(s.service_type))}</td><td>${s.before_score ?? "—"} → ${s.after_score ?? "—"}</td><td>${badge(s.status)}</td><td><button class="sm ghost" data-svc="${esc(s.service_id)}">Open</button></td></tr>`).join("");
+  modal(`<div class="hero">${ring(a.indicators.health.score, a.indicators.health.status)}<div><h2 style="margin:0">${esc(a.label)}</h2>
+    <div class="muted small">${esc(a.appliance_id)} · ${esc([a.brand, a.model].filter(Boolean).join(" "))}${a.appliance_age != null ? " · " + a.appliance_age + " yrs" : ""}</div>
+    <div class="small">Warranty: ${a.warranty_end ? (a.warranty_active ? "Active until " : "Expired ") + fmtDate(a.warranty_end) : "—"}${a.extended_warranty ? " (extended)" : ""}</div></div></div>
+    ${a.safety_findings.filter(f => f.level === "CRITICAL").map(f => `<div class="warn"><b>⚠ SAFETY WARNING</b>${esc(f.customer_message)}</div>`).join("")}
+    ${indicators(a.indicators)}
+    <div class="sect">Service countdown</div>
+    <div class="small">Last service: <b>${fmtDate(a.indicators.service.last_service_date)}</b> · Recommended service: <b>${fmtDate(a.indicators.service.recommended_service_date)}</b> ·
+     ${a.indicators.service.days_remaining < 0 ? `<b class="down">Service overdue: ${a.indicators.service.overdue_days} days</b>` : `Days remaining: <b>${a.indicators.service.days_remaining ?? "—"}</b>`}</div>
+    ${a.recommendations.length ? `<div class="sect">Recommended</div><ol>${a.recommendations.map(r => `<li>${esc(r.text)}${r.urgent ? ' <span class="badge CRITICAL">Urgent</span>' : ""}</li>`).join("")}</ol>
+      <div class="small">Priority ${badge(a.indicators.action.priority)}${a.recommendations[0]?.recommended_within_days ? ` · Recommended within <b>${a.recommendations[0].recommended_within_days} days</b>` : ""}</div>` : ""}
+    <div class="sect">Health insight <span class="muted">(from recorded inspections only)</span></div>
+    <div class="small"><b>Observed data</b><ul>${ai.observed_data.map(x => `<li>${esc(x)}</li>`).join("")}</ul>
+    <b>Possible causes</b><ul>${ai.possible_causes.map(x => `<li>${esc(x)}</li>`).join("")}</ul>
+    <b>Recommended action</b><ul>${ai.recommended_action.map(x => `<li>${esc(x)}</li>`).join("")}</ul><span class="muted">${esc(ai.disclaimer)}</span></div>
+    <div class="sect">Service history</div>${svc ? `<table><tr><th>Date</th><th>Type</th><th>Score</th><th>Status</th><th></th></tr>${svc}</table>` : '<p class="muted small">No services yet.</p>'}
+    <details style="margin-top:12px"><summary><b>View Full Inspection</b></summary>
+      <div class="sect">Score breakdown (algorithm v${esc(a.algorithm_version ?? "—")})</div>
+      <table><tr><th>Component</th><th>Weight</th><th>Condition</th><th class="right">Points</th></tr>${a.score_components.map(c => `<tr><td>${esc(c.label)}</td><td>${c.weight}</td><td><div class="bar"><i style="width:${Math.round(c.fraction * 100)}%"></i></div></td><td class="right">${c.points}</td></tr>`).join("")}</table>
+      ${a.schedule ? `<div class="sect">Service interval</div><div class="small">Base ${a.schedule.base_service_interval_days} days → adjusted <b>${a.schedule.adjusted_service_interval_days} days</b><ul>${a.schedule.factors.map(f => `<li>${esc(f.factor)}${f.multiplier ? " ×" + f.multiplier : ""}${f.cap_days ? " (cap " + f.cap_days + " d)" : ""}</li>`).join("")}</ul></div>` : ""}
+      <div class="sect">Inspection history</div><table><tr><th>Date</th><th>Phase</th><th>Score</th><th>Safety</th><th>Priority</th><th></th></tr>${hist}</table>
+    </details>`);
+  $("#mbody").querySelectorAll("[data-ins]").forEach(b => b.onclick = () => openInspection(b.dataset.ins));
+  $("#mbody").querySelectorAll("[data-svc]").forEach(b => b.onclick = () => openService(b.dataset.svc));
+}
+async function openInspection(iid) {
+  const i = await api("/api/kp/inspections/" + encodeURIComponent(iid));
+  const h = i.health_score;
+  modal(`<h2 style="margin-top:0">Inspection — ${fmtDate(i.inspected_at)} <span class="muted small">${esc(nice(i.phase))}</span></h2>
+    <div class="row"><div>Health <b>${h.score}/100</b> ${badge(h.score_status)}</div><div>Safety ${badge(h.safety_status)}</div><div>Priority ${badge(h.repair_priority)}</div></div>
+    ${i.safety_findings.map(f => `<div class="${f.level === "CRITICAL" ? "warn" : "attn"}" style="margin-top:8px"><b>${esc(nice(f.level))}</b>${esc(f.finding)} <span class="small muted">(${esc(nice(f.source))})</span></div>`).join("")}
+    <div class="sect">Measurements (raw technician data)</div>
+    <table><tr><th>Parameter</th><th>Value</th></tr>${i.measurements.map(m => `<tr><td>${esc(m.label)}${m.derived ? ' <span class="muted small">(calculated)</span>' : ""}</td><td>${esc(typeof m.value === "boolean" ? (m.value ? "Yes" : "No") : (typeof m.value === "string" ? nice(m.value) : m.value))} ${esc(m.unit || "")}</td></tr>`).join("")}</table>
+    <div class="sect">Score components</div>
+    <table>${h.components.map(c => `<tr><td>${esc(c.label)}</td><td>${c.points} / ${c.weight}</td></tr>`).join("")}</table>
+    ${i.observations ? `<div class="sect">Technician observations</div><p>${esc(i.observations)}</p>` : ""}
+    <div class="sect">Recommendations</div><ul>${i.recommendations.map(r => `<li>${esc(r.text)} <span class="muted small">— ${esc(r.technical_detail)}</span></li>`).join("")}</ul>
+    <div class="photos" id="iph"></div>`);
+  fillPhotos($("#iph"), i.photos);
+}
+async function openService(sid) {
+  const s = await api("/api/kp/services/" + encodeURIComponent(sid));
+  const c = s.comparison;
+  modal(`<h2 style="margin-top:0">${esc(s.appliance_label)} — ${esc(nice(s.service_type))}</h2>
+    <div class="small muted">${fmtDate(s.service_date)} · Technician: ${esc(s.technician?.name || "—")} · ${badge(s.status)}</div>
+    ${c ? `<div class="card" style="margin-top:10px;background:var(--chip)"><div class="row" style="text-align:center"><div>Before<br><b style="font-size:26px">${c.before}</b>/100</div><div>After<br><b style="font-size:26px">${c.after}</b>/100</div><div>Improvement<br><b style="font-size:26px" class="${c.improvement >= 0 ? "up" : "down"}">${c.improvement >= 0 ? "+" : ""}${c.improvement}</b></div></div><p style="text-align:center;margin:8px 0 0"><b>${esc(c.message)}</b></p></div>` : ""}
+    ${s.work_performed ? `<div class="sect">Work performed</div><p>${esc(s.work_performed)}</p>` : ""}
+    ${s.technician_observations ? `<div class="sect">Technician observations</div><p>${esc(s.technician_observations)}</p>` : ""}
+    <div class="sect">Parts replaced</div>${s.parts_replaced.length ? `<table><tr><th>Part</th><th>Qty</th><th>Price</th><th>Warranty until</th></tr>${s.parts_replaced.map(p => `<tr><td>${esc(p.part_name)}</td><td>${p.quantity}</td><td>₹${p.unit_price}</td><td>${fmtDate(p.warranty_until)}</td></tr>`).join("")}</table>` : '<p class="muted small">None</p>'}
+    ${s.invoice ? `<div class="sect">Invoice</div><p class="small">Labour ₹${s.invoice.labour_amount} + Parts ₹${s.invoice.parts_amount} = <b>₹${s.invoice.total_amount}</b></p>` : ""}
+    <div class="sect">Warranty</div><p class="small">${s.warranty.warranty_end ? "Appliance warranty until " + fmtDate(s.warranty.warranty_end) : "—"}${s.warranty.extended_warranty ? " (extended)" : ""}</p>
+    <div class="sect">Photos</div><div class="photos" id="sph"></div>
+    <div class="row" style="margin-top:10px">${s.before_inspection ? `<button class="ghost sm" data-ins="${esc(s.before_inspection.inspection_id)}">Before inspection</button>` : ""}${s.after_inspection ? `<button class="ghost sm" data-ins="${esc(s.after_inspection.inspection_id)}">After inspection</button>` : ""}
+    ${S.role === "customer" && s.status === "AWAITING_APPROVAL" ? `<button id="approve">Approve service</button>` : ""}</div>`);
+  fillPhotos($("#sph"), s.photos);
+  $("#mbody").querySelectorAll("[data-ins]").forEach(b => b.onclick = () => openInspection(b.dataset.ins));
+  const ap = $("#approve"); if (ap) ap.onclick = async () => { await api(`/api/kp/me/services/${encodeURIComponent(sid)}/approve`, {method: "POST"}); openService(sid); };
+}
+function timelineHTML(tl) {
+  return tl.length ? `<div class="tl">${tl.map(t => `<div class="it" data-tl='${esc(JSON.stringify({s: t.service_id}))}'>
+    <div class="small muted">${new Date(t.date + "T00:00:00").toLocaleDateString("en-IN", {month: "long", year: "numeric"})}</div>
+    <div><b style="font-size:20px">${t.score}/100</b> ${badge(t.status)} ${t.change != null ? `<span class="chg ${t.change >= 0 ? "up" : "down"}">${t.change >= 0 ? "+" : ""}${t.change}</span>` : ""}</div>
+    <div class="small muted">${t.appliance_scores.map(a => `${esc(a.label)} ${a.score}`).join(" · ")}</div></div>`).join("")}</div>` : '<p class="muted">No inspections recorded yet.</p>';
+}
+function bindTimeline(root) {
+  root.querySelectorAll("[data-tl]").forEach(el => el.onclick = () => { const d = JSON.parse(el.dataset.tl); if (d.s) openService(d.s); });
+}
+async function openReport(kid) {
+  const r = await api(`/api/kp/kitchens/${encodeURIComponent(kid)}/report`);
+  modal(`<h2 style="margin-top:0">Kitchen Health Report</h2><div class="small muted">${esc(r.passport_id)} · ${esc(r.customer_name)} · ${fmtDate(r.generated_on)}</div>
+    <div class="hero" style="margin:12px 0">${ring(r.overall.overall_score, r.overall.score_status)}<div><b>${esc(r.overall.status_label || "")}</b><br><span class="small">Lowest: ${esc(r.overall.lowest_scoring_appliance?.label || "—")} (${r.overall.lowest_scoring_appliance?.score ?? "—"})</span></div></div>
+    <table><tr><th>Appliance</th><th>Health</th><th>Safety</th><th>Service</th><th>Action</th></tr>${r.appliances.map(a => `<tr><td>${esc(a.label)}</td><td>${a.health.score ?? "—"} ${badge(a.health.status)}</td><td>${badge(a.safety.status)}</td><td>${esc(a.service.text)}</td><td>${esc(a.action.text)}</td></tr>`).join("")}</table>
+    <div class="sect">Recommended actions</div><ol>${r.recommended_actions.map(x => `<li>${esc(x.appliance)}: ${esc(x.text)} ${badge(x.priority)}</li>`).join("")}</ol>
+    <p class="small muted">${esc(r.disclaimer)}</p><button class="ghost sm" onclick="window.print()">Print / Save PDF</button>`);
+}
+
+// ================================================================ customer
+async function customerApp() {
+  const tabs = ["Dashboard", "Timeline", "Passport", "Add appliance", "Notifications"];
+  S.tab = S.tab && tabs.includes(S.tab) ? S.tab : "Dashboard";
+  $("#app").innerHTML = `<nav class="tabs">${tabs.map(t => `<button class="${t === S.tab ? "on" : ""}">${t}</button>`).join("")}</nav><div id="view"><p class="muted">Loading…</p></div>`;
+  $("#app nav").onclick = e => { if (e.target.tagName === "BUTTON") { S.tab = e.target.textContent; customerApp(); } };
+  const p = await api("/api/kp/me/passport");
+  const k = p.kitchens[0]; const kid = k.kitchen.kitchen_id; const v = $("#view");
+  if (S.tab === "Dashboard") {
+    const o = k.overall; const crit = k.appliances.filter(a => a.indicators.safety.status === "CRITICAL");
+    v.innerHTML = `${crit.map(a => `<div class="warn"><b>⚠ SAFETY WARNING — ${esc(a.label)}</b>${esc(a.safety_findings[0]?.customer_message || "Critical safety issue found.")}</div>`).join("")}
+      <div class="card"><div class="sect" style="margin-top:0">My Kitchen</div><div class="hero">${ring(o.overall_score, o.score_status)}
+      <div style="flex:1;min-width:220px"><div class="small muted">Overall Health</div><div style="font-size:22px;font-weight:700">${o.overall_score ?? "—"}/100 ${badge(o.score_status)}</div>
+      ${o.score_change_from_previous != null ? `<div class="small">Change since last inspection: <span class="chg ${o.score_change_from_previous >= 0 ? "up" : "down"}">${o.score_change_from_previous >= 0 ? "+" : ""}${o.score_change_from_previous}</span></div>` : ""}
+      <div class="small">Kitchen safety: ${badge(o.worst_safety_status)}</div>
+      <div class="small muted">${esc(p.passport_id)} · ${esc(k.kitchen.name)}</div></div>
+      <div><button class="ghost sm" id="rep">Health report</button></div></div></div>
+      ${k.recommended_actions.length ? `<div class="card"><div class="sect" style="margin-top:0">Recommended actions</div>${k.recommended_actions.slice(0, 6).map(r => `<div class="row small" style="padding:4px 0;border-bottom:1px solid var(--line)"><div><b>${esc(r.appliance)}</b> — ${esc(r.text)}</div><div class="right" style="flex:0 0 auto">${badge(r.priority)} ${r.days_remaining != null ? (r.days_remaining < 0 ? `<span class="down">${-r.days_remaining} day${r.days_remaining === -1 ? "" : "s"} overdue</span>` : `${r.days_remaining} day${r.days_remaining === 1 ? "" : "s"} remaining`) : ""}</div></div>`).join("")}</div>` : ""}
+      <div class="grid">${k.appliances.map(applianceCard).join("") || '<p class="muted">No appliances yet — add one in "Add appliance".</p>'}</div>`;
+    bindApplianceClicks(v); $("#rep").onclick = () => openReport(kid);
+  } else if (S.tab === "Timeline") {
+    const tl = await api(`/api/kp/kitchens/${encodeURIComponent(kid)}/timeline`);
+    v.innerHTML = `<div class="card"><h3 style="margin-top:0">Kitchen Health Timeline</h3>${timelineHTML(tl)}</div>`; bindTimeline(v);
+  } else if (S.tab === "Passport") {
+    const c = p.customer;
+    v.innerHTML = `<div class="card"><div class="row" style="align-items:flex-start"><div><div class="sect" style="margin-top:0">Kitchen Passport ID</div><div style="font-size:22px;font-weight:700">${esc(p.passport_id)}</div>
+      <p class="small muted">Show this QR to your Rasoi Care technician. It contains only an opaque reference — your details are visible only to a signed-in technician assigned to your job.</p></div>
+      <div style="flex:0"><div class="qr" id="qr"></div></div></div></div>
+      <div class="card"><h3 style="margin-top:0">My profile</h3><form id="pf"><div class="pgrid">
+      ${[["full_name", "Full name"], ["mobile_number", "Mobile"], ["whatsapp_number", "WhatsApp"], ["email", "Email"], ["address", "Address"], ["service_location", "Service area"], ["preferred_service_time", "Preferred service time"]].map(([k2, l]) => `<div><label>${l}</label><input name="${k2}" value="${esc(c[k2] || "")}"></div>`).join("")}
+      <div><label>Preferred contact</label><select name="preferred_contact_method">${["", "CALL", "SMS", "WHATSAPP", "EMAIL", "APP"].map(o => `<option ${c.preferred_contact_method === o ? "selected" : ""} value="${o}">${nice(o) || "—"}</option>`).join("")}</select></div></div>
+      <p class="small muted">Customer since ${fmtDate(c.customer_since)} · Membership ${esc(nice(c.membership_status))} · AMC ${esc(nice(c.amc_status))}</p><span class="err" id="pe"></span> <button>Save profile</button></form></div>
+      <div class="card"><h3 style="margin-top:0">Kitchen profile</h3><form id="kf"><div class="pgrid">
+      <div><label>Name</label><input name="name" value="${esc(k.kitchen.name)}"></div>
+      <div><label>Kitchen type</label><select name="kitchen_type">${["", "MODULAR", "SEMI_MODULAR", "TRADITIONAL", "OPEN", "COMMERCIAL"].map(o => `<option value="${o}" ${k.kitchen.kitchen_type === o ? "selected" : ""}>${nice(o) || "—"}</option>`).join("")}</select></div>
+      <div><label>Kitchen age (years)</label><input name="kitchen_age" type="number" min="0" value="${esc(k.kitchen.kitchen_age ?? "")}"></div>
+      <div><label>Cooking frequency</label><select name="cooking_frequency">${["", "RARELY", "DAILY_ONCE", "DAILY_TWICE", "DAILY_THRICE_PLUS"].map(o => `<option value="${o}" ${k.kitchen.cooking_frequency === o ? "selected" : ""}>${nice(o) || "—"}</option>`).join("")}</select></div>
+      <div><label>Cooking intensity</label><select name="cooking_intensity">${["LIGHT", "MODERATE", "HEAVY"].map(o => `<option ${k.kitchen.cooking_intensity === o ? "selected" : ""}>${o}</option>`).join("")}</select></div>
+      <div><label>Daily cooking hours</label><input name="approximate_daily_cooking_hours" type="number" step="0.5" min="0" max="24" value="${esc(k.kitchen.approximate_daily_cooking_hours ?? "")}"></div></div>
+      <p class="small muted">Cooking intensity and daily hours adjust your recommended service intervals.</p><span class="err" id="ke"></span> <button>Save kitchen</button></form></div>`;
+    if (window.QRCode) new QRCode($("#qr"), {text: p.qr_payload, width: 150, height: 150}); else $("#qr").textContent = p.qr_payload;
+    $("#pf").onsubmit = async e => { e.preventDefault(); const body = {}; new FormData(e.target).forEach((val, key) => body[key] = val || null);
+      try { await api("/api/kp/me/profile", {method: "PATCH", body}); $("#pe").innerHTML = '<span class="ok">Saved</span>'; } catch (err) { $("#pe").textContent = err.message + " " + JSON.stringify(err.fields || ""); } };
+    $("#kf").onsubmit = async e => { e.preventDefault(); const f = new FormData(e.target); const body = {name: f.get("name"), cooking_intensity: f.get("cooking_intensity")};
+      if (f.get("kitchen_type")) body.kitchen_type = f.get("kitchen_type"); if (f.get("cooking_frequency")) body.cooking_frequency = f.get("cooking_frequency");
+      if (f.get("kitchen_age")) body.kitchen_age = parseInt(f.get("kitchen_age"), 10); if (f.get("approximate_daily_cooking_hours")) body.approximate_daily_cooking_hours = parseFloat(f.get("approximate_daily_cooking_hours"));
+      try { await api(`/api/kp/me/kitchens/${encodeURIComponent(kid)}`, {method: "PATCH", body}); $("#ke").innerHTML = '<span class="ok">Saved</span>'; } catch (err) { $("#ke").textContent = err.message + " " + JSON.stringify(err.fields || ""); } };
+  } else if (S.tab === "Add appliance") {
+    const cats = Object.entries(S.cfg.categories);
+    v.innerHTML = `<div class="card"><h3 style="margin-top:0">Register an appliance</h3><form id="af"><div class="pgrid">
+      <div><label>Category</label><select name="category">${cats.map(([c, d]) => `<option value="${c}">${esc(d.label)}</option>`).join("")}</select></div>
+      ${[["brand", "Brand"], ["model", "Model"], ["serial_number", "Serial number"], ["installation_company", "Installed by"]].map(([k2, l]) => `<div><label>${l}</label><input name="${k2}"></div>`).join("")}
+      ${[["purchase_date", "Purchase date"], ["installation_date", "Installation date"], ["warranty_start", "Warranty start"], ["warranty_end", "Warranty end"], ["last_service_date", "Last service date"]].map(([k2, l]) => `<div><label>${l}</label><input type="date" name="${k2}"></div>`).join("")}
+      <div><label>Manufacturer service interval (days)</label><input type="number" name="manufacturer_interval_days" min="7" max="730"></div>
+      <div><label><input type="checkbox" name="extended_warranty" style="width:auto"> Extended warranty</label></div></div>
+      <span class="err" id="ae"></span> <button>Register</button></form></div>`;
+    $("#af").onsubmit = async e => { e.preventDefault(); const f = new FormData(e.target); const body = {};
+      f.forEach((val, key) => { if (val !== "") body[key] = val; }); body.extended_warranty = f.get("extended_warranty") === "on";
+      if (body.manufacturer_interval_days) body.manufacturer_interval_days = parseInt(body.manufacturer_interval_days, 10);
+      try { const a = await api(`/api/kp/me/kitchens/${encodeURIComponent(kid)}/appliances`, {method: "POST", body}); $("#ae").innerHTML = `<span class="ok">Registered ${esc(a.appliance_id)}</span>`; e.target.reset(); }
+      catch (err) { $("#ae").textContent = err.message + " " + JSON.stringify(err.fields || ""); } };
+  } else {
+    const n = await api("/api/kp/me/notifications");
+    v.innerHTML = `<div class="card"><h3 style="margin-top:0">Notifications</h3>${n.map(x => `<div style="padding:8px 0;border-bottom:1px solid var(--line)"><b>${esc(x.title)}</b><div class="small">${esc(x.body)}</div><div class="small muted">${esc(new Date(x.created_at).toLocaleString("en-IN"))}</div></div>`).join("") || '<p class="muted">None yet.</p>'}</div>`;
+  }
+}
+
+// ================================================================ technician
+async function techApp(scanCode) {
+  $("#app").innerHTML = `<nav class="tabs"><button class="on" id="tj">Today's jobs</button><button id="ts">Scan Kitchen Passport</button></nav><div id="view"></div>`;
+  $("#tj").onclick = () => techApp(); $("#ts").onclick = () => techScan();
+  if (scanCode) return techScan(scanCode);
+  const jobs = await api("/api/kp/tech/jobs"); const v = $("#view");
+  v.innerHTML = jobs.length ? jobs.map(j => `<div class="card"><div class="row"><div><b style="font-size:17px">${esc(j.customer.full_name)}</b> <span class="small muted">${esc(j.job_id)} · ${esc(nice(j.job_type))} · ${fmtDate(j.scheduled_date)}</span>
+     <div class="small">${esc(j.customer.address || j.customer.service_location || "")}${j.customer.mobile_number ? " · " + esc(j.customer.mobile_number) : ""}</div>${j.notes ? `<div class="small"><b>${esc(j.notes)}</b></div>` : ""}</div>
+     <div style="flex:0">${badge(j.status)}</div></div>
+     <table style="margin-top:8px"><tr><th>Appliance</th><th>Health</th><th>Safety</th><th>Priority</th><th>Service</th><th></th></tr>
+     ${j.appliances.map(a => `<tr><td>${esc(a.label)}<div class="small muted">${esc(a.appliance_id)}</div></td><td>${a.indicators.health.score ?? "—"}</td><td>${badge(a.indicators.safety.status)}</td><td>${badge(a.indicators.action.priority)}</td><td class="small">${esc(a.indicators.service.text)}</td>
+       <td>${["ASSIGNED", "IN_PROGRESS"].includes(j.status) ? `<button class="sm" data-job="${esc(j.job_id)}" data-aid="${esc(a.appliance_id)}" data-cat="">Start inspection</button>` : ""}</td></tr>`).join("")}</table></div>`).join("")
+    : '<div class="card muted">No jobs assigned for today.</div>';
+  v.querySelectorAll("button[data-job]").forEach(b => b.onclick = () => startWorkflow(b.dataset.job, b.dataset.aid));
+}
+async function techScan(prefill) {
+  const v = $("#view");
+  v.innerHTML = `<div class="card"><h3 style="margin-top:0">Scan Kitchen Passport</h3><div class="row"><input id="code" placeholder="RC-KP-00000001 or scanned QR text" value="${esc(prefill || "")}"><button id="go" style="flex:0">Open</button><button id="cam" class="ghost" style="flex:0">Use camera</button></div>
+    <video id="vid" class="hide" style="width:100%;max-width:360px;margin-top:10px;border-radius:10px" playsinline></video><p class="err" id="se"></p></div><div id="pv"></div>`;
+  const open = async () => { $("#se").textContent = ""; try { const p = await api("/api/kp/tech/scan", {method: "POST", body: {code: $("#code").value.trim()}}); showPassport(p, $("#pv")); } catch (e) { $("#se").textContent = e.status === 404 ? "Not found, or you have no active job at this kitchen." : e.message; } };
+  $("#go").onclick = open;
+  $("#cam").onclick = async () => {
+    if (!("BarcodeDetector" in window)) { $("#se").textContent = "Camera scanning isn't supported in this browser — type the Passport ID instead."; return; }
+    const det = new BarcodeDetector({formats: ["qr_code"]}); const vid = $("#vid");
+    const stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: "environment"}}); vid.srcObject = stream; vid.classList.remove("hide"); await vid.play();
+    const tick = async () => { const codes = await det.detect(vid).catch(() => []); if (codes.length) { stream.getTracks().forEach(t => t.stop()); vid.classList.add("hide"); $("#code").value = codes[0].rawValue; open(); } else if (!vid.classList.contains("hide")) requestAnimationFrame(tick); };
+    tick();
+  };
+  if (prefill) open();
+}
+function showPassport(p, el) {
+  el.innerHTML = `<div class="card"><div class="sect" style="margin-top:0">Customer</div><b>${esc(p.customer.full_name)}</b> <span class="small muted">${esc(p.passport_id)} · since ${fmtDate(p.customer.customer_since)}</span>
+    <div class="small">${esc(p.customer.address || "")} ${p.customer.mobile_number ? "· " + esc(p.customer.mobile_number) : ""}</div></div>
+    ${p.kitchens.map(k => `<div class="card"><div class="sect" style="margin-top:0">Kitchen — ${esc(k.kitchen.name)} · ${esc(nice(k.kitchen.cooking_intensity))} cooking</div>
+      <div>Overall health <b>${k.overall.overall_score ?? "—"}</b> ${badge(k.overall.score_status)}</div>
+      <div class="sect">Appliances · health · service history · warranty · previous problems</div>
+      ${k.appliances.map(a => `<div style="border-top:1px solid var(--line);padding:8px 0"><div class="row"><div><b>${esc(a.label)}</b> <span class="small muted">${esc(a.appliance_id)} · ${esc([a.brand, a.model].filter(Boolean).join(" "))}</span></div>
+        <div style="flex:0"><button class="sm ghost" data-aid="${esc(a.appliance_id)}">Details</button></div></div>${indicators(a.indicators)}
+        <div class="small" style="margin-top:6px">Services: ${a.service_history.length} · Warranty: ${a.warranties.map(w => esc(nice(w.kind)) + " to " + fmtDate(w.end_date)).join(", ") || "—"}</div>
+        ${a.previous_problems.length ? `<div class="small">Previous problems: ${a.previous_problems.slice(0, 3).map(x => esc(x.finding) + " (" + fmtDate(x.inspected_at) + ")").join("; ")}</div>` : ""}</div>`).join("")}</div>`).join("")}`;
+  bindApplianceClicks(el);
+}
+
+const STEPS = ["Scan", "Appliance", "Before inspection", "Before photos", "Service / repair", "After inspection", "After photos", "Parts & notes", "Results"];
+async function startWorkflow(jobId, aid) {
+  const a = await api("/api/kp/appliances/" + encodeURIComponent(aid));
+  const cat = S.cfg.categories[a.category];
+  const r = await api(`/api/kp/tech/jobs/${encodeURIComponent(jobId)}/services`, {method: "POST", body: {appliance_id: aid}});
+  const W = {sid: r.service_id, a, cat, step: 2, before: null, beforeVals: {}, after: null, parts: []};
+  wizard(W);
+}
+function paramInput(p, val) {
+  const id = "p_" + p.key; const req = p.required ? " *" : "";
+  if (p.type === "enum") return `<div><label for="${id}">${esc(p.label)}${req}</label><select id="${id}" name="${esc(p.key)}"><option value="">—</option>${Object.keys(p.options).map(o => `<option value="${esc(o)}" ${val === o ? "selected" : ""}>${esc(nice(o))}</option>`).join("")}</select></div>`;
+  if (p.type === "bool") return `<div><label for="${id}">${esc(p.label)}${req}</label><select id="${id}" name="${esc(p.key)}"><option value="">—</option><option value="false" ${val === false ? "selected" : ""}>No</option><option value="true" ${val === true ? "selected" : ""}>Yes</option></select></div>`;
+  if (p.type === "number") return `<div><label for="${id}">${esc(p.label)}${p.unit ? " (" + esc(p.unit) + ")" : ""}${req}</label><input id="${id}" name="${esc(p.key)}" type="number" step="any" min="0" value="${val ?? ""}"></div>`;
+  return `<div><label for="${id}">${esc(p.label)}</label><input id="${id}" name="${esc(p.key)}" value="${esc(val ?? "")}"></div>`;
+}
+function readParams(form, cat) {
+  const out = {}; for (const p of cat.params) { const v = form.elements[p.key]?.value; if (v === undefined || v === "") continue;
+    out[p.key] = p.type === "number" ? parseFloat(v) : p.type === "bool" ? v === "true" : v; } return out;
+}
+function evalSummary(ev) {
+  return `<div class="ind"><div><b>HEALTH</b><span>${ev.health.score}/100</span>${badge(ev.health.status)}</div><div><b>SAFETY</b><span>${esc(nice(ev.safety.status))}</span>${badge(ev.safety.status)}</div>
+    <div><b>NEXT SERVICE</b><span>${fmtDate(ev.schedule.recommended_service_date)}</span><span class="small muted">${ev.schedule.adjusted_service_interval_days} days</span></div><div><b>PRIORITY</b><span>${esc(ev.recommendations.action)}</span>${badge(ev.priority.priority)}</div></div>
+    ${ev.safety.findings.map(f => `<div class="${f.level === "CRITICAL" ? "warn" : "attn"}" style="margin:8px 0 0"><b>${esc(nice(f.level))}</b>${esc(f.finding)}</div>`).join("")}`;
+}
+function wizard(W) {
+  const v = $("#view");
+  const head = `<div class="card"><div class="steps">${STEPS.map((s, i) => `<span class="${i < W.step ? "done" : i === W.step ? "on" : ""}">${i + 1}. ${s}</span>`).join("")}</div>
+    <h3 style="margin:0">${esc(W.a.label)} <span class="small muted">${esc(W.a.appliance_id)} · Service ${esc(W.sid)}</span></h3></div>`;
+  const inspForm = (phase, vals) => {
+    return `<div class="card"><h3 style="margin-top:0">${phase === "BEFORE" ? "Step 4–5: Checklist & measurements (before service)" : "After-service inspection"}</h3>
+      <p class="small muted">Enter what you observe and measure. The Health Score, Safety Status, Repair Priority and Next Service Date are calculated automatically.</p>
+      <form id="inf"><div class="pgrid">${W.cat.params.map(p => paramInput(p, vals[p.key])).join("")}</div>
+      <fieldset style="margin-top:12px"><legend>Technician safety finding (optional)</legend><div class="row"><select name="tf_level" style="flex:0 0 190px"><option value="">None</option><option>MONITOR</option><option>ATTENTION_REQUIRED</option><option>CRITICAL</option></select><input name="tf_desc" placeholder="Describe the safety condition"></div></fieldset>
+      <label>Observations</label><textarea name="observations" rows="2"></textarea>
+      <div class="sect">Live calculation</div><div id="live" class="small muted">Fill the checklist to see the result.</div>
+      <p class="err" id="ie"></p><button>Save ${phase.toLowerCase()} inspection</button></form></div>`;
+  };
+  const bindInsp = (phase) => {
+    const form = $("#inf"); let timer;
+    const body = () => { const tf = form.elements.tf_level.value ? [{level: form.elements.tf_level.value, description: form.elements.tf_desc.value}] : [];
+      return {values: readParams(form, W.cat), technician_findings: tf, observations: form.elements.observations.value}; };
+    form.oninput = () => { clearTimeout(timer); timer = setTimeout(async () => {
+      let html; try { html = evalSummary(await api("/api/kp/tech/evaluate", {method: "POST", body: {appliance_id: W.a.appliance_id, ...body()}})); }
+      catch (e) { html = esc(e.fields ? "Missing/invalid: " + Object.keys(e.fields).join(", ") : e.message); }
+      if (form.isConnected) $("#live").innerHTML = html; }, 350); };
+    form.onsubmit = async e => { e.preventDefault(); clearTimeout(timer); $("#ie").textContent = "";
+      try { const b = body(); const res = await api(`/api/kp/tech/services/${encodeURIComponent(W.sid)}/inspections`, {method: "POST", body: {phase, ...b}});
+        if (phase === "BEFORE") { W.before = res.evaluation; W.beforeVals = b.values; W.step = 3; } else { W.after = res.evaluation; W.step = 6; } wizard(W); }
+      catch (err) { $("#ie").textContent = err.fields ? "Please fix: " + Object.entries(err.fields).map(([k, m]) => k + " " + m).join("; ") : err.message; } };
+  };
+  const photoStep = (kind, next) => {
+    v.innerHTML = head + `<div class="card"><h3 style="margin-top:0">Upload ${kind.toLowerCase()} photos</h3><input type="file" id="ph" accept="image/jpeg,image/png,image/webp" multiple capture="environment">
+      <div class="photos" id="phl"></div><p class="err" id="pe"></p><div class="row"><button id="nx">Continue</button></div></div>`;
+    $("#ph").onchange = async e => { for (const f of e.target.files) { if (f.size > 2.9e6) { $("#pe").textContent = f.name + " is larger than 2.9 MB"; continue; }
+      const b64 = await new Promise(res => { const rd = new FileReader(); rd.onload = () => res(String(rd.result).split(",")[1]); rd.readAsDataURL(f); });
+      try { await api(`/api/kp/tech/services/${encodeURIComponent(W.sid)}/photos`, {method: "POST", body: {kind, mime_type: f.type, dataBase64: b64}});
+        $("#phl").insertAdjacentHTML("beforeend", `<img src="${URL.createObjectURL(f)}" alt="">`); } catch (err) { $("#pe").textContent = err.message; } } };
+    $("#nx").onclick = () => { W.step = next; wizard(W); };
+  };
+  if (W.step === 2) { v.innerHTML = head + inspForm("BEFORE", {}); bindInsp("BEFORE"); }
+  else if (W.step === 3) photoStep("BEFORE", 4);
+  else if (W.step === 4) {
+    v.innerHTML = head + `<div class="card"><h3 style="margin-top:0">Before-service result</h3>${evalSummary(W.before)}
+      <div class="sect">Recommended work</div><ol>${W.before.recommendations.items.map(i => `<li>${esc(i.text)} <span class="small muted">— ${esc(i.technical)}</span></li>`).join("")}</ol>
+      <p>Perform the service / repair now, then record the after-service inspection.</p><button id="nx">Service done — record after inspection</button></div>`;
+    $("#nx").onclick = () => { W.step = 5; wizard(W); };
+  }
+  else if (W.step === 5) { v.innerHTML = head + inspForm("AFTER", W.beforeVals); bindInsp("AFTER"); }
+  else if (W.step === 6) photoStep("AFTER", 7);
+  else if (W.step === 7) {
+    v.innerHTML = head + `<div class="card"><h3 style="margin-top:0">Parts used & technician notes</h3>
+      <table id="pt"><tr><th>Part</th><th>Qty</th><th>Unit price ₹</th><th>Warranty days</th><th></th></tr></table><button class="ghost sm" id="addp">+ Add part</button>
+      <label>Work performed</label><textarea id="wp" rows="2"></textarea><label>Technician observations</label><textarea id="ob" rows="2"></textarea>
+      <label>Labour charge ₹</label><input id="lab" type="number" min="0" value="0"><p class="err" id="ce"></p><button id="fin">Complete service & generate report</button></div>`;
+    const addRow = () => $("#pt").insertAdjacentHTML("beforeend", `<tr><td><input class="pn"></td><td><input class="pq" type="number" min="1" value="1"></td><td><input class="pp" type="number" min="0" value="0"></td><td><input class="pw" type="number" min="0" value="0"></td><td><button class="sm ghost" onclick="this.closest('tr').remove()">×</button></td></tr>`);
+    $("#addp").onclick = addRow;
+    $("#fin").onclick = async () => { const parts = [...$("#pt").querySelectorAll("tr")].slice(1).map(tr => ({part_name: $(".pn", tr).value.trim(), quantity: parseInt($(".pq", tr).value, 10) || 1, unit_price: parseInt($(".pp", tr).value, 10) || 0, warranty_days: parseInt($(".pw", tr).value, 10) || 0})).filter(p => p.part_name);
+      try { W.done = await api(`/api/kp/tech/services/${encodeURIComponent(W.sid)}/complete`, {method: "POST", body: {parts, work_performed: $("#wp").value, observations: $("#ob").value, labour_amount: parseInt($("#lab").value, 10) || 0}}); W.step = 8; wizard(W); }
+      catch (err) { $("#ce").textContent = err.message; } };
+  } else {
+    const d = W.done, c = d.comparison;
+    v.innerHTML = head + `<div class="card"><h3 style="margin-top:0">Service complete — Kitchen Health Report generated</h3>
+      ${c ? `<p style="font-size:18px"><b>${esc(c.message)}</b> (${c.before} → ${c.after})</p>` : ""}${evalSummary(W.after)}
+      <p class="small">Kitchen Health now <b>${d.kitchen_health.overall_score}/100</b> ${badge(d.kitchen_health.score_status)}. The customer has been notified and can approve the service in their app.</p>
+      <button id="bk">Back to jobs</button></div>`;
+    $("#bk").onclick = () => techApp();
+  }
+}
+
+// ================================================================ admin
+async function adminApp() {
+  const tabs = ["Passports", "Jobs", "Technicians", "Configuration"];
+  S.tab = S.tab && tabs.includes(S.tab) ? S.tab : "Passports";
+  $("#app").innerHTML = `<nav class="tabs">${tabs.map(t => `<button class="${t === S.tab ? "on" : ""}">${t}</button>`).join("")}</nav><div id="view"></div>`;
+  $("#app nav").onclick = e => { if (e.target.tagName === "BUTTON") { S.tab = e.target.textContent; adminApp(); } };
+  const v = $("#view");
+  if (S.tab === "Passports") {
+    v.innerHTML = `<div class="card"><div class="row"><input id="q" placeholder="Search passport ID or name"><button id="qs" style="flex:0">Search</button></div><div id="pl"></div></div><div id="pv"></div>`;
+    const load = async () => { const rows = await api("/api/kp/admin/passports?q=" + encodeURIComponent($("#q").value));
+      $("#pl").innerHTML = `<table><tr><th>Passport</th><th>Customer</th><th>Kitchen</th><th>Health</th><th></th></tr>${rows.map(r => `<tr><td>${esc(r.passport_id)}</td><td>${esc(r.full_name)}</td><td>${esc(r.kitchen_name)}<div class="small muted">${esc(r.kitchen_id)}</div></td><td>${r.overall_health_score ?? "—"} ${badge(r.overall_score_status)}</td><td><button class="sm ghost" data-p="${esc(r.passport_id)}">Open</button> <button class="sm ghost" data-t="${esc(r.kitchen_id)}">Timeline</button></td></tr>`).join("")}</table>`;
+      $("#pl").querySelectorAll("[data-p]").forEach(b => b.onclick = async () => showPassport(await api("/api/kp/admin/passports/" + encodeURIComponent(b.dataset.p)), $("#pv")));
+      $("#pl").querySelectorAll("[data-t]").forEach(b => b.onclick = async () => { modal(timelineHTML(await api(`/api/kp/kitchens/${encodeURIComponent(b.dataset.t)}/timeline`))); bindTimeline($("#mbody")); }); };
+    $("#qs").onclick = load; load();
+  } else if (S.tab === "Jobs") {
+    const [jobs, techs, pps] = await Promise.all([api("/api/kp/admin/jobs"), api("/api/kp/admin/technicians"), api("/api/kp/admin/passports")]);
+    v.innerHTML = `<div class="card"><h3 style="margin-top:0">Assign a job</h3><form id="jf"><div class="pgrid">
+      <div><label>Kitchen</label><select name="kitchen_id">${pps.map(p => `<option value="${esc(p.kitchen_id)}">${esc(p.passport_id)} — ${esc(p.full_name)} (${esc(p.kitchen_name)})</option>`).join("")}</select></div>
+      <div><label>Technician</label><select name="technician_id">${techs.map(t => `<option value="${esc(t.id)}">${esc(t.name)}${t.kp_login_phone ? "" : " (no KP login)"}</option>`).join("")}</select></div>
+      <div><label>Appliance ID (optional)</label><input name="appliance_id" placeholder="RC-DW-000001"></div>
+      <div><label>Date</label><input type="date" name="scheduled_date"></div>
+      <div><label>Type</label><select name="job_type"><option>SERVICE</option><option>REPAIR</option><option>INSPECTION</option><option>INSTALLATION</option></select></div>
+      <div><label>Notes</label><input name="notes"></div></div><p class="err" id="je"></p><button>Assign</button></form></div>
+      <div class="card"><table><tr><th>Job</th><th>Date</th><th>Customer</th><th>Technician</th><th>Type</th><th>Status</th></tr>${jobs.map(j => `<tr><td>${esc(j.job_id)}</td><td>${esc(j.scheduled_date)}</td><td>${esc(j.customer_name)}</td><td>${esc(j.technician_name)}</td><td>${esc(nice(j.job_type))}</td><td>${badge(j.status)}</td></tr>`).join("")}</table></div>`;
+    $("#jf").onsubmit = async e => { e.preventDefault(); const body = {}; new FormData(e.target).forEach((val, k) => { if (val) body[k] = val; });
+      try { await api("/api/kp/admin/jobs", {method: "POST", body}); adminApp(); } catch (err) { $("#je").textContent = err.message + " " + JSON.stringify(err.fields || ""); } };
+  } else if (S.tab === "Technicians") {
+    const techs = await api("/api/kp/admin/technicians");
+    v.innerHTML = `<div class="card"><h3 style="margin-top:0">Technician Kitchen Passport logins</h3><p class="small muted">Owner only. Technicians using the Partner app can also sign in with their Firebase account.</p>
+      <table><tr><th>Name</th><th>Category / area</th><th>Login phone</th><th>Set phone + PIN</th></tr>${techs.map(t => `<tr><td>${esc(t.name)}</td><td class="small">${esc(t.category)} · ${esc(t.area)}</td><td>${esc(t.kp_login_phone || "—")}</td>
+      <td><div class="row"><input placeholder="Phone" data-ph="${esc(t.id)}"><input placeholder="PIN" type="password" data-pin="${esc(t.id)}"><button class="sm" style="flex:0" data-set="${esc(t.id)}">Save</button></div></td></tr>`).join("")}</table><p id="te" class="err"></p></div>`;
+    v.querySelectorAll("[data-set]").forEach(b => b.onclick = async () => { const id = b.dataset.set;
+      try { await api(`/api/kp/admin/technicians/${encodeURIComponent(id)}/pin`, {method: "POST", body: {phone: $(`[data-ph="${id}"]`).value, pin: $(`[data-pin="${id}"]`).value}}); adminApp(); } catch (err) { $("#te").textContent = err.message; } });
+  } else {
+    const {config: c, history} = await api("/api/kp/admin/config");
+    const section = (key, title, val, note) => `<div class="card"><h3 style="margin-top:0">${title}</h3>${note ? `<p class="small muted">${note}</p>` : ""}<textarea rows="8" data-sec="${esc(key)}" style="font-family:ui-monospace,monospace;font-size:13px">${esc(JSON.stringify(val, null, 2))}</textarea>
+      <div class="row" style="margin-top:6px"><button class="sm" style="flex:0" data-save="${esc(key)}">Save</button><button class="sm ghost" style="flex:0" data-reset="${esc(key)}">Reset to default</button><span class="small" data-msg="${esc(key)}"></span></div></div>`;
+    v.innerHTML = `<div class="card"><b>Algorithm version ${c.algorithm_version}</b><p class="small muted">Every saved change creates a new algorithm version. Raw inspection data is never changed, so any inspection can be re-scored. Only the owner can save.</p>
+      <table><tr><th>Version</th><th>Section</th><th>By</th><th>When</th></tr>${history.map(h => `<tr><td>${h.algorithm_version}</td><td>${esc(h.section)}</td><td>${esc(h.updated_by)}</td><td class="small">${esc(h.created_at)}</td></tr>`).join("")}</table></div>
+      <div class="card"><h3 style="margin-top:0">Appliance score weights</h3><select id="wc">${Object.entries(c.categories).map(([k2, d]) => `<option value="${k2}">${esc(d.label)}</option>`).join("")}</select><div id="wt"></div></div>
+      ${section("score_thresholds", "Score status thresholds", c.score_thresholds)}
+      ${section("countdown_thresholds", "Service countdown thresholds", c.countdown_thresholds, "min = lowest days remaining for that status.")}
+      ${section("kitchen_weights", "Kitchen score appliance weights", c.kitchen_weights)}
+      ${section("service_intervals", "Service interval rules", c.service_intervals)}
+      ${section("repair_priority", "Repair priority rules", c.repair_priority)}
+      ${section("safety", "Global safety rules", c.safety, 'Per-category safety rules can be overridden via section "category:CODE".')}
+      ${section("notifications", "Notification rules", c.notifications)}`;
+    const showW = () => { const code = $("#wc").value; const cat = c.categories[code];
+      $("#wt").innerHTML = `<table><tr><th>Component</th><th>Weight</th></tr>${cat.components.map(x => `<tr><td>${esc(x.label)}</td><td><input type="number" min="0" data-w="${esc(x.key)}" value="${x.weight}" style="max-width:100px"></td></tr>`).join("")}</table>
+        <label>Base service interval (days)</label><input type="number" id="bsi" min="1" value="${cat.base_service_interval_days}" style="max-width:120px">
+        <div class="row" style="margin-top:6px"><button class="sm" style="flex:0" id="ws">Save weights</button><button class="sm ghost" style="flex:0" id="wr">Reset category</button><span class="small" id="wm"></span></div>`;
+      $("#ws").onclick = async () => { const weights = {}; $("#wt").querySelectorAll("[data-w]").forEach(i => weights[i.dataset.w] = parseFloat(i.value) || 0);
+        try { const r = await api("/api/kp/admin/config/category:" + code, {method: "PUT", body: {value: {weights, base_service_interval_days: parseInt($("#bsi").value, 10)}}}); $("#wm").innerHTML = `<span class="ok">Saved — algorithm v${r.algorithm_version}</span>`; } catch (e) { $("#wm").innerHTML = `<span class="err">${esc(e.message)}</span>`; } };
+      $("#wr").onclick = async () => { try { await api("/api/kp/admin/config/category:" + code, {method: "DELETE"}); adminApp(); } catch (e) { $("#wm").innerHTML = `<span class="err">${esc(e.message)}</span>`; } }; };
+    $("#wc").onchange = showW; showW();
+    v.querySelectorAll("[data-save]").forEach(b => b.onclick = async () => { const k2 = b.dataset.save; const msg = $(`[data-msg="${k2}"]`);
+      try { const val = JSON.parse($(`[data-sec="${k2}"]`).value); const r = await api("/api/kp/admin/config/" + k2, {method: "PUT", body: {value: val}}); msg.innerHTML = `<span class="ok">Saved — algorithm v${r.algorithm_version}</span>`; }
+      catch (e) { msg.innerHTML = `<span class="err">${esc(e.message)}</span>`; } });
+    v.querySelectorAll("[data-reset]").forEach(b => b.onclick = async () => { try { await api("/api/kp/admin/config/" + b.dataset.reset, {method: "DELETE"}); adminApp(); } catch (e) { $(`[data-msg="${b.dataset.reset}"]`).innerHTML = `<span class="err">${esc(e.message)}</span>`; } });
+  }
+}
+render().catch(e => { $("#app").innerHTML = `<div class="card err">${esc(e.message)}</div>`; });
+</script>
+</body>
+</html>
