@@ -352,6 +352,15 @@ def _web_phone_take_verified(phone):
         return expires_at is not None and time.time() <= expires_at
 
 
+def _web_phone_peek_verified(phone):
+    """Like _web_phone_take_verified but leaves the flag in place, so a
+    sign-up that fails a later check (e.g. email already registered) can be
+    corrected and retried without making the person request a new code."""
+    with _web_phone_verified_lock:
+        expires_at = _web_phone_verified_state.get(phone)
+        return expires_at is not None and time.time() <= expires_at
+
+
 def _client_ip():
     forwarded = request.headers.get("X-Forwarded-For", "")
     if forwarded:
@@ -609,7 +618,12 @@ def validate_json(schema):
                 if message:
                     errors[field_name] = message
             if errors:
-                return jsonify({"error": "Invalid request", "fields": errors}), 400
+                summary = "; ".join(f"{k} {v}" for k, v in errors.items())
+                return jsonify({
+                    "error": "Invalid request",
+                    "message": f"Please check your details: {summary}",
+                    "fields": errors,
+                }), 400
             return fn(*args, **kwargs)
         return wrapper
     return decorator
@@ -1861,10 +1875,10 @@ def auth_phone_register():
     name = data["name"].strip()
     email = (data.get("email") or "").strip().lower() or f"{phone}@rasoicare.demo"
 
-    if not _web_phone_take_verified(phone):
+    if not _web_phone_peek_verified(phone):
         return jsonify({
             "error": "Phone not verified",
-            "message": "Verify your phone with a fresh code first.",
+            "message": "Your phone verification expired — go back and request a fresh code.",
         }), 400
 
     conn = get_db()
@@ -1876,13 +1890,26 @@ def auth_phone_register():
     existing_phone = conn.execute("SELECT * FROM users WHERE phone = ?", (phone,)).fetchone()
     if existing_phone:
         conn.close()
+        _web_phone_take_verified(phone)
         return jsonify({
             "token": generate_token(existing_phone["id"]),
             "user": user_row_to_dict(existing_phone),
         })
+    # Checked before the verification is consumed: a 409 here is fixed by
+    # typing a different email, and the retry must still find the phone
+    # verified (it used to say "Phone not verified" on the second try).
     if conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone():
         conn.close()
-        return jsonify({"error": "Email already registered"}), 409
+        return jsonify({
+            "error": "Email already registered",
+            "message": "That email is already registered — use a different one or leave it blank.",
+        }), 409
+    if not _web_phone_take_verified(phone):
+        conn.close()
+        return jsonify({
+            "error": "Phone not verified",
+            "message": "Your phone verification expired — go back and request a fresh code.",
+        }), 400
 
     user_id = new_uuid_id("USR")
     conn.execute(
@@ -2336,6 +2363,8 @@ def send_sms(to_number, content, *, request_id=None):
     there's no recipient number — callers should treat this purely as a
     best-effort notification, never as something the response depends on."""
     if not HTTPSMS_API_KEY or not HTTPSMS_FROM_NUMBER or not to_number:
+        print("send_sms skipped: HTTPSMS_API_KEY / HTTPSMS_FROM_NUMBER not set on the server "
+              "(or no recipient) — no SMS can be sent", file=sys.stderr)
         return False
     payload = json.dumps({
         "content": content,

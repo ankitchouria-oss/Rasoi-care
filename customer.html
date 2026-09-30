@@ -697,8 +697,8 @@ body{
           <div class="bar" style="--w:66%;margin-bottom:6px"><i style="--w:66%"></i></div>
           <p class="mono muted">Step 2 of 3 — about you</p>
           <div class="stack" style="margin-top:22px;gap:13px">
-            <label class="field"><input placeholder=" " value="Rohan Deshpande" id="regNameInput"><span>Full name</span></label>
-            <label class="field"><input placeholder=" " value="rohan.d@gmail.com" id="regEmailInput"><span>Email</span></label>
+            <label class="field"><input placeholder=" " id="regNameInput" autocomplete="name"><span>Full name</span></label>
+            <label class="field"><input placeholder=" " id="regEmailInput" type="email" autocomplete="email"><span>Email (optional)</span></label>
             <label class="field"><input placeholder=" "><span>Referral code (optional)</span></label>
             <div>
               <p class="eyebrow" style="margin-bottom:9px">Which appliances do you own?</p>
@@ -1508,6 +1508,7 @@ function updateIdentity(){
 // deterministically derivable from the phone number alone. Now the code
 // is generated and checked server-side and never appears in this file.
 let pendingPhone = '';
+let registering = false;
 async function submitLogin(){
   const v = document.getElementById('loginPhoneInput').value.replace(/\D/g,'');
   if(v.length !== 10){ toast('Enter a valid 10-digit mobile number.'); return; }
@@ -1567,12 +1568,17 @@ async function completeOtp(){
   }
 }
 async function submitRegister(){
-  const name = document.getElementById('regNameInput').value.trim() || 'Guest User';
+  if(registering) return;
+  const name = document.getElementById('regNameInput').value.trim();
   const email = document.getElementById('regEmailInput').value.trim();
+  if(!/^[0-9]{10}$/.test(pendingPhone)){ toast('Enter your mobile number and verify it first.'); go('login'); return; }
+  if(!name){ toast('Please enter your full name.'); return; }
+  registering = true;
   try{
     const resp = await apiPost('/api/auth/phone/register', { phone: pendingPhone, name, email: email || undefined });
     finishAuth(resp, pendingPhone);
   }catch(e){ toast(e.message || 'Could not create your account — try again.'); }
+  finally{ registering = false; }
 }
 function finishAuth(resp, phone){
   STATE.token = resp.token;

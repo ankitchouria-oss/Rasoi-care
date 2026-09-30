@@ -10,3 +10,11 @@ services:
         generateValue: true
       - key: DATABASE_URL
         sync: false
+      # httpSMS gateway — without these the phone-login OTP text can't be
+      # sent ("We couldn't text you a code just now"). Set both in the
+      # Render dashboard: the API key from httpsms.com settings, and the
+      # E.164 number (e.g. +919876543210) of the Android phone registered there.
+      - key: HTTPSMS_API_KEY
+        sync: false
+      - key: HTTPSMS_FROM_NUMBER
+        sync: false
