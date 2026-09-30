@@ -100,3 +100,28 @@ def test_register_is_one_time_use_of_the_verified_flag(client, monkeypatch):
     # phone ownership.
     second = client.post("/api/auth/phone/register", json={"phone": phone, "name": "Alice"})
     assert second.status_code == 400
+
+
+def test_register_email_conflict_can_be_retried_without_a_new_code(client, monkeypatch):
+    register_and_login(client, email="taken@example.com", phone="9000000001")
+    phone = "9812345679"
+    captured = _capture_sms(monkeypatch)
+    client.post("/api/auth/phone/send-otp", json={"phone": phone})
+    code = _code_from(captured)
+    client.post("/api/auth/phone/verify-otp", json={"phone": phone, "otp": code})
+
+    clash = client.post(
+        "/api/auth/phone/register",
+        json={"phone": phone, "name": "New", "email": "taken@example.com"},
+    )
+    assert clash.status_code == 409
+    assert clash.get_json()["message"]
+
+    retry = client.post("/api/auth/phone/register", json={"phone": phone, "name": "New"})
+    assert retry.status_code == 201, retry.get_json()
+
+
+def test_validation_error_carries_a_readable_message(client):
+    resp = client.post("/api/auth/phone/register", json={"phone": "", "name": "x"})
+    assert resp.status_code == 400
+    assert "phone" in resp.get_json()["message"]
