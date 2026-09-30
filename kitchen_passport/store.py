@@ -94,7 +94,12 @@ def load_config(conn):
 
 
 class ConfigError(ValueError):
-    pass
+    """Validation failure whose message is written by this module (never
+    an underlying exception's text), so it is safe to return to the client."""
+
+    def __init__(self, message):
+        super().__init__(message)
+        self.public_message = message
 
 
 def _validate_section(section, value, cfg):

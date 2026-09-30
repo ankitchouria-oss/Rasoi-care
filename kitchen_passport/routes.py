@@ -342,8 +342,8 @@ def create_blueprint(hooks):
         for k in ("purchase_date", "installation_date", "warranty_start", "warranty_end", "last_service_date"):
             try:
                 fields[k] = _clean_date(data.get(k))
-            except ValueError as e:
-                errors[k] = str(e)
+            except ValueError:
+                errors[k] = "dates must be YYYY-MM-DD"
         if fields.get("last_service_date") and fields["last_service_date"] > _today().isoformat():
             errors["last_service_date"] = "cannot be in the future"
         fields["extended_warranty"] = bool(data.get("extended_warranty"))
@@ -789,7 +789,7 @@ def create_blueprint(hooks):
                 c = store.save_config_section(conn, section, data["value"], g.kp["id"])
         except store.ConfigError as e:
             conn.close()
-            return _err(400, str(e))
+            return _err(400, e.public_message)
         conn.close()
         return jsonify({"algorithm_version": c["algorithm_version"]})
 
@@ -872,8 +872,8 @@ def create_blueprint(hooks):
                 errors["appliance_id"] = "not in this kitchen"
         try:
             day = _clean_date(data.get("scheduled_date")) or _today().isoformat()
-        except ValueError as e:
-            errors["scheduled_date"] = str(e)
+        except ValueError:
+            errors["scheduled_date"] = "dates must be YYYY-MM-DD"
             day = None
         jtype = str(data.get("job_type", "SERVICE")).upper()
         if jtype not in ("SERVICE", "REPAIR", "INSPECTION", "INSTALLATION"):
