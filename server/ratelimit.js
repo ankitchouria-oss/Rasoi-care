@@ -181,14 +181,18 @@ function rateLimitAuthenticated(identityKey) {
   return rateLimited(`authed:${identityKey}`, LIMITS.authedMax, LIMITS.authedWindow);
 }
 
-/** Global per-IP backstop across /api/. */
-function globalRateLimit(req, res, next) {
-  if (!req.path.startsWith("/api/")) return next();
-  if (rateLimited(`ip:${clientIp(req)}`, LIMITS.globalMax, LIMITS.globalWindow)) {
-    return res.status(429).json(TOO_MANY);
-  }
-  return next();
-}
+/** Global per-IP backstop across /api/ — express-rate-limit, keyed the same
+ * way as every other tier here. */
+const globalRateLimit = require("express-rate-limit").rateLimit({
+  windowMs: LIMITS.globalWindow * 1000,
+  limit: LIMITS.globalMax,
+  keyGenerator: (req) => `ip:${clientIp(req)}`,
+  skip: (req) => !req.path.startsWith("/api/"),
+  standardHeaders: false,
+  legacyHeaders: false,
+  validate: false,
+  handler: (req, res) => res.status(429).json(TOO_MANY),
+});
 
 // ---------------------------------------------------------------- OTPs
 function fourDigitCode() {
