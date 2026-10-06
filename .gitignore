@@ -3,3 +3,4 @@ __pycache__/
 rasoicare.db
 server.log
 .venv/
+node_modules/

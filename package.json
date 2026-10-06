@@ -1,0 +1,24 @@
+{
+  "name": "rasoicare-backend",
+  "version": "2.0.0",
+  "private": true,
+  "description": "RasoiCare REST API (Express + MySQL), deployable as a Hostinger Node.js web app",
+  "main": "server/index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "node --test --test-concurrency=1 tests/*.test.js",
+    "migrate:from-postgres": "node server/scripts/migrate-from-postgres.js"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.7.1",
+    "jsonwebtoken": "^9.0.3",
+    "mysql2": "^3.24.5"
+  },
+  "optionalDependencies": {
+    "pg": "^8.23.1"
+  }
+}

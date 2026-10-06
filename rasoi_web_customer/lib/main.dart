@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
-const String kBackendBaseUrl = "https://rasoicare-backend.onrender.com";
+const String kBackendBaseUrl = "https://rasoicare-api.onrender.com";
 const String kAppPath = "/customer";
 
 void main() => runApp(const RasoiCareApp());

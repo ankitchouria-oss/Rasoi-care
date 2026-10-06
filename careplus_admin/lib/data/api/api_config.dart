@@ -6,6 +6,6 @@
 abstract final class ApiConfig {
   static const baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://rasoicare-backend.onrender.com',
+    defaultValue: 'https://rasoicare-api.onrender.com',
   );
 }

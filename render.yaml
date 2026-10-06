@@ -1,12 +1,26 @@
 services:
   - type: web
     name: rasoicare-backend
-    runtime: python
+    runtime: node
     plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
     envVars:
       - key: JWT_SECRET
         generateValue: true
-      - key: DATABASE_URL
+      # Hostinger MySQL (hPanel -> Databases -> Remote MySQL for the host)
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        value: "3306"
+      - key: DB_NAME
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: STAFF_SEED_OWNER_PIN
+        sync: false
+      - key: STAFF_SEED_STAFF_PIN
         sync: false

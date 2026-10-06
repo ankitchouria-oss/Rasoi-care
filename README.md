@@ -2,112 +2,94 @@
 
 Serves three separate apps — Customer, Technician, and Admin — each its
 own page (`/customer`, `/technician`, `/admin`), plus a landing hub at
-`/`. A real Flask + SQLite REST API is the server all three call, so an
-action on one device
-(e.g. a technician marking a job complete) is visible to another device
-(e.g. the customer's phone) as soon as it polls the API.
-
-This has been built and tested (every endpoint below was exercised with
-real HTTP requests, including a full booking → accept → advance →
-complete → rate → complaint → resolve cycle, and a check that data
-survives a server restart). It currently only runs on `127.0.0.1` inside
-a sandbox with no public address — follow "Deploy it for real" below to
-get a URL that an actual phone can reach.
+`/`, and the REST API every app (web and native) calls. It's a Node.js
+(Express) server backed by MySQL, run on **Render**, with its MySQL database on **Hostinger**.
+An action on one device (e.g. a technician marking a job complete) is
+visible on another (e.g. the customer's phone) as soon as it polls the API.
 
 ## Files
 
-- `app.py` — the Flask app and all API routes
-- `database.py` — SQLite schema, seed data, connection helper
-- `requirements.txt` — Python dependencies
-- `Procfile` — tells hosting platforms how to start the app in production
+- `server/app.js` — the Express app and all API routes
+- `server/db.js` — schema, seed data, MySQL/SQLite connection helper
+- `server/index.js` — entry point (`npm start`)
+- `server/scripts/migrate-from-postgres.js` — one-time copy of the old
+  Render/Postgres data into MySQL
+- `tests/` — API tests (`npm test`)
+- `package.json` — dependencies and scripts
 
-## Run it locally (to test on one machine)
+## Run it locally
+
+Needs Node.js 22.5 or newer (for the built-in SQLite used locally).
 
 ```bash
-pip install -r requirements.txt
-python3 app.py
+npm install
+npm start
 ```
 
-Starts on `http://127.0.0.1:8420`. Try it:
+Starts on `http://127.0.0.1:8420`. With no database configured it uses a
+local SQLite file (`rasoicare.db`, created automatically) — zero setup.
 
 ```bash
 curl http://127.0.0.1:8420/api/health
-curl http://127.0.0.1:8420/api/bookings
+npm test
 ```
 
-A `rasoicare.db` SQLite file is created automatically on first run, seeded
-with the same starting data used across the prototype apps.
+## Deploy: server on Render, database on Hostinger
 
-## Deploy it for real (so separate phones can reach it)
+The Node.js server runs on **Render** (`render.yaml`); the MySQL database
+lives on **Hostinger** — Premium Web Hosting includes MySQL but can't run
+Node.js apps itself, so the server connects to it remotely.
 
-Any host that runs Python works. **Render** has the simplest free path,
-and this repo ships a `render.yaml` blueprint so it's a one-click deploy
-— no manual build/start command entry needed:
+1. **Create the database.** hPanel → **Databases → MySQL Databases** →
+   create a database and user; note the name, user and password.
+2. **Allow remote access.** hPanel → **Databases → Remote MySQL** → add
+   `%` (any host) for that database — Render's outbound IPs aren't fixed
+   on the free plan. Note the host shown there (`srvNNNN.hstgr.io`).
+3. **Configure Render.** On the `rasoicare-backend` web service, set the
+   runtime to **Node**, build command `npm install`, start command
+   `npm start`, and these environment variables:
 
-1. Click **[Deploy to Render](https://render.com/deploy?repo=https://github.com/ankitchouria-oss/Rasoi-care)**
-   (sign in with GitHub if prompted — this step has to happen in your
-   own Render account, nobody else can do it for you).
-2. Render reads `render.yaml`, provisions a free web service named
-   `rasoicare-backend`, and generates a random `JWT_SECRET` for you.
-3. Click **Apply** / **Create Web Service**. First deploy takes a
-   couple of minutes.
-4. Render gives you a public URL like
-   `https://rasoicare-backend.onrender.com`.
-5. Test it from anywhere: `curl https://rasoicare-backend.onrender.com/api/health`
+   | Variable | Value |
+   |---|---|
+   | `DB_HOST` | the `srvNNNN.hstgr.io` host from step 2 |
+   | `DB_PORT` | `3306` |
+   | `DB_NAME` / `DB_USER` / `DB_PASSWORD` | from step 1 |
+   | `DB_SSL` | optional — `true` to encrypt the connection, if the server supports it |
+   | `JWT_SECRET` | a long random string — keeps sign-ins valid across restarts |
+   | `STAFF_SEED_OWNER_PIN` / `STAFF_SEED_STAFF_PIN` | real PINs for the seeded owner/staff logins (set before first boot) |
+   | `FIREBASE_PROJECT_ID` | optional, defaults to `rasoi-care` |
+   | `HTTPSMS_API_KEY` / `HTTPSMS_FROM_NUMBER` | optional, enables SMS (OTP and start codes) |
 
-Prefer doing it by hand instead of the blueprint? Same result:
-**New → Web Service** → connect this repo → Render auto-detects
-`requirements.txt` and `Procfile`, so the build/start commands are
-already right — just click Deploy.
+   (New service instead? `render.yaml` is a ready blueprint.)
+4. **Deploy.** On first boot the server creates every table and seeds the
+   catalog and the owner/staff logins. Check `/api/health`.
 
-**Railway** and **Fly.io** work the same way (both read `Procfile` /
-auto-detect Flask). Pick whichever you already have an account with.
+The apps point at `https://rasoicare-api.onrender.com` (the Render service `rasoicare-api`).
 
-### Persistent data (important once real customers use it)
+Notes:
 
-Render's **free** web services use ephemeral disk — the SQLite file
-above gets wiped on every redeploy, taking any real bookings/accounts
-with it. To fix that, point the backend at a real Postgres database
-instead (nothing else changes; `database.py` auto-detects it):
+- Use a strong database password: with remote access open to `%`, the
+  password is what protects the database.
+- Job photos are stored in the database as base64 (the API accepts up to
+  ~12MB each), so MySQL's `max_allowed_packet` has to be larger than the
+  biggest photo. If very large uploads fail, check that setting.
+- Rate limits and OTP codes live in memory: one Node process, reset on
+  restart.
 
-1. Get a free Postgres database — [Neon](https://neon.tech) has a
-   generous free tier and takes under a minute to provision.
-2. Copy its connection string (looks like
-   `postgresql://user:password@host/dbname?sslmode=require`).
-3. In the Render dashboard, open the `rasoicare-backend` service →
-   **Environment** → add a variable named `DATABASE_URL` with that
-   connection string as the value → save (Render redeploys
-   automatically).
-4. That's it — `database.py` creates the tables and seeds demo data on
-   Postgres exactly like it does on SQLite, and every booking/account
-   from then on survives redeploys.
+### Moving data from an old Postgres database
 
-Without `DATABASE_URL` set, the backend keeps working exactly as
-before (SQLite, zero setup) — this is purely additive.
-
-### Important: SQLite + free hosting tiers
-
-Free web-service tiers on Render/Railway typically use an **ephemeral
-disk** — if the service restarts or redeploys, the `rasoicare.db` file
-can reset. That's fine for testing the deploy, but for anything real you
-have two options:
-
-- **Add a persistent disk** (small paid add-on on Render/Railway) so
-  `rasoicare.db` survives restarts, or
-- **Swap SQLite for a managed Postgres** — Render, Railway, and Supabase
-  all offer a free Postgres instance. Only `database.py` would need to
-  change (swap `sqlite3` for `psycopg2` and adjust the connection
-  string); `app.py`'s routes stay identical since they only call the
-  helper functions in `database.py`.
+`npm install pg`, then
+`SOURCE_DATABASE_URL='postgresql://…' DB_HOST=… DB_USER=… DB_PASSWORD=… DB_NAME=… npm run migrate:from-postgres`.
+It creates the schema and copies every table; re-running is safe, and
+existing passwords/PINs keep working.
 
 ## The three apps
 
 `customer.html`, `technician.html` and `admin.html` are each served
-directly by Flask at `/customer`, `/technician` and `/admin` (see the
-routes at the top of `app.py`). They call the API same-origin — no
-`API_BASE` to configure — so once you deploy this app to Render/Railway/
-Fly.io, all three URLs work immediately off that one deployed address,
-e.g. `https://rasoicare-backend.onrender.com/customer`.
+directly by the server at `/customer`, `/technician` and `/admin` (see the
+static page routes in `server/app.js`). They call the API same-origin — no
+`API_BASE` to configure — so once the app is deployed, all three URLs work
+immediately off that one address, e.g. `https://<your-domain>/customer`.
 
 Open `/customer` and `/technician` on two different devices (or have a
 customer and a technician open them independently) — they're both
@@ -119,7 +101,7 @@ customer's tracking screen and on `/admin`.
 Customer sign-in is phone-number first (OTP is simulated — the demo
 code `4402` auto-fills) but backed by real `/api/auth/*` JWT accounts
 under the hood. The technician and admin apps have no login screen by
-design (see `/api/bookings`'s auth-optional behavior in `app.py`) — they
+design (see `/api/bookings` in `server/app.js`) — they
 show the operations-wide view, not a scoped one.
 
 ### Technicians: areas, verification and auto-routing
@@ -130,7 +112,7 @@ they start unverified and offline, invisible to auto-routing and the
 technician job feed, until admin reviews and verifies them (which also
 brings them online).
 
-When a customer books a service, `create_booking` in `app.py` auto-picks
+When a customer books a service, `POST /api/bookings` in `server/app.js` auto-picks
 a technician: a verified, online technician in the same area and
 category first, then any verified/online technician in that category,
 then any technician in that category at all (never a mismatched
@@ -158,7 +140,7 @@ switchable between week/month/quarter: a revenue trend bar chart, revenue
 by appliance category, a technician leaderboard (jobs + revenue in the
 period), and a complaint status breakdown. The owner-only P&amp;L
 (gross revenue, technician payout, net margin) uses one clearly-labeled
-assumption — a 65% payout rate (`TECH_PAYOUT_RATE` in `app.py`) — since
+assumption — a 65% payout rate (`TECH_PAYOUT_RATE` in `server/app.js`) — since
 there's no real payroll ledger to draw from; everything else on the tab
 is a direct aggregation of the same `bookings`/`complaints`/`technicians`
 tables the rest of the app uses.
@@ -179,7 +161,7 @@ future change to `customer.html`/`technician.html`/`admin.html`) show up in
 an installable APK with no rebuild required on the web side.
 
 Each app has one thing to configure before it's useful: `kBackendBaseUrl` at
-the top of `lib/main.dart`, currently a placeholder. Once this Flask app is
+the top of `lib/main.dart`, currently a placeholder. Once this backend is
 deployed (see "Deploy it for real" above), set it to that public URL and
 rebuild:
 
