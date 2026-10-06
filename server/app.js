@@ -2121,17 +2121,23 @@ app.get("/api/technicians/:technicianId/document/:kind", requireStaffAuth, async
   if (!row) return notFound(res);
   const url = get(row, field);
   if (!url) return notFound(res);
-  let host = null;
+  let parsed = null;
   try {
-    host = new URL(url).hostname;
+    parsed = new URL(url);
   } catch {
-    host = null;
+    parsed = null;
   }
-  if (!DOCUMENT_PROXY_ALLOWED_HOSTS.includes(host)) {
+  // The fetch target is rebuilt from the allowlist's own constant, so only
+  // the path/query ever come from the stored URL.
+  const trustedHost = parsed && parsed.protocol === "https:"
+    ? DOCUMENT_PROXY_ALLOWED_HOSTS.find((h) => h === parsed.hostname)
+    : undefined;
+  if (!trustedHost) {
     return res.status(502).json({ error: "Document URL is not from a trusted host" });
   }
+  const target = new URL(`${parsed.pathname}${parsed.search}`, `https://${trustedHost}`);
   try {
-    const resp = await fetch(url, { signal: AbortSignal.timeout(10000), redirect: "error" });
+    const resp = await fetch(target, { signal: AbortSignal.timeout(10000), redirect: "error" });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = Buffer.from(await resp.arrayBuffer());
     return res.type(resp.headers.get("Content-Type") || "application/octet-stream").send(data);
