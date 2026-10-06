@@ -426,6 +426,9 @@ function getMysqlPool() {
     connectionLimit: Number(process.env.DB_POOL_SIZE || 5),
     charset: "utf8mb4",
     timezone: "Z",
+    // DB_SSL=true encrypts the connection — worth it when the database is
+    // reached over the internet (e.g. Render -> Hostinger remote MySQL).
+    ...(process.env.DB_SSL === "true" ? { ssl: { rejectUnauthorized: false } } : {}),
   };
   mysqlPool = config.mysql.uri
     ? mysql.createPool({ uri: config.mysql.uri, ...base })

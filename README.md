@@ -3,8 +3,7 @@
 Serves three separate apps — Customer, Technician, and Admin — each its
 own page (`/customer`, `/technician`, `/admin`), plus a landing hub at
 `/`, and the REST API every app (web and native) calls. It's a Node.js
-(Express) server backed by MySQL, built to run as a **Hostinger Node.js
-web app** with the MySQL database Hostinger provides on the same server.
+(Express) server backed by MySQL, run on **Render**, with its MySQL database on **Hostinger**.
 An action on one device (e.g. a technician marking a job complete) is
 visible on another (e.g. the customer's phone) as soon as it polls the API.
 
@@ -35,67 +34,54 @@ curl http://127.0.0.1:8420/api/health
 npm test
 ```
 
-## Deploy on Hostinger
+## Deploy: server on Render, database on Hostinger
 
-Hostinger's **Business** and **Cloud** web hosting plans run Node.js web
-apps (shared Premium hosting doesn't — it only runs PHP). Python isn't
-supported on Hostinger web hosting, which is why the backend was ported
-from Flask to Node.js.
+The Node.js server runs on **Render** (`render.yaml`); the MySQL database
+lives on **Hostinger** — Premium Web Hosting includes MySQL but can't run
+Node.js apps itself, so the server connects to it remotely.
 
 1. **Create the database.** hPanel → **Databases → MySQL Databases** →
-   create a database and user. Note the database name, user and password.
-2. **Create the Node.js app.** In hPanel, add a new website as a
-   **Node.js app** and import this GitHub repository (or upload a zip).
-   - Framework: Express · Node.js version: 22.x
-   - Entry file: `server/index.js` · Build command: `npm install`
-3. **Set environment variables** on the app:
+   create a database and user; note the name, user and password.
+2. **Allow remote access.** hPanel → **Databases → Remote MySQL** → add
+   `%` (any host) for that database — Render's outbound IPs aren't fixed
+   on the free plan. Note the host shown there (`srvNNNN.hstgr.io`).
+3. **Configure Render.** On the `rasoicare-backend` web service, set the
+   runtime to **Node**, build command `npm install`, start command
+   `npm start`, and these environment variables:
 
    | Variable | Value |
    |---|---|
-   | `DB_HOST` | `127.0.0.1` (the database runs on the same server) |
+   | `DB_HOST` | the `srvNNNN.hstgr.io` host from step 2 |
    | `DB_PORT` | `3306` |
    | `DB_NAME` / `DB_USER` / `DB_PASSWORD` | from step 1 |
+   | `DB_SSL` | optional — `true` to encrypt the connection, if the server supports it |
    | `JWT_SECRET` | a long random string — keeps sign-ins valid across restarts |
    | `STAFF_SEED_OWNER_PIN` / `STAFF_SEED_STAFF_PIN` | real PINs for the seeded owner/staff logins (set before first boot) |
    | `FIREBASE_PROJECT_ID` | optional, defaults to `rasoi-care` |
    | `HTTPSMS_API_KEY` / `HTTPSMS_FROM_NUMBER` | optional, enables SMS (OTP and start codes) |
 
-   Use `127.0.0.1`, not `localhost` and not the `srvNNNN.hstgr.io` host —
-   that one is only for connections from outside Hostinger.
+   (New service instead? `render.yaml` is a ready blueprint.)
 4. **Deploy.** On first boot the server creates every table and seeds the
-   catalog and the owner/staff logins. Check `https://<your-domain>/api/health`.
-5. **Point the apps at the new URL.** The apps still default to the old
-   Render address — update it and rebuild:
-   - `careplus_flutter`, `careplus_partner`, `careplus_admin`:
-     `lib/data/api/api_config.dart` (or pass
-     `--dart-define=API_BASE_URL=https://<your-domain>`)
-   - `rasoi_web_customer`, `rasoi_web_partner`, `rasoi_web_admin`:
-     `kBackendBaseUrl` in `lib/main.dart`
+   catalog and the owner/staff logins. Check `/api/health`.
 
-### Moving existing data off Render/Postgres
+The app URLs (`https://rasoicare-backend.onrender.com`) stay the same.
 
-If the old deployment had a `DATABASE_URL` Postgres database, copy it
-across once (from your own machine). First allow your IP under hPanel →
-**Databases → Remote MySQL**, then:
+Notes:
 
-```bash
-npm install pg
-SOURCE_DATABASE_URL='postgresql://user:pass@host/db' \
-DB_HOST=srvNNNN.hstgr.io DB_USER=... DB_PASSWORD=... DB_NAME=... \
-npm run migrate:from-postgres
-```
+- Use a strong database password: with remote access open to `%`, the
+  password is what protects the database.
+- Job photos are stored in the database as base64 (the API accepts up to
+  ~12MB each), so MySQL's `max_allowed_packet` has to be larger than the
+  biggest photo. If very large uploads fail, check that setting.
+- Rate limits and OTP codes live in memory: one Node process, reset on
+  restart.
 
-It creates the schema, then copies every table; re-running it is safe.
-Existing passwords and PINs keep working — hashes use the same format as
-the old backend.
+### Moving data from an old Postgres database
 
-### Notes
-
-- Job photos are stored in the database as base64 (the API accepts up
-  to ~12MB each), so MySQL's `max_allowed_packet` has to be larger than
-  the biggest photo. If very large uploads fail, check that setting.
-- Rate limits and OTP codes live in memory: one Node process per app,
-  reset on restart.
+`npm install pg`, then
+`SOURCE_DATABASE_URL='postgresql://…' DB_HOST=… DB_USER=… DB_PASSWORD=… DB_NAME=… npm run migrate:from-postgres`.
+It creates the schema and copies every table; re-running is safe, and
+existing passwords/PINs keep working.
 
 ## The three apps
 
