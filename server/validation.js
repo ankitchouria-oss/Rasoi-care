@@ -85,7 +85,8 @@ function validateJson(schema) {
 }
 
 const PATTERNS = {
-  EMAIL: /^[^@\s]+@[^@\s]+\.[^@\s]+$/,
+  // Dot-separated domain labels: one way to match, so no polynomial backtracking.
+  EMAIL: /^[^@\s]+@[^@\s.]+(?:\.[^@\s.]+)+$/,
   PHONE: /^[0-9]{10}$/,
   PAN: /^[A-Z]{5}[0-9]{4}[A-Z]$/,
   IFSC: /^[A-Z]{4}0[A-Z0-9]{6}$/,
