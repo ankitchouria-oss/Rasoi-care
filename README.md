@@ -64,7 +64,7 @@ Node.js apps itself, so the server connects to it remotely.
 4. **Deploy.** On first boot the server creates every table and seeds the
    catalog and the owner/staff logins. Check `/api/health`.
 
-The app URLs (`https://rasoicare-backend.onrender.com`) stay the same.
+The apps point at `https://rasoicare-api.onrender.com` (the Render service `rasoicare-api`).
 
 Notes:
 
