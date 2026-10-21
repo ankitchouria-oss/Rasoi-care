@@ -763,7 +763,10 @@ async function loadReports(period){
       <div class="sect"><h3>Owner P&amp;L</h3></div>
       <div class="card card-p" style="background:var(--surface-2)">
         <div class="between"><span class="tiny muted">Gross revenue</span><b class="mono">₹${r.pnl.grossRevenue.toLocaleString('en-IN')}</b></div>
-        <div class="between" style="margin-top:8px"><span class="tiny muted">Technician payout (assumed ${Math.round(r.pnl.payoutRateAssumed*100)}%)</span><b class="mono">₹${r.pnl.technicianPayout.toLocaleString('en-IN')}</b></div>
+        <div class="between" style="margin-top:8px"><span class="tiny muted">Technician commission</span><b class="mono">₹${r.pnl.technicianCommission.toLocaleString('en-IN')}</b></div>
+        <div class="between"><span class="tiny muted">+ Incentives</span><b class="mono">₹${r.pnl.technicianIncentives.toLocaleString('en-IN')}</b></div>
+        <div class="between"><span class="tiny muted">− Fines</span><b class="mono">₹${r.pnl.technicianFines.toLocaleString('en-IN')}</b></div>
+        <div class="between" style="margin-top:8px"><span class="tiny muted">Technician payout (effective ${Math.round(r.pnl.payoutRateEffective*100)}%)</span><b class="mono">₹${r.pnl.technicianPayout.toLocaleString('en-IN')}</b></div>
         <div class="divider"></div>
         <div class="between"><b>Net margin</b><b class="price">₹${r.pnl.netMargin.toLocaleString('en-IN')}</b></div>
       </div>` : '';

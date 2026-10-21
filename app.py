@@ -4282,7 +4282,6 @@ def stats_overview():
 
 # ---------------------------------------------------------------- reports
 PERIOD_DAYS = {"week": 7, "month": 30, "quarter": 90}
-TECH_PAYOUT_RATE = 0.65  # assumed share of revenue paid out to technicians — not a real ledger figure
 
 
 @app.route("/api/stats/reports", methods=["GET"])
@@ -4324,7 +4323,28 @@ def stats_reports():
             "SELECT * FROM complaints WHERE created_at >= ?", (cutoff,)
         ).fetchall()
         technicians = conn.execute("SELECT * FROM technicians").fetchall()
+
+    # Real technician payout for the period — the same per-booking
+    # commission formula (compute_commission_paise) and ledger (incentive/
+    # fine) rows technician_earnings_payload shows a technician themself,
+    # just scoped to this period/area instead of a technician's lifetime.
+    # Queried here, before conn.close(), so this stays one connection.
+    tech_by_id = {t["id"]: t for t in technicians}
+    tech_ids_in_scope = list(tech_by_id.keys())
+    if tech_ids_in_scope:
+        placeholders = ",".join("?" for _ in tech_ids_in_scope)
+        ledger_rows = conn.execute(
+            "SELECT amount_paise, kind FROM technician_ledger "
+            f"WHERE created_at >= ? AND technician_id IN ({placeholders})",
+            [cutoff] + tech_ids_in_scope,
+        ).fetchall()
+    else:
+        ledger_rows = []
     conn.close()
+
+    def _employment_type_for(tech_id):
+        t = tech_by_id.get(tech_id)
+        return t["employment_type"] if t is not None and "employment_type" in t.keys() else "outsourced"
 
     completed = [b for b in bookings if b["status"] == "Completed"]
 
@@ -4392,12 +4412,24 @@ def stats_reports():
         "pnl": None,
     }
     if request.staff["role"] == "owner":
-        payout = round(gross_revenue * TECH_PAYOUT_RATE)
+        commission_paise = sum(
+            compute_commission_paise(
+                b["total_amount"] if "total_amount" in b.keys() and b["total_amount"] is not None else b["price"],
+                _employment_type_for(b["technician_id"]),
+            )
+            for b in completed
+        )
+        incentive_paise = sum(r["amount_paise"] for r in ledger_rows if r["kind"] == "incentive")
+        fine_paise = sum(r["amount_paise"] for r in ledger_rows if r["kind"] == "fine")
+        payout = round((commission_paise + incentive_paise + fine_paise) / 100)
         result["pnl"] = {
             "grossRevenue": gross_revenue,
+            "technicianCommission": round(commission_paise / 100),
+            "technicianIncentives": round(incentive_paise / 100),
+            "technicianFines": round(-fine_paise / 100),  # fines are stored negative; show as a positive deduction
             "technicianPayout": payout,
             "netMargin": gross_revenue - payout,
-            "payoutRateAssumed": TECH_PAYOUT_RATE,
+            "payoutRateEffective": round(payout / gross_revenue, 4) if gross_revenue else 0,
         }
     return jsonify(result)
 
